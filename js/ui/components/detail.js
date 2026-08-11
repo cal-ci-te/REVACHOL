@@ -217,15 +217,20 @@ export const UIDetail = {
   /**
    * 渲染文章内容为 HTML。
    * 统一使用 MarkdownUtils.toHTML()，与编辑器保持一致的渲染结果。
-   * 渲染前剥离贴纸占位标记，避免渲染为文本。
+   * 贴纸标记（<!-- sticker:xxx -->）保留在内容中，由 _renderStickersForArticle
+   * 通过 TreeWalker 原位替换为浮动贴纸元素。
    * @param {string} text - 文章内容（Markdown 或 HTML）
    * @returns {string} HTML
    */
   renderContent: function (text) {
     if (!text) return '';
-    // 剥离贴纸占位标记及其周围空白（避免标记残留和空行占位）
-    var clean = StickerRenderer.stripMarkers(text);
-    return MarkdownUtils.toHTML(clean);
+    console.log('[UIDetail.renderContent] input len=' + (text ? text.length : 0) +
+                ' | stickerMarkers=' + (text.match(/sticker:/g) || []).length +
+                ' | head80=' + JSON.stringify(text ? text.substring(0, 80) : ''));
+    var result = MarkdownUtils.toHTML(text);
+    console.log('[UIDetail.renderContent] output len=' + (result ? result.length : 0) +
+                ' | head80=' + JSON.stringify(result ? result.substring(0, 80) : ''));
+    return result;
   },
 
   activateTab: function (id) {
@@ -460,45 +465,54 @@ export const UIDetail = {
     if (document.fullscreenElement) this._exitFullscreen();
   },
 
-  /** 在阅读面板中渲染文章贴纸（从 article.stickers 或内容标记解析） */
+  /** 在阅读面板中渲染文章贴纸（从 article.stickers 或内容标记解析）。
+   *  委托 StickerRenderer 在标记原始位置替换为浮动贴纸元素。 */
   _renderStickersForArticle: function (article, pane) {
     if (!pane) return;
     // 清除旧贴纸
-    var existing = pane.querySelectorAll('.detail-sticker');
+    var existing = pane.querySelectorAll('.detail-sticker, .article-sticker, .sticker-clearfix');
     existing.forEach(function (el) { el.remove(); });
 
     // 优先使用 article.stickers 数组
     var stickers = article.stickers;
     if (!stickers || !stickers.length) {
-      // 从内容标记中解析
       var parsed = this._parseStickerMarkers(article.content || '');
       stickers = parsed.stickers;
+      console.log('[UIDetail._renderStickersForArticle] 从 content 解析到 ' + stickers.length + ' 张贴纸');
+      if (stickers.length) {
+        var s0 = stickers[0];
+        console.log('[UIDetail._renderStickersForArticle] sticker[0]: decoId=' + s0.decoId +
+                    ' | w=' + s0.width + ' h=' + s0.height +
+                    ' | align=' + s0.align + ' shape=' + s0.shape + ' vertices=' + s0.vertices +
+                    ' | margin=' + s0.margin + ' x=' + s0.x + ' y=' + s0.y);
+      }
+    } else {
+      console.log('[UIDetail._renderStickersForArticle] 使用已有 article.stickers: ' + stickers.length + ' 张');
     }
-    if (!stickers || !stickers.length) return;
+    if (!stickers || !stickers.length) {
+      console.warn('[UIDetail._renderStickersForArticle] 无贴纸数据，跳过渲染。article.stickers=' + JSON.stringify(article.stickers));
+      return;
+    }
+    console.log('[UIDetail._renderStickersForArticle] 开始渲染 ' + stickers.length + ' 张贴纸');
 
+    // 找到正文容器（.detail-body），贴纸需注入正文流中才能触发 float + shape-outside 绕排
+    var bodyEl = pane.querySelector('.detail-body');
+    if (!bodyEl) bodyEl = pane;
+    console.log('[UIDetail._renderStickersForArticle] bodyEl=' + (bodyEl ? (bodyEl.tagName + '.' + bodyEl.className) : 'null') +
+                ' | childNodes=' + (bodyEl ? bodyEl.childNodes.length : 0));
+
+    // 检查 bodyEl 中是否有 marker 注释节点
+    var commentCount = 0;
+    if (bodyEl) {
+      var walker = document.createTreeWalker(bodyEl, NodeFilter.SHOW_COMMENT);
+      while (walker.nextNode()) { commentCount++; }
+    }
+    console.log('[UIDetail._renderStickersForArticle] bodyEl 中注释节点总数: ' + commentCount);
+
+    // 延迟到下一帧渲染贴纸，让浏览器先完成内容布局，避免浮动元素尺寸为零
     var self = this;
-    stickers.forEach(function (s) {
-      var deco = window.__REVACHOL__ && window.__REVACHOL__.DecoShelf
-        ? window.__REVACHOL__.DecoShelf.get(s.decoId) : null;
-      var imgSrc = deco ? (deco.dataUrl || deco.url || '') : '/api/decos/' + s.decoId + '/image';
-      if (!imgSrc) return;
-
-      var el = document.createElement('div');
-      el.className = 'detail-sticker';
-      el.style.cssText = [
-        'position:absolute',
-        'left:' + (s.x || StickerShape.DEFAULT_X) + 'px',
-        'top:' + (s.y || StickerShape.DEFAULT_Y) + 'px',
-        'width:' + (s.width || 100) + 'px',
-        'height:' + (s.height || 100) + 'px',
-        'background-image:url(' + imgSrc + ')',
-        'background-size:contain',
-        'background-repeat:no-repeat',
-        'background-position:center',
-        'pointer-events:none', 'z-index:5',
-        'border-radius:4px',
-      ].join(';');
-      pane.appendChild(el);
+    requestAnimationFrame(function () {
+      StickerRenderer.renderInArticle(bodyEl, stickers);
     });
   },
 
@@ -506,16 +520,27 @@ export const UIDetail = {
   _parseStickerMarkers: function (content) {
     var stickers = [];
     var regex = StickerRenderer._MARKER_REGEX;
+    regex.lastIndex = 0; // 重置全局正则状态（共享实例可能被其他模块使用后残留 lastIndex）
     var match;
     while ((match = regex.exec(content)) !== null) {
+      console.log('[UIDetail._parseStickerMarkers] 匹配到标记: index=' + match.index + ' | raw=' + match[0].substring(0, 80));
       var fields = StickerRenderer._parseMarkerContent(match[1]);
+      console.log('[UIDetail._parseStickerMarkers] 解析字段: decoId=' + fields.decoId +
+                  ' | x=' + fields.x + ' y=' + fields.y +
+                  ' | w=' + fields.w + ' h=' + fields.h +
+                  ' | align=' + fields.align + ' shape=' + fields.shape +
+                  ' | vertices=' + fields.vertices + ' margin=' + fields.margin);
       stickers.push({
         decoId: fields.decoId,
         x: fields.x ? parseInt(fields.x) : StickerShape.DEFAULT_X,
         y: fields.y ? parseInt(fields.y) : StickerShape.DEFAULT_Y + stickers.length * StickerShape.DEFAULT_GAP,
         width: parseInt(fields.w) || 100,
         height: parseInt(fields.h) || 100,
+        w: parseInt(fields.w) || StickerShape.DEFAULT_SIZE,
+        h: parseInt(fields.h) || StickerShape.DEFAULT_SIZE,
         align: fields.align || 'left',
+        margin: fields.margin !== undefined ? parseInt(fields.margin) : StickerShape.DEFAULT_MARGIN,
+        pos: fields.pos !== undefined ? parseInt(fields.pos) : -1,
       });
     }
     return { stickers: stickers };

@@ -28,6 +28,7 @@ import { ThemeService } from './services/theme-service.js';
 import { Texture } from './services/texture.js';
 import { initPuzzle } from './puzzle/Puzzle.js';
 import { initMagicBox } from './ui/components/magic-box/index.js';
+import { StickerShape } from './editor/sticker-shape.js';
 import { HealthMonitor } from './services/health-monitor.js';
 import { ArticleEditorMode } from './editor/article-editor-mode.js';
 
@@ -304,6 +305,7 @@ window.__REVACHOL__ = {
   HealthMonitor,
   ComponentManager,
   ArticleEditorMode,
+  StickerShape,
 };
 
 // 左上角工具栏：展开/收起切换

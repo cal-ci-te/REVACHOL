@@ -176,6 +176,26 @@
   font-size: 1rem;
   font-family: var(--font-family-serif);
   white-space: pre-wrap;
+  display: flow-root; /* 创建 BFC 包含浮动贴纸子元素 */
+  min-height: 200px; /* 防止父容器塌陷 */
+}
+
+/* 兜底：::after clearfix（flow-root 失效时保障） */
+.detail-body::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
+/* 贴纸尺寸兜底 — 强制浏览器为浮动贴纸计算布局尺寸 */
+.article-sticker {
+  min-width: 1px;
+  min-height: 1px;
+}
+
+/* 确保段落不会清除浮动（防止干扰贴纸 float 布局） */
+.detail-body p {
+  clear: none;
 }
 
 .detail-body h1 {

@@ -43,6 +43,23 @@ export const StickerRenderer = {
   },
 
   /**
+   * 从内容中剥离已渲染的贴纸 div（.article-sticker 和 .sticker-clearfix）。
+   * 这些 div 是 EditorStickers.render() 在 contentEditable 中替换注释节点后产生的，
+   * 保存时应仅保留纯标记注释，不保留渲染后的 DOM。
+   *
+   * @param {string} content - HTML 内容
+   * @returns {string} 剥离贴纸 div 后的内容
+   */
+  stripStickerDivs: function (content) {
+    if (!content) return '';
+    // 移除 .article-sticker div（含其全部内部内容）
+    var cleaned = content.replace(/<div[^>]*class="[^"]*article-sticker[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+    // 移除 .sticker-clearfix div
+    cleaned = cleaned.replace(/<div[^>]*class="[^"]*sticker-clearfix[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+    return cleaned;
+  },
+
+  /**
    * 从标记注释内容中解析字段（字段顺序无关，兼容新旧格式）。
    * @param {string} raw - 注释内部文本，如 "deco_abc align=left w=120 h=120"
    * @returns {object} { decoId, x, y, w, h, align }
@@ -82,7 +99,11 @@ export const StickerRenderer = {
         y: fields.y ? parseInt(fields.y) : StickerShape.DEFAULT_Y + stickers.length * StickerShape.DEFAULT_GAP,
         w: parseInt(fields.w) || StickerShape.DEFAULT_SIZE,
         h: parseInt(fields.h) || StickerShape.DEFAULT_SIZE,
+        width: parseInt(fields.w) || StickerShape.DEFAULT_SIZE,
+        height: parseInt(fields.h) || StickerShape.DEFAULT_SIZE,
         align: fields.align || 'left',
+        margin: fields.margin !== undefined ? parseInt(fields.margin) : StickerShape.DEFAULT_MARGIN,
+        pos: fields.pos !== undefined ? parseInt(fields.pos) : -1,
         index: match.index,
       });
     }
@@ -108,40 +129,119 @@ export const StickerRenderer = {
     var align = opts.align || 'left';
     var w = opts.w || opts.width || StickerShape.DEFAULT_SIZE;
     var h = opts.h || opts.height || StickerShape.DEFAULT_SIZE;
-    return '<!-- sticker:' + decoId + ' x=' + x + ' y=' + y + ' w=' + w + ' h=' + h + ' align=' + align + ' -->';
+    var margin = opts.margin !== undefined ? opts.margin : StickerShape.DEFAULT_MARGIN;
+    var pos = opts.pos !== undefined ? opts.pos : 'end';  // 位置信息：字符偏移量或 'end'
+    return '<!-- sticker:' + decoId +
+      ' x=' + x + ' y=' + y + ' w=' + w + ' h=' + h +
+      ' align=' + align + ' margin=' + margin +
+      ' pos=' + pos + ' -->';
   },
 
   /**
    * 在文章容器中根据贴纸数据渲染贴纸。贴纸以浮动元素插入到文章内容中，
    * 使用 shape-outside 实现文字绕排。
    *
-   * @param {HTMLElement} container - 文章内容容器
-   * @param {Array<object>} stickers - 贴纸数据列表 [{ decoId, align, w, h }]
+   * 使用 TreeWalker 遍历 DOM 注释节点，找到贴纸标记（<!-- sticker:xxx -->），
+   * 在标记原始位置替换为贴纸浮动元素，而非全部插入到容器开头。
+   *
+   * @param {HTMLElement} container - 文章内容容器（已渲染内容含标记注释）
+   * @param {Array<object>} stickers - 贴纸数据列表 [{ decoId, align, w, h, ... }]
    */
   renderInArticle(container, stickers) {
-    if (!container || !stickers || !stickers.length) return;
+    if (!container || !stickers || !stickers.length) {
+      console.warn('[StickerRenderer.renderInArticle] 跳过：container=' + !!container + ' stickers=' + (stickers ? stickers.length : 0));
+      return;
+    }
+    console.log('[StickerRenderer.renderInArticle] 开始：stickers.length=' + stickers.length);
     this.clearElements();
 
-    var self = this;
+    // 构建 decoId → sticker 快速查找表
+    var stickerMap = {};
+    stickers.forEach(function (s) { if (s && s.decoId) stickerMap[s.decoId] = s; });
 
-    stickers.forEach(function (sticker) {
-      var deco = DecoShelf.get(sticker.decoId);
-      if (!deco) {
-        console.warn('[StickerRenderer] 贴纸不存在，跳过:', sticker.decoId);
+    // TreeWalker 遍历所有注释节点，收集贴纸标记
+    var walker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_COMMENT,
+      {
+        acceptNode: function (c) {
+          if (c.nodeValue && /^\s*sticker:/.test(c.nodeValue.trim())) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          return NodeFilter.FILTER_REJECT;
+        },
+      }
+    );
+
+    // 先收集再替换（遍历中修改 DOM 会破坏迭代器）
+    var comments = [];
+    var node;
+    while ((node = walker.nextNode())) {
+      comments.push(node);
+    }
+    console.log('[StickerRenderer.renderInArticle] TreeWalker 找到 ' + comments.length + ' 个注释节点 | stickerMap keys=' + Object.keys(stickerMap).join(','));
+
+    var self = this;
+    comments.forEach(function (comment) {
+      var match = comment.nodeValue.match(/sticker:([a-zA-Z0-9_-]+)/);
+      if (!match) {
+        console.warn('[StickerRenderer.renderInArticle] 注释无法解析 decoId: ' + comment.nodeValue.substring(0, 40));
+        return;
+      }
+      var decoId = match[1];
+      var sticker = stickerMap[decoId];
+      if (!sticker) {
+        console.warn('[StickerRenderer.renderInArticle] stickerMap 中无 decoId=' + decoId + ' | 可用: ' + Object.keys(stickerMap).join(','));
         return;
       }
 
-      var el = self._createStickerElement(sticker, deco);
-
-      // 插入到文章容器开头（CSS float 自动处理位置）
-      if (container.firstChild) {
-        container.insertBefore(el, container.firstChild);
-      } else {
-        container.appendChild(el);
+      var deco = DecoShelf.get(decoId);
+      if (!deco) {
+        console.warn('[StickerRenderer.renderInArticle] DecoShelf.get(' + decoId + ') 返回 null/undefined');
+        return;
       }
+      console.log('[StickerRenderer.renderInArticle] deco=' + decoId +
+                  ' | name=' + (deco.name || '?') +
+                  ' | hasDataUrl=' + !!deco.dataUrl +
+                  ' | hasUrl=' + !!deco.url +
+                  ' | sticker.keys=' + Object.keys(sticker).join(','));
 
+      var el = self._createStickerElement(sticker, deco);
+      var imgSrc = deco.dataUrl || deco.url || '';
+      console.log('[StickerRenderer.renderInArticle] 创建元素: tagName=' + el.tagName +
+                  ' | className=' + el.className +
+                  ' | imgSrc前40=' + (imgSrc ? imgSrc.substring(0, 40) : '(empty)') +
+                  ' | deco.dataUrl前40=' + (deco.dataUrl ? deco.dataUrl.substring(0, 40) : '(empty)') +
+                  ' | deco.url=' + deco.url);
+      comment.parentNode.replaceChild(el, comment);
+      // 强制浏览器重排，确保浮动元素尺寸被正确计算
+      void el.offsetHeight;
+      var cs = getComputedStyle(el);
+      console.log('[StickerRenderer.renderInArticle] replaceChild 完成: parentNode=' + (el.parentNode ? el.parentNode.tagName + '.' + el.parentNode.className : 'null') +
+                  ' | offsetWidth=' + el.offsetWidth + ' offsetHeight=' + el.offsetHeight +
+                  ' | compWidth=' + cs.width + ' compHeight=' + cs.height +
+                  ' | compFloat=' + cs.float + ' compDisplay=' + cs.display +
+                  ' | compBackground=' + cs.backgroundImage.substring(0, 50));
       self._elements.push(el);
     });
+
+    // 追加 clearfix 防止浮动贴纸导致高度塌陷
+    this._ensureClearfix(container);
+  },
+
+  /**
+   * 确保容器末尾有 clearfix 元素（防止 float 贴纸导致容器高度塌陷）。
+   * 先移除旧 clearfix 避免累积，再添加新 clearfix。
+   */
+  _ensureClearfix(container) {
+    // 移除旧的避免累积
+    var old = container.querySelectorAll('.sticker-clearfix');
+    old.forEach(function (el) { el.remove(); });
+    // 添加新的
+    var cf = document.createElement('div');
+    cf.className = 'sticker-clearfix';
+    cf.style.cssText = 'clear:both;height:0;overflow:hidden;';
+    container.appendChild(cf);
   },
 
   /**
@@ -255,8 +355,6 @@ export const StickerRenderer = {
         height: parseFloat(el.style.height) || StickerShape.DEFAULT_SIZE,
         align: el.dataset.align || 'left',
         margin: parseInt(el.dataset.margin) || StickerShape.DEFAULT_MARGIN,
-        shape: 'circle',
-        vertices: 16,
       });
     });
     return result;

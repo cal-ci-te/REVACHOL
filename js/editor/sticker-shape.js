@@ -1,15 +1,12 @@
 /**
- * 贴纸形状模块 — 管理贴纸的浮动形状配置和文字绕排 CSS。
+ * 贴纸形状模块 — 管理贴纸的浮动配置和文字绕排 CSS。
+ * v1.18.4 简化：放弃动态多边形 shape-outside / clip-path，改为固定矩形绕排。
  *
  * 职责：
- *   1. 为贴纸生成 shape-outside / clip-path CSS 属性
+ *   1. 为贴纸生成 float + margin 浮动样式
  *   2. 管理贴纸的浮动方向（left/right）和间距
  *   3. 提供贴纸闪避位置推荐（避免两个贴纸重叠）
- *
- * 依赖：ShapeGenerator（js/utils/shape-generator.js）
  */
-
-import { ShapeGenerator } from '../utils/shape-generator.js';
 
 export const StickerShape = {
 
@@ -22,9 +19,6 @@ export const StickerShape = {
   /** 默认浮动方向 */
   DEFAULT_ALIGN: 'left',
 
-  /** 默认顶点数 */
-  DEFAULT_VERTICES: 16,
-
   /** 默认坐标 X（标记解析无 x 时的回退值） */
   DEFAULT_X: 50,
 
@@ -35,30 +29,23 @@ export const StickerShape = {
   DEFAULT_GAP: 80,
 
   /**
-   * 为贴纸生成浮动样式对象
+   * 为贴纸生成浮动样式对象（v1.18.4 简化为固定矩形绕排）。
+   * 移除 shape-outside / clip-path 动态多边形，仅依赖 float + margin 实现文字绕排。
    *
-   * @param {object} sticker - 贴纸数据 { width, height, align, margin, shape, vertices }
-   * @returns {{ float: string, shapeOutside: string, clipPath: string, width: string, height: string, margin: string }}
+   * @param {object} sticker - 贴纸数据 { width, height, align, margin }
+   * @returns {{ float: string, width: string, height: string, margin: string }}
    */
   buildFloatStyles(sticker) {
     var w = sticker.width || this.DEFAULT_SIZE;
     var h = sticker.height || this.DEFAULT_SIZE;
     var align = sticker.align || this.DEFAULT_ALIGN;
     var margin = sticker.margin !== undefined ? sticker.margin : this.DEFAULT_MARGIN;
-    var shape = sticker.shape || 'circle';
-    var vertices = sticker.vertices || this.DEFAULT_VERTICES;
 
-    // 生成形状数据
-    var shapeData = ShapeGenerator.forSticker(w, h, shape, vertices);
-    var cssPolygon = shapeData.cssPolygon;
-
-    // 构建 margin：上 10px，左右为配置值，下 10px
+    // 固定矩形绕排：只使用 float + margin，无 shape-outside / clip-path
     var marginCSS = '10px ' + margin + 'px 10px ' + margin + 'px';
 
     return {
       float: align,
-      shapeOutside: cssPolygon,
-      clipPath: cssPolygon,
       width: w + 'px',
       height: h + 'px',
       margin: marginCSS,
@@ -66,7 +53,7 @@ export const StickerShape = {
   },
 
   /**
-   * 为贴纸生成 DOM 内联样式字符串
+   * 为贴纸生成 DOM 内联样式字符串（v1.18.4 简化，移除 shape-outside / clip-path）。
    *
    * @param {object} sticker - 贴纸数据
    * @param {string} imageUrl - 贴纸图片地址
@@ -76,8 +63,6 @@ export const StickerShape = {
     var styles = this.buildFloatStyles(sticker);
     var parts = [
       'float:' + styles.float,
-      'shape-outside:' + styles.shapeOutside,
-      'clip-path:' + styles.clipPath,
       'width:' + styles.width,
       'height:' + styles.height,
       'margin:' + styles.margin,

@@ -17,7 +17,22 @@ export var MarkdownUtils = {
    */
   _isLikelyHtml: function (text) {
     if (!text) return false;
-    return /<\/?(p|div|span|h[1-6]|strong|b|em|i|u|a|ul|ol|li|br|blockquote|pre|code|table|img|hr)[>\s\/]/.test(text);
+    // 与编辑器 _isHtmlContent 对齐：匹配任意 HTML 标签，而非白名单限制。
+    // 白名单（p|div|...）无法覆盖 contentEditable 可能产生的所有标签（如 <s>、<tr>、<td> 等），
+    // 导致 WYSIWYG 编辑器保存的合法 HTML 被 escapeHtml 转义为纯文本。
+    var trimmed = text.trim();
+    if (/^<\w+[^>]*>/.test(trimmed) && /<\/\w+>/.test(trimmed)) return true;
+    // 兼容不以标签开头但包含 HTML 标签的内容（如内联 "Hello <strong>World</strong>"）
+    if (/<\/?[a-zA-Z][a-zA-Z0-9]*\b[^>]*\/?\s*>/.test(text)) return true;
+    // 兼容 contentEditable 中直接键入 HTML 时浏览器自动转义的实体标签
+    // 如 &lt;h1&gt;Hello&lt;/h1&gt; — 浏览器将用户键入的 < > 转义为实体
+    if (/&lt;\/?\w+[^&]*&gt;/.test(text)) return true;
+    return false;
+  },
+
+  /** 将浏览器转义的 HTML 实体还原为原始标签（contentEditable 键入转义恢复） */
+  _unescapeHtmlEntities: function (text) {
+    return text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
   },
 
   /**
@@ -32,10 +47,22 @@ export var MarkdownUtils = {
 
     // 如果内容已包含 HTML 标签（WYSIWYG 编辑器输出），跳过 escapeHtml
     // 避免将 <p> 转为 &lt;p&gt; 导致渲染为文本
-    if (this._isLikelyHtml(text)) {
+    var isHtml = this._isLikelyHtml(text);
+    console.log('[MarkdownUtils.toHTML] _isLikelyHtml:', isHtml,
+                '| len:', text ? text.length : 0,
+                '| head80:', JSON.stringify(text ? text.substring(0, 80) : ''));
+    if (isHtml) {
+      // contentEditable 中用户直接键入 HTML 标签时，浏览器自动转义为 &lt; &gt;
+      // 此时需要在渲染前还原，否则 innerHTML 会显示为原始实体文本
+      if (/&lt;\/?\w+[^&]*&gt;/.test(text)) {
+        var unescaped = this._unescapeHtmlEntities(text);
+        console.log('[MarkdownUtils.toHTML] unescaped browser-escaped HTML entities');
+        return unescaped;
+      }
       return text;
     }
 
+    console.log('[MarkdownUtils.toHTML] Processing as Markdown, calling escapeHtml...');
     var html = Utils.escapeHtml(text);
 
     // 代码块（在 inline code 之前处理）

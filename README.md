@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.18.3
+当前版本：v1.18.4
 
 ---
 
@@ -146,6 +146,34 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.18.4
+
+**贴纸渲染简化 + 阅读页位置修复（WIP）**：
+
+> ⚠️ 贴纸渲染位置仍有问题，`pos` 方案将被放弃，下版本转向数据驱动架构。
+
+**贴纸渲染简化（3 项）：**
+- **放弃动态多边形**：移除 `ShapeGenerator` 和 `shape-outside`/`clip-path` 动态计算，改为固定矩形绕排（仅 `float` + `margin`）。贴纸在 `contentEditable` 中的可见性问题得到解决
+- **延迟渲染**：阅读页 `_renderStickersForArticle` 使用 `requestAnimationFrame` 延迟到下一帧，让浏览器先完成内容布局
+- **尺寸兜底**：`.detail-body` 新增 `min-height: 200px`，`.article-sticker` 新增 `min-width/min-height: 1px` 强制浏览器计算浮动元素尺寸
+
+**贴纸位置修复（3 项）：**
+- **`buildSaveContent` 就地替换**：不再将所有标记追加到内容末尾，改为在 HTML 中查找 `.article-sticker` div 并就地替换为标记注释，保留 DOM 位置
+- **`EditorStickers.refresh` 原地更新**：改为按 `decoId` 索引现有元素原地更新样式/图片，新增贴纸追加到末尾，删除贴纸移除 DOM
+- **`onStickerSaved` 使用 DOM 数据**：贴纸编辑器保存后改为从 DOM 构建内容（`_buildSaveContent`），替代旧的末尾追加逻辑
+
+**标记格式扩展：**
+- 新增 `pos` 字段编码贴纸在内容中的字符偏移量
+- `parseMarkers`、`parseStickersFromContent`、`_parseStickerMarkers` 全部同步解析 `pos`（默认 -1 兼容旧数据）
+- `ShapeGenerator`（`js/utils/shape-generator.js`）标记为 `@deprecated`
+
+**编辑器修复（2 项）：**
+- **草稿删除确认文本**：`DraftManager._deleteDraft` 从传入空字符串改为传入实际保存时间
+- **保存/发布异常处理**：`saveDraft` 和 `saveAndPublish` 中 `_buildSaveContent()` 移入 try 块，防止同步异常被静默
+
+**修改文件（9 个）：**
+`sticker-shape.js`、`sticker-renderer.js`、`editor-content.js`、`editor-stickers.js`、`article-editor-mode.js`、`draft-manager.js`、`detail.js`、`detail.css`、`shape-generator.js`（弃用标记）
 
 ### v1.18.3
 

@@ -239,7 +239,9 @@ export const DraftManager = {
 
   /** 删除草稿 */
   async _deleteDraft(draftId) {
-    if (!confirm(UI.draft.deleteConfirm('') || '确定要删除该草稿吗？')) return;
+    var draft = this._drafts.find(function (d) { return d.id === draftId; });
+    var timeStr = draft && draft.saved_at ? new Date(draft.saved_at).toLocaleString('zh-CN') : '';
+    if (!confirm(UI.draft.deleteConfirm(timeStr) || '确定要删除该草稿吗？')) return;
 
     try {
       await ApiClient.delete('/api/articles/' + this._articleId + '/drafts/' + draftId);
