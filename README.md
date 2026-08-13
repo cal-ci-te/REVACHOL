@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.18.4
+当前版本：v1.18.4（开发中）
 
 ---
 
@@ -17,15 +17,15 @@
   </tr>
   <tr>
     <td align="center">暗色</td>
-    <td align="center"><img src="images/screenshots/dark.png" width="400" style="max-width:100%; height:auto;" alt="暗色主题"></td>
+    <td align="center"><img src="images/screenshots/dark.png" width="500" style="max-width:100%; height:auto;" alt="暗色主题"></td>
   </tr>
   <tr>
     <td align="center">亮色</td>
-    <td align="center"><img src="images/screenshots/light.png" width="400" style="max-width:100%; height:auto;" alt="亮色主题"></td>
+    <td align="center"><img src="images/screenshots/light.png" width="500" style="max-width:100%; height:auto;" alt="亮色主题"></td>
   </tr>
   <tr>
     <td align="center">低保真</td>
-    <td align="center"><img src="images/screenshots/lofi.png" width="400" style="max-width:100%; height:auto;" alt="低保真主题"></td>
+    <td align="center"><img src="images/screenshots/lofi.png" width="500" style="max-width:100%; height:auto;" alt="低保真主题"></td>
   </tr>
 </table>
 
@@ -37,15 +37,15 @@
   </tr>
   <tr>
     <td align="center">目录树</td>
-    <td align="center"><img src="images/screenshots/tree.png" width="400" style="max-width:100%; height:auto;" alt="目录树"></td>
+    <td align="center"><img src="images/screenshots/tree.png" width="300" style="max-width:100%; height:auto;" alt="目录树"></td>
   </tr>
   <tr>
     <td align="center">贴纸系统</td>
-    <td align="center"><img src="images/screenshots/deco.png" width="400" style="max-width:100%; height:auto;" alt="贴纸系统"></td>
+    <td align="center"><img src="images/screenshots/deco.png" width="300" style="max-width:100%; height:auto;" alt="贴纸系统"></td>
   </tr>
   <tr>
     <td align="center">移动端</td>
-    <td align="center"><img src="images/screenshots/mobile.png" width="400" style="max-width:100%; height:auto;" alt="移动端"></td>
+    <td align="center"><img src="images/screenshots/mobile.png" width="300" style="max-width:100%; height:auto;" alt="移动端"></td>
   </tr>
 </table>
 
@@ -149,9 +149,23 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 
 ### v1.18.4
 
-**贴纸渲染简化 + 阅读页位置修复（WIP）**：
+**贴纸渲染简化 + 数据驱动锚点架构（WIP）**：
 
-> ⚠️ 贴纸渲染位置仍有问题，`pos` 方案将被放弃，下版本转向数据驱动架构。
+> ⚠️ WIP：贴纸渲染位置问题尚未修复，数据驱动架构重构进行中。
+
+**数据驱动架构（3 项）：**
+- **新增 `AnchorManager`**（`js/editor/anchor-manager.js`）：贴纸锚点管理器，统一负责计算（`computeAnchor`/`computeAnchorFromY`）、定位（`locateAnchor`）、比较（`compareAnchors`）、序列化（`serialize`/`deserialize`）贴纸在内容中的段落锚点
+- **新增 `ContentBuilder`**（`js/editor/content-builder.js`）：内容构建器，按锚点降序排序从后往前插入贴纸标记，支持 `before`/`after`/`inside` 三种插入方向，避免位置偏移
+- **标记格式 `pos` → `anchor`**：贴纸标记由字符偏移量（`pos`）改为段落锚点（`anchor`，含 `type`/`index`/`paragraphId`/`direction`），反序列化兼容旧 JSON 格式与冒号分隔格式
+
+**编辑器改造：**
+- `editor-content.js` 重构内容构建流程
+- `sticker-editor/save.js` 保存流程改用锚点计算
+- `sticker-renderer.js` `createMarker`/`_parseMarkerContent` 支持 `anchor` 字段
+- `article-editor-mode.js`、`draft-manager.js`、`detail.js` 同步调整
+
+**修改文件（8 个）：**
+`anchor-manager.js`（新增）、`content-builder.js`（新增）、`editor-content.js`、`sticker-editor/save.js`、`sticker-renderer.js`、`article-editor-mode.js`、`draft-manager.js`、`detail.js`
 
 **贴纸渲染简化（3 项）：**
 - **放弃动态多边形**：移除 `ShapeGenerator` 和 `shape-outside`/`clip-path` 动态计算，改为固定矩形绕排（仅 `float` + `margin`）。贴纸在 `contentEditable` 中的可见性问题得到解决

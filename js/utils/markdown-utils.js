@@ -53,10 +53,30 @@ export var MarkdownUtils = {
                 '| head80:', JSON.stringify(text ? text.substring(0, 80) : ''));
     if (isHtml) {
       // contentEditable 中用户直接键入 HTML 标签时，浏览器自动转义为 &lt; &gt;
-      // 此时需要在渲染前还原，否则 innerHTML 会显示为原始实体文本
+      // 此时需要在渲染前还原，否则 innerHTML 会显示为原始实体文本。
+      // 但必须先保护贴纸标记（<!-- sticker:... -->），避免 _unescapeHtmlEntities
+      // 的全局替换改变标记周围的段落结构。
+      var hasStickerMarkers = /<!--\s*sticker:/.test(text);
       if (/&lt;\/?\w+[^&]*&gt;/.test(text)) {
-        var unescaped = this._unescapeHtmlEntities(text);
-        console.log('[MarkdownUtils.toHTML] unescaped browser-escaped HTML entities');
+        // 提取贴纸标记，避免被实体还原影响
+        var markerPlaceholders = [];
+        var cleanText = text;
+        if (hasStickerMarkers) {
+          cleanText = text.replace(/<!--\s*sticker:.*?-->/g, function (match) {
+            var idx = markerPlaceholders.length;
+            markerPlaceholders.push(match);
+            return '\x00STICKER_' + idx + '\x00';
+          });
+        }
+        var unescaped = this._unescapeHtmlEntities(cleanText);
+        // 重新插入贴纸标记
+        if (hasStickerMarkers) {
+          unescaped = unescaped.replace(/\x00STICKER_(\d+)\x00/g, function (_, idx) {
+            return markerPlaceholders[parseInt(idx)];
+          });
+        }
+        console.log('[MarkdownUtils.toHTML] unescaped browser-escaped HTML entities' +
+                    (hasStickerMarkers ? ' (stickers preserved)' : ''));
         return unescaped;
       }
       return text;

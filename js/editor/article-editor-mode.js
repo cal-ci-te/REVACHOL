@@ -143,7 +143,8 @@ export const ArticleEditorMode = {
     EventBus.emit(EVENTS.EDITOR_CLOSED, { articleId: this._articleId, saved: save });
 
     this._visible = false;
-    console.log('[ArticleEditorMode] 编辑模式已关闭, save:', save);
+    // save: true = 关闭时执行了保存, false = 关闭时无需保存（数据已在之前发布/草稿保存）
+    console.log('[ArticleEditorMode] 编辑模式已关闭 | 关闭时保存=' + save + ' | _dirty=' + this._dirty);
   },
 
   isVisible() { return this._visible; },
@@ -343,7 +344,7 @@ export const ArticleEditorMode = {
 
       this._snapshot = { title: title, content: content, stickers: this._article ? JSON.parse(JSON.stringify(this._article.stickers || [])) : [] };
       this._dirty = false;
-      if (this._draftManager) { this._draftManager.refresh(); }
+      if (this._draftManager) { await this._draftManager.refresh(); }
       console.log('[ArticleEditorMode] 草稿已保存');
     } catch (err) {
       console.error('[ArticleEditorMode] 草稿保存失败:', err);
@@ -491,6 +492,9 @@ export const ArticleEditorMode = {
    */
   async _openStickers() {
     if (!this._articleId) return;
+    // 防止重复打开（包括快速双击导致的多重注册）
+    if (this._stickerEditorOpen) return;
+    this._stickerEditorOpen = true;
 
     try { await this.saveDraft(); } catch (e) { /* 不阻断 */ }
 
@@ -531,11 +535,13 @@ export const ArticleEditorMode = {
 
         self._dirty = true;
       }
+      self._stickerEditorOpen = false;
       EventBus.off(EVENTS.STICKER_EDITOR_SAVED, onStickerSaved);
       EventBus.off(EVENTS.STICKER_EDITOR_CLOSED, onStickerClosed);
     };
 
     var onStickerClosed = function () {
+      self._stickerEditorOpen = false;
       EventBus.off(EVENTS.STICKER_EDITOR_SAVED, onStickerSaved);
       EventBus.off(EVENTS.STICKER_EDITOR_CLOSED, onStickerClosed);
     };
@@ -590,6 +596,9 @@ export const ArticleEditorMode = {
   // =========================================================================
 
   _cleanup() {
+    // 重置贴纸编辑器状态（防止编辑器被强制关闭后残留状态）
+    this._stickerEditorOpen = false;
+
     // 键盘事件
     if (this._escUnbind) {
       this._escUnbind();

@@ -1,6 +1,13 @@
 // tests/core/app-state.test.js
+// AppState 实际 API 为 commit(mutation, payload)，不存在 set()/setMultiple()。
+// 本文件测试真实的 get / commit(SET_KEY) / subscribe / unsubscribe / reset / snapshot。
+// 更完整的 mutation 覆盖见 tests/unit/app-state.test.js。
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { AppState } from '../../js/core/app-state.js';
+import { MUTATIONS } from '../../js/core/state-mutations.js';
+
+// 辅助函数：等价于 AppState.set(key, value)，内部走真实的 commit(SET_KEY, ...)
+const setKey = (key, value) => AppState.commit(MUTATIONS.SET_KEY, { key, value });
 
 describe('AppState', () => {
   beforeEach(() => {
@@ -8,10 +15,10 @@ describe('AppState', () => {
     AppState.reset();
   });
 
-  // ===== 基本 get/set =====
-  describe('get and set', () => {
+  // ===== 基本 get / commit =====
+  describe('get and commit', () => {
     it('should set and get a value', () => {
-      AppState.set('isLoggedIn', true);
+      setKey('isLoggedIn', true);
       expect(AppState.get('isLoggedIn')).toBe(true);
     });
 
@@ -20,49 +27,24 @@ describe('AppState', () => {
     });
 
     it('should overwrite existing value', () => {
-      AppState.set('panelCollapsed', true);
+      setKey('panelCollapsed', true);
       expect(AppState.get('panelCollapsed')).toBe(true);
 
-      AppState.set('panelCollapsed', false);
+      setKey('panelCollapsed', false);
       expect(AppState.get('panelCollapsed')).toBe(false);
-    });
-
-    it('should support chaining', () => {
-      const result = AppState.set('test', 123).set('test2', 456);
-      expect(result).toBe(AppState);
-      expect(AppState.get('test')).toBe(123);
-      expect(AppState.get('test2')).toBe(456);
     });
   });
 
-  // ===== setMultiple =====
-  describe('setMultiple', () => {
-    it('should set multiple key-value pairs', () => {
-      AppState.setMultiple({
-        isLoggedIn: true,
-        panelCollapsed: false,
-        testValue: 42,
-      });
+  // ===== 设置多个键 =====
+  describe('setting multiple keys', () => {
+    it('should set multiple key-value pairs via SET_KEY', () => {
+      setKey('isLoggedIn', true);
+      setKey('panelCollapsed', false);
+      setKey('testValue', 42);
 
       expect(AppState.get('isLoggedIn')).toBe(true);
       expect(AppState.get('panelCollapsed')).toBe(false);
       expect(AppState.get('testValue')).toBe(42);
-    });
-
-    it('should support chaining', () => {
-      const result = AppState.setMultiple({ a: 1, b: 2 }).setMultiple({ c: 3 });
-      expect(result).toBe(AppState);
-      expect(AppState.get('a')).toBe(1);
-      expect(AppState.get('b')).toBe(2);
-      expect(AppState.get('c')).toBe(3);
-    });
-
-    it('should ignore non-own properties', () => {
-      const obj = Object.create({ inherited: 'should be ignored' });
-      obj.own = 'should be set';
-      AppState.setMultiple(obj);
-      expect(AppState.get('own')).toBe('should be set');
-      expect(AppState.get('inherited')).toBeUndefined();
     });
   });
 
@@ -72,36 +54,27 @@ describe('AppState', () => {
       const fn = vi.fn();
       AppState.subscribe('testKey', fn);
 
-      AppState.set('testKey', 'new value');
-      expect(fn).toHaveBeenCalledWith('new value', undefined);
-    });
-
-    it('should call callback with old and new value', () => {
-      const fn = vi.fn();
-      AppState.set('testKey', 'initial');
-      AppState.subscribe('testKey', fn);
-
-      AppState.set('testKey', 'updated');
-      expect(fn).toHaveBeenCalledWith('updated', 'initial');
+      setKey('testKey', 'new value');
+      expect(fn).toHaveBeenCalledWith('new value');
     });
 
     it('should call callback immediately with current value on subscription', () => {
       const fn = vi.fn();
-      AppState.set('testKey', 'current value');
+      setKey('testKey', 'current value');
 
       AppState.subscribe('testKey', fn);
-      expect(fn).toHaveBeenCalledWith('current value', undefined);
+      expect(fn).toHaveBeenCalledWith('current value');
     });
 
-    it('should not call callback if state value does not change', () => {
+    it('should always notify on commit (even if value unchanged)', () => {
       const fn = vi.fn();
       AppState.subscribe('testKey', fn);
 
-      AppState.set('testKey', 'value');
+      setKey('testKey', 'value');
       expect(fn).toHaveBeenCalledTimes(1);
 
-      AppState.set('testKey', 'value');
-      expect(fn).toHaveBeenCalledTimes(2); // 仍然调用（因为 set 总是通知）
+      setKey('testKey', 'value');
+      expect(fn).toHaveBeenCalledTimes(2); // commit 总是通知
     });
 
     it('should support multiple subscribers for same key', () => {
@@ -110,7 +83,7 @@ describe('AppState', () => {
       AppState.subscribe('testKey', fn1);
       AppState.subscribe('testKey', fn2);
 
-      AppState.set('testKey', 'new');
+      setKey('testKey', 'new');
       expect(fn1).toHaveBeenCalledTimes(1);
       expect(fn2).toHaveBeenCalledTimes(1);
     });
@@ -128,11 +101,11 @@ describe('AppState', () => {
       const fn = vi.fn();
       AppState.subscribe('testKey', fn);
 
-      AppState.set('testKey', 'first');
+      setKey('testKey', 'first');
       expect(fn).toHaveBeenCalledTimes(1);
 
       AppState.unsubscribe('testKey', fn);
-      AppState.set('testKey', 'second');
+      setKey('testKey', 'second');
       expect(fn).toHaveBeenCalledTimes(1); // 不再被调用
     });
 
@@ -143,7 +116,7 @@ describe('AppState', () => {
       AppState.subscribe('testKey', fn2);
 
       AppState.unsubscribe('testKey');
-      AppState.set('testKey', 'new');
+      setKey('testKey', 'new');
       expect(fn1).not.toHaveBeenCalled();
       expect(fn2).not.toHaveBeenCalled();
     });
@@ -162,9 +135,9 @@ describe('AppState', () => {
   // ===== reset =====
   describe('reset', () => {
     it('should reset all state to default values', () => {
-      AppState.set('isLoggedIn', true);
-      AppState.set('panelCollapsed', false);
-      AppState.set('panelRight', 100);
+      setKey('isLoggedIn', true);
+      setKey('panelCollapsed', false);
+      setKey('panelRight', 100);
 
       AppState.reset();
 
@@ -178,7 +151,7 @@ describe('AppState', () => {
       AppState.subscribe('testKey', fn);
       AppState.reset();
 
-      AppState.set('testKey', 'new');
+      setKey('testKey', 'new');
       expect(fn).not.toHaveBeenCalled();
     });
 
@@ -191,8 +164,8 @@ describe('AppState', () => {
   // ===== snapshot =====
   describe('snapshot', () => {
     it('should return a copy of the state', () => {
-      AppState.set('isLoggedIn', true);
-      AppState.set('panelCollapsed', false);
+      setKey('isLoggedIn', true);
+      setKey('panelCollapsed', false);
 
       const snap = AppState.snapshot();
       expect(snap.isLoggedIn).toBe(true);
@@ -200,7 +173,7 @@ describe('AppState', () => {
     });
 
     it('should return a deep copy (not a reference)', () => {
-      AppState.set('testKey', { nested: 'value' });
+      setKey('testKey', { nested: 'value' });
       const snap = AppState.snapshot();
 
       // 修改 snapshot 不应影响原状态
@@ -219,7 +192,7 @@ describe('AppState', () => {
 
       AppState.subscribe('testKey', fn);
       // 应该不抛出错误
-      expect(() => AppState.set('testKey', 'value')).not.toThrow();
+      expect(() => setKey('testKey', 'value')).not.toThrow();
 
       consoleSpy.mockRestore();
     });

@@ -110,7 +110,8 @@ describe('Utils', () => {
 
       it('should handle JSON parse errors gracefully', () => {
         const key = 'corrupt_json';
-        localStorage.setItem(key, '{not valid json');
+        // StorageAdapter 使用 'rv_' 前缀，需写入带前缀的原始键以模拟损坏的 JSON
+        localStorage.setItem('rv_' + key, '{not valid json');
 
         // 应该返回原始字符串而不是抛出错误
         const result = Utils.storage.get(key);

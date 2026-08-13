@@ -246,11 +246,30 @@ export const DraftManager = {
     try {
       await ApiClient.delete('/api/articles/' + this._articleId + '/drafts/' + draftId);
       Utils.showToast(UI.draft.deleteSuccess || '草稿已删除', false);
-      this.refresh();
     } catch (err) {
-      console.error('[DraftManager] 删除失败:', err);
+      console.warn('[DraftManager] 删除请求失败:', err.message, '| 从本地列表移除此草稿');
       Utils.showToast(UI.draft.deleteFailed ? UI.draft.deleteFailed(err.message) : '删除失败', true);
+      // 若 404，草稿已不存在于后端，仅从本地列表移除
+      if (err.status === 404 || (err.message && err.message.includes('not found'))) {
+        this._drafts = this._drafts.filter(function (d) { return d.id !== draftId; });
+        this._renderAfterDelete();
+      }
+      return;
     }
+    this.refresh();
+  },
+
+  /** 删除后重新渲染列表（不重新 fetch） */
+  _renderAfterDelete() {
+    var content = document.getElementById('draft-panel-content');
+    if (!content) return;
+    if (!this._drafts.length) {
+      content.innerHTML = '<div style="text-align:center;color:var(--color-text-muted);padding:16px;">' +
+        (UI.draft.noHistory || '暂无草稿历史') + '</div>';
+      return;
+    }
+    content.innerHTML = this._renderList();
+    this._bindEvents();
   },
 
   /** 更新当前文章 ID */

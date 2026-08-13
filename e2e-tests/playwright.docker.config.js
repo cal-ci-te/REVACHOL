@@ -4,8 +4,14 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  // 测试文件目录（与基础配置一致）
-  testDir: './e2e-tests',
+  // ★ 修复：本配置文件位于 /app/e2e-tests/ 目录下，testDir 相对配置文件目录解析。
+  // 原 './e2e-tests' 会解析为 /app/e2e-tests/e2e-tests（不存在）导致 "No tests found"。
+  // 改为 '.' 指向 /app/e2e-tests/（测试文件实际所在目录）。
+  testDir: '.',
+
+  // 明确匹配测试文件
+  testMatch: '**/*.spec.js',
+  testIgnore: ['**/playwright.docker.config.js', '**/node_modules/**'],
 
   // 容器环境稍慢，适当放宽超时
   timeout: 60 * 1000,
@@ -19,8 +25,13 @@ export default defineConfig({
   // CI 模式在容器内始终启用
   retries: 1,
 
-  // 报告格式：HTML（playwright-archive 要求默认目录名）
-  reporter: [['html', { open: 'never' }]],
+  // 报告格式：HTML + list
+  // outputFolder 相对配置文件目录解析，'../playwright-report' 输出到 /app/playwright-report
+  // （docker-compose 将宿主机 ./playwright-report 挂载到该路径）
+  reporter: [
+    ['html', { outputFolder: '../playwright-report', open: 'never' }],
+    ['list'],
+  ],
 
   // 全局测试配置
   use: {
@@ -51,7 +62,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         headless: true,
-        storageState: '.auth/user.json',
+        storageState: '/app/.auth/user.json',
       },
       dependencies: ['setup'],
     },

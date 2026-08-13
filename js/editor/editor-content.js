@@ -10,6 +10,8 @@ import { MarkdownUtils } from '../utils/markdown-utils.js';
 import { Utils } from '../utils.js';
 import { StickerRenderer } from './sticker-renderer.js';
 import { StickerShape } from './sticker-shape.js';
+import { AnchorManager } from './anchor-manager.js';
+import { ContentBuilder } from './content-builder.js';
 
 export const EditorContent = {
 
@@ -197,52 +199,117 @@ export const EditorContent = {
   },
 
   /**
-   * 构建保存用的内容：将 contentEditable 中已渲染的贴纸 div 就地替换为标记注释。
-   * 替换后的标记出现在原贴纸 div 的位置，阅读视图 TreeWalker 在此位置渲染贴纸。
+   * 构建保存用的内容：数据驱动架构——收集贴纸锚点信息，构建带标记的内容。
+   *
+   * 流程：
+   *   1. 从 DOM 收集贴纸数据（含锚点信息）
+   *   2. 获取纯内容（剥离贴纸 div）
+   *   3. 使用 ContentBuilder 在正确位置插入标记注释
+   *
    * @param {HTMLElement} contentEl
    * @param {object} article - 文章对象（含 stickers 数组）
    * @returns {string}
    */
   buildSaveContent(contentEl, article) {
+    if (!contentEl) return '';
+
+    // 1. 从 DOM 收集贴纸数据（含锚点信息）——在剥离贴纸 div 之前执行
+    var stickersWithAnchor = this.collectStickersWithAnchor(contentEl, article);
+    console.log('[EditorContent.buildSaveContent] 收集到 ' + stickersWithAnchor.length +
+                ' 张贴纸（含锚点）| decoIds=' + stickersWithAnchor.map(function(s){return s.decoId;}).join(','));
+
+    // 2. 获取纯内容（剥离贴纸 div 和 clearfix）
     var html = this.getContentHTML(contentEl);
-
-    // 构造 decoId → sticker 查找表
-    var stickerMap = {};
-    var stickers = article ? (article.stickers || []) : [];
-    stickers.forEach(function (s) { if (s && s.decoId) stickerMap[s.decoId] = s; });
-
-    // 先将 .article-sticker div 就地替换为贴纸标记注释
-    // 使用函数回调逐个匹配：提取 data-deco-id → 查表 → 生成 marker
-    var replacedCount = 0;
-    html = html.replace(/<div[^>]*class="[^"]*article-sticker[^"]*"[^>]*>[\s\S]*?<\/div>/gi, function (match, offset) {
-      var decoIdMatch = match.match(/data-deco-id="([^"]+)"/);
-      if (!decoIdMatch) return '';
-      var decoId = decoIdMatch[1];
-      var sticker = stickerMap[decoId];
-      if (!sticker) return '';
-      replacedCount++;
-      // 标记注释放在贴纸原位置，pos 记录字符偏移量
-      return '\n' + StickerRenderer.createMarker(decoId, {
-        x: sticker.x, y: sticker.y,
-        w: sticker.w || sticker.width, h: sticker.h || sticker.height,
-        align: sticker.align, margin: sticker.margin,
-        pos: offset,
-      }) + '\n';
-    });
-
-    // 移除 .sticker-clearfix div
-    html = html.replace(/<div[^>]*class="[^"]*sticker-clearfix[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
-
-    // 移除残留的旧贴纸标记（避免重复）
+    html = StickerRenderer.stripStickerDivs(html);
     html = StickerRenderer.stripMarkers(html);
 
-    console.log('[EditorContent.buildSaveContent] 就地替换 ' + replacedCount + ' 张贴纸 | 输出 len=' + html.length +
-                ' | head80=' + JSON.stringify(html.substring(0, 80)));
-    return html.trim();
+    // 3. 使用数据驱动构建：在正确锚点位置插入标记注释
+    var result = ContentBuilder.build(html, stickersWithAnchor);
+
+    console.log('[EditorContent.buildSaveContent] 构建完成 | stickers=' + stickersWithAnchor.length +
+                ' | 输出 len=' + result.length +
+                ' | head80=' + JSON.stringify(result.substring(0, 80)));
+    return result.trim();
+  },
+
+  /**
+   * 从 DOM 中收集贴纸数据（含锚点信息）。
+   * 必须在剥离贴纸 div 之前调用，以确保锚点计算基于完整 DOM 结构。
+   *
+   * @param {HTMLElement} container - 文章内容容器
+   * @param {object} article - 文章对象（含 stickers 数组，用于补充已有属性）
+   * @returns {Array<object>} 贴纸数据数组 [{ decoId, width, height, align, margin, anchor }]
+   */
+  collectStickersWithAnchor: function (container, article) {
+    if (!container) return [];
+    var result = [];
+    var els = container.querySelectorAll('.article-sticker');
+    if (!els.length) return result;
+
+    // 构建 decoId → 已有 sticker 数据的查找表
+    var stickerMap = {};
+    var existing = article ? (article.stickers || []) : [];
+    existing.forEach(function (s) { if (s && s.decoId) stickerMap[s.decoId] = s; });
+
+    els.forEach(function (el) {
+      var decoId = el.dataset.decoId;
+      if (!decoId) return;
+
+      // 优先从已有 sticker 数据获取属性，回退到 DOM 计算
+      var existingData = stickerMap[decoId] || {};
+
+      // 锚点：优先使用贴纸编辑器保存时计算的锚点（基于覆盖层正确位置）；
+      // 若无已有锚点（如首次打开未进贴纸编辑器），从主编辑器 DOM 计算
+      var anchor = existingData.anchor;
+      var anchorSource = 'none';
+      if (!anchor || AnchorManager.isDefaultAnchor(anchor)) {
+        anchor = AnchorManager.computeAnchor(el, container);
+        anchorSource = 'DOM';
+      } else {
+        anchorSource = 'existingData';
+      }
+      console.log('[collectStickersWithAnchor] decoId=' + decoId +
+                  ' | source=' + anchorSource +
+                  ' | existingAnchor=' + JSON.stringify(existingData.anchor) +
+                  ' | finalAnchor=' + JSON.stringify(anchor));
+
+      var width = parseFloat(el.style.width) ||
+                  existingData.width || existingData.w ||
+                  StickerShape.DEFAULT_SIZE;
+      var height = parseFloat(el.style.height) ||
+                   existingData.height || existingData.h ||
+                   StickerShape.DEFAULT_SIZE;
+      var align = existingData.align || 'left';
+      var margin = existingData.margin !== undefined
+                   ? existingData.margin
+                   : StickerShape.DEFAULT_MARGIN;
+
+      // 从 DOM 补充 align（如果现有数据中不存在）
+      var floatVal = el.style.float;
+      if (!existingData.align && floatVal) {
+        align = floatVal;
+      }
+
+      result.push({
+        decoId: decoId,
+        x: existingData.x !== undefined ? existingData.x : StickerShape.DEFAULT_X,
+        y: existingData.y !== undefined ? existingData.y : StickerShape.DEFAULT_Y,
+        width: width,
+        height: height,
+        w: width,
+        h: height,
+        align: align,
+        margin: margin,
+        anchor: anchor,
+      });
+    });
+
+    return result;
   },
 
   /**
    * 从文章内容中解析贴纸标记（用于页面刷新后恢复贴纸数据）。
+   * 使用 AnchorManager.parseFromMarker 统一解析字段（含 anchor 信息），字段顺序无关。
    * @param {string} content - 文章内容（可能含 HTML 注释标记）
    * @returns {Array} 贴纸数据数组
    */
@@ -253,7 +320,8 @@ export const EditorContent = {
     regex.lastIndex = 0; // 重置全局正则状态（共享实例可能被其他模块使用后残留 lastIndex）
     var match;
     while ((match = regex.exec(content)) !== null) {
-      var fields = StickerRenderer._parseMarkerContent(match[1]);
+      // 使用 AnchorManager 统一解析（支持 anchor 字段 + 向后兼容旧格式）
+      var fields = AnchorManager.parseFromMarker(match[1]);
       stickers.push({
         decoId: fields.decoId,
         x: fields.x ? parseInt(fields.x) : StickerShape.DEFAULT_X,
@@ -265,6 +333,8 @@ export const EditorContent = {
         align: fields.align || 'left',
         margin: fields.margin !== undefined ? parseInt(fields.margin) : StickerShape.DEFAULT_MARGIN,
         pos: fields.pos !== undefined ? parseInt(fields.pos) : -1,
+        // 锚点信息：向后兼容旧标记（无 anchor 字段时默认末尾）
+        anchor: fields.anchor || { type: 'end', index: -1 },
       });
     }
     console.log('[EditorContent.parseStickersFromContent] 解析到 ' + stickers.length + ' 张贴纸 | decoIds=' + stickers.map(function(s){return s.decoId;}).join(','));

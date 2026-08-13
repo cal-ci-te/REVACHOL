@@ -516,7 +516,7 @@ export const UIDetail = {
     });
   },
 
-  /** 从内容中解析贴纸标记（复用 StickerRenderer._MARKER_REGEX 统一正则） */
+  /** 从内容中解析贴纸标记（复用 StickerRenderer._MARKER_REGEX 统一正则，含 anchor 字段） */
   _parseStickerMarkers: function (content) {
     var stickers = [];
     var regex = StickerRenderer._MARKER_REGEX;
@@ -529,7 +529,8 @@ export const UIDetail = {
                   ' | x=' + fields.x + ' y=' + fields.y +
                   ' | w=' + fields.w + ' h=' + fields.h +
                   ' | align=' + fields.align + ' shape=' + fields.shape +
-                  ' | vertices=' + fields.vertices + ' margin=' + fields.margin);
+                  ' | vertices=' + fields.vertices + ' margin=' + fields.margin +
+                  ' | anchor=' + JSON.stringify(fields.anchor));
       stickers.push({
         decoId: fields.decoId,
         x: fields.x ? parseInt(fields.x) : StickerShape.DEFAULT_X,
@@ -541,6 +542,7 @@ export const UIDetail = {
         align: fields.align || 'left',
         margin: fields.margin !== undefined ? parseInt(fields.margin) : StickerShape.DEFAULT_MARGIN,
         pos: fields.pos !== undefined ? parseInt(fields.pos) : -1,
+        anchor: fields.anchor || { type: 'end', index: -1 },
       });
     }
     return { stickers: stickers };

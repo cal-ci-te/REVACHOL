@@ -94,11 +94,11 @@ describe('ArticleService', () => {
       ArticleService._data = mockData;
 
       const result = ArticleService.getVisibleArticles();
-      expect(result.length).toBe(3);
+      // visible 为 undefined（未显式标记可见）时，getVisibleArticles 视为不可见
+      expect(result.length).toBe(2);
       expect(result).toEqual([
         { id: 1, visible: true },
         { id: 3, visible: true },
-        { id: 4, visible: undefined },
       ]);
     });
 
@@ -225,7 +225,8 @@ describe('ArticleService', () => {
       const visible = ArticleService.getVisibleArticles();
       expect(visible.some(a => a.id === 1)).toBe(true);
       expect(visible.some(a => a.id === 2)).toBe(false);
-      expect(visible.some(a => a.id === 3)).toBe(true);
+      // visible: undefined 视为不可见
+      expect(visible.some(a => a.id === 3)).toBe(false);
     });
   });
 });

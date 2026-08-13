@@ -5,7 +5,9 @@
 import { test as setup, expect } from '@playwright/test';
 import path from 'path';
 
-const AUTH_FILE = path.join(import.meta.dirname, '.auth', 'user.json');
+// 统一写入 CWD 下的 .auth/user.json（Docker 容器中 CWD=/app → /app/.auth/user.json），
+// 与配置中的 storageState 路径保持一致（storageState 相对 CWD 解析）
+const AUTH_FILE = path.join(process.cwd(), '.auth', 'user.json');
 
 setup('管理员登录并保存状态', async ({ request, page }) => {
   // 通过 API 直接登录（绕过 UI 模态框，更快更稳定）

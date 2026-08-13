@@ -1,4 +1,4 @@
-我需要为当前的代码变更生成一条 Git commit message，请按照 Conventional Commits 规范撰写，并同步修改README和package的版本号，同步撰写readme的更新日志，阅读roadmap和docs下规划的在这次已经实现的内容并标记为已完成
+我需要为当前的代码变更生成一条 Git commit message，请按照 Conventional Commits 规范撰写，阅读docs\architecture\version-manage中规范以同步更新版本。同步撰写readme的更新日志，阅读roadmap和docs下规划的在这次已经实现的内容并标记为已完成
 
 ## 项目背景
 - 项目名称：[项目名称]

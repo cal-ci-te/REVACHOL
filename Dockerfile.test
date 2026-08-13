@@ -34,7 +34,6 @@ COPY backend/      ./backend/
 COPY e2e-tests/    ./e2e-tests/
 COPY tests/        ./tests/
 COPY index.html    ./
-COPY article-editor.html ./
 COPY vite.config.js    ./
 COPY vitest.config.js  ./
 COPY playwright.config.js ./
@@ -51,5 +50,5 @@ ENV BASE_URL=http://frontend:3000
 # 切换到非 root 用户（Playwright 官方镜像内置 pwuser）
 USER pwuser
 
-# 默认命令：运行测试
-CMD ["npx", "playwright", "test", "--config", "playwright.docker.config.js"]
+# 默认命令：运行测试（使用 Docker 专用配置，避免启动根配置中的 Vite webServer）
+CMD ["npx", "playwright", "test", "--config", "e2e-tests/playwright.docker.config.js"]

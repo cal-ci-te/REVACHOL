@@ -65,8 +65,10 @@ fi
 log_ok "Docker 运行中"
 
 # ---- 预创建宿主机报告目录 ----
+# bind mount 会覆盖镜像内的 chown，需在宿主机侧确保目录对容器内 pwuser(UID 1000) 可写
 log_info "创建宿主机报告目录..."
 mkdir -p playwright-report test-results run-history
+chmod 777 playwright-report test-results run-history
 log_ok "报告目录已就绪"
 
 # ---- 确保依赖服务运行 ----

@@ -1,23 +1,14 @@
 # 任务：为 REVACHOL 项目生成 8 个核心模块的摘要提示词
 
 ## 目标
-根据提供的项目文档，在对话窗口输出 8 个核心模块的结构化摘要，用于 AI 协作和项目文档。
+根据提供的项目文档，了解项目，并在对话窗口输出 8 个核心模块的结构化摘要，用于 AI 协作和项目文档。
 
 ## 文档来源
-- 架构文档：`docs/architecture/README.md`（已提供完整架构说明）
-- 自定义图标指南：`docs/development/custom-icon-guide.md`
-- 部署文档：`docs/deployment/docker-setup.md`
-- 工具链文档：`docs/development/tools/index.md`
-- 测试文档：`docs/development/tools/vitest.md`
-- 错误监控文档：`docs/development/tools/errpulse.md`
-- Node 升级审查：`docs/node-22-upgrade-review.md`
-- 路线图：`docs/roadmap.md`
-- 拼图的渐进式修改：`docs/development/phase-1-refactor.md`、`docs/development/phase-2-puzzle-customizer.md`、`docs/development/phase-3-cleanup.md`
-- 项目根目录 `README.md`（版本 v1.18.3）
+- docs下所有文档
+- 项目根目录 `README.md`，`REQUIREMENTS_CHECKLIST.md`
 
 ## 项目核心信息
 - **项目名称**：REVACHOL
-- **当前版本**：v1.18.3
 - **技术栈**：原生 ES Module + Vite（前端），Node.js 22 + 原生 http + sql.js（后端）
 - **架构分层**：前端（core/services/stores/ui），后端（routes/storage/db），存储适配器（local/S3）
 

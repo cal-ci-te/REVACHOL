@@ -14,6 +14,7 @@
 
 import { StickerShape } from './sticker-shape.js';
 import { DecoShelf } from '../services/deco.js';
+import { AnchorManager } from './anchor-manager.js';
 
 export const StickerRenderer = {
 
@@ -60,19 +61,13 @@ export const StickerRenderer = {
   },
 
   /**
-   * 从标记注释内容中解析字段（字段顺序无关，兼容新旧格式）。
-   * @param {string} raw - 注释内部文本，如 "deco_abc align=left w=120 h=120"
-   * @returns {object} { decoId, x, y, w, h, align }
+   * 从标记注释内容中解析字段（字段顺序无关，兼容新旧格式，含 anchor 字段）。
+   * 委托给 AnchorManager.parseFromMarker 统一解析。
+   * @param {string} raw - 注释内部文本，如 "deco_abc align=left w=120 h=120 anchor=p:2:p_2:before"
+   * @returns {object} { decoId, x, y, w, h, align, margin, pos, anchor }
    */
   _parseMarkerContent: function (raw) {
-    var parts = raw.trim().split(/\s+/);
-    var result = {};
-    if (parts.length > 0) result.decoId = parts[0];
-    for (var i = 1; i < parts.length; i++) {
-      var kv = parts[i].split('=');
-      if (kv.length === 2) result[kv[0]] = kv[1];
-    }
-    return result;
+    return AnchorManager.parseFromMarker(raw);
   },
 
   /** 已创建的贴纸元素集合（用于清理） */
@@ -105,6 +100,8 @@ export const StickerRenderer = {
         margin: fields.margin !== undefined ? parseInt(fields.margin) : StickerShape.DEFAULT_MARGIN,
         pos: fields.pos !== undefined ? parseInt(fields.pos) : -1,
         index: match.index,
+        // 锚点信息：向后兼容旧标记（无 anchor 字段时默认末尾）
+        anchor: fields.anchor || { type: 'end', index: -1 },
       });
     }
 
@@ -116,11 +113,12 @@ export const StickerRenderer = {
   },
 
   /**
-   * 生成贴纸占位标记字符串（插入文章内容中）
+   * 生成贴纸占位标记字符串（插入文章内容中）。
+   * 支持 anchor 字段（数据驱动位置架构），默认锚点不写入标记。
    *
    * @param {string} decoId - 贴纸 ID
-   * @param {object} opts - { align, w, h }
-   * @returns {string} 如 "<!-- sticker:deco_abc x=50 y=50 w=120 h=120 align=left -->"
+   * @param {object} opts - { align, w, h, x?, y?, margin?, pos?, anchor? }
+   * @returns {string} 如 "<!-- sticker:deco_abc x=50 y=50 w=120 h=120 align=left anchor=p:2:p_2:before -->"
    */
   createMarker(decoId, opts) {
     opts = opts || {};
@@ -130,11 +128,34 @@ export const StickerRenderer = {
     var w = opts.w || opts.width || StickerShape.DEFAULT_SIZE;
     var h = opts.h || opts.height || StickerShape.DEFAULT_SIZE;
     var margin = opts.margin !== undefined ? opts.margin : StickerShape.DEFAULT_MARGIN;
-    var pos = opts.pos !== undefined ? opts.pos : 'end';  // 位置信息：字符偏移量或 'end'
-    return '<!-- sticker:' + decoId +
+
+    var marker = '<!-- sticker:' + decoId +
       ' x=' + x + ' y=' + y + ' w=' + w + ' h=' + h +
-      ' align=' + align + ' margin=' + margin +
-      ' pos=' + pos + ' -->';
+      ' align=' + align + ' margin=' + margin;
+
+    // 数据驱动锚点：仅非默认锚点写入标记字段
+    var anchorReceived = !!opts.anchor;
+    var isDefault = opts.anchor ? AnchorManager.isDefaultAnchor(opts.anchor) : true;
+    var willWrite = anchorReceived && !isDefault;
+    console.log('[StickerRenderer.createMarker] decoId=' + decoId +
+                ' | anchorReceived=' + anchorReceived +
+                ' | isDefault=' + isDefault +
+                ' | willWrite=' + willWrite +
+                ' | anchorValue=' + JSON.stringify(opts.anchor) +
+                ' | serialized=' + (willWrite ? AnchorManager.serialize(opts.anchor) : 'N/A'));
+
+    if (willWrite) {
+      marker += ' anchor=' + AnchorManager.serialize(opts.anchor);
+    }
+
+    // 保留 pos 字段向后兼容（旧格式使用字符偏移量）
+    if (opts.pos !== undefined && opts.pos !== 'end') {
+      marker += ' pos=' + opts.pos;
+    }
+
+    marker += ' -->';
+    console.log('[StickerRenderer.createMarker] 最终: ' + marker);
+    return marker;
   },
 
   /**
@@ -180,6 +201,11 @@ export const StickerRenderer = {
       comments.push(node);
     }
     console.log('[StickerRenderer.renderInArticle] TreeWalker 找到 ' + comments.length + ' 个注释节点 | stickerMap keys=' + Object.keys(stickerMap).join(','));
+    console.log('[StickerRenderer.renderInArticle] 注释节点 DOM 顺序: ' + comments.map(function (c) {
+      var m = c.nodeValue.match(/sticker:([a-zA-Z0-9_-]+)/);
+      var a = m && stickerMap[m[1]] ? stickerMap[m[1]].anchor : null;
+      return (m ? m[1] : '?') + '@idx' + (a ? a.index : '?');
+    }).join(', '));
 
     var self = this;
     comments.forEach(function (comment) {
@@ -217,11 +243,14 @@ export const StickerRenderer = {
       // 强制浏览器重排，确保浮动元素尺寸被正确计算
       void el.offsetHeight;
       var cs = getComputedStyle(el);
+      var rect = el.getBoundingClientRect();
       console.log('[StickerRenderer.renderInArticle] replaceChild 完成: parentNode=' + (el.parentNode ? el.parentNode.tagName + '.' + el.parentNode.className : 'null') +
                   ' | offsetWidth=' + el.offsetWidth + ' offsetHeight=' + el.offsetHeight +
                   ' | compWidth=' + cs.width + ' compHeight=' + cs.height +
                   ' | compFloat=' + cs.float + ' compDisplay=' + cs.display +
-                  ' | compBackground=' + cs.backgroundImage.substring(0, 50));
+                  ' | compBackground=' + cs.backgroundImage.substring(0, 50) +
+                  ' | rect.top=' + rect.top.toFixed(0) + ' rect.left=' + rect.left.toFixed(0) +
+                  ' | anchor=' + JSON.stringify(sticker.anchor));
       self._elements.push(el);
     });
 
