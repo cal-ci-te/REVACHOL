@@ -4,50 +4,8 @@
 
 当前版本：v1.19.0 ⚠️ WIP（开发中）
 
----
-
-<!-- ===== 预览 ===== -->
-<h2>预览</h2>
-
-<h3>主题</h3>
-<table>
-  <tr>
-    <th align="center">主题</th>
-    <th align="center">截图</th>
-  </tr>
-  <tr>
-    <td align="center">暗色</td>
-    <td align="center"><img src="images/screenshots/dark.png" width="500" style="max-width:100%; height:auto;" alt="暗色主题"></td>
-  </tr>
-  <tr>
-    <td align="center">亮色</td>
-    <td align="center"><img src="images/screenshots/light.png" width="500" style="max-width:100%; height:auto;" alt="亮色主题"></td>
-  </tr>
-  <tr>
-    <td align="center">低保真</td>
-    <td align="center"><img src="images/screenshots/lofi.png" width="500" style="max-width:100%; height:auto;" alt="低保真主题"></td>
-  </tr>
-</table>
-
-<h3>功能</h3>
-<table>
-  <tr>
-    <th align="center">功能</th>
-    <th align="center">截图</th>
-  </tr>
-  <tr>
-    <td align="center">目录树</td>
-    <td align="center"><img src="images/screenshots/tree.png" width="300" style="max-width:100%; height:auto;" alt="目录树"></td>
-  </tr>
-  <tr>
-    <td align="center">贴纸系统</td>
-    <td align="center"><img src="images/screenshots/deco.png" width="300" style="max-width:100%; height:auto;" alt="贴纸系统"></td>
-  </tr>
-  <tr>
-    <td align="center">移动端</td>
-    <td align="center"><img src="images/screenshots/mobile.png" width="300" style="max-width:100%; height:auto;" alt="移动端"></td>
-  </tr>
-</table>
+> 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
+> 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
 
 ---
 
