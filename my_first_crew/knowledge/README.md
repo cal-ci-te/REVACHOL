@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.18.4
+当前版本：v1.19.0 ⚠️ WIP（开发中）
 
 ---
 
@@ -146,6 +146,35 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.19.0-wip
+
+**多 Agent 协作基础设施 + 贴纸锚点 DOM 重构 + 文档体系迁移（WIP）**
+
+> ⚠️ WIP：贴纸浮动渲染显示功能尚未修复，数据驱动锚点架构持续迭代中。
+
+**多 Agent 协作系统（新）：**
+- **CrewAI 四 Agent 流水线**（`my_first_crew/`）：Planner（DeepSeek V4 Pro）/ Coder（DeepSeek V4 Flash）/ Reviewer（Kimi K2.7 Code）/ Document Admin（Mimo V2.5），JSON-first 声明式配置（`crew.jsonc` + `agents/*.jsonc`），`sequential` 顺序执行
+- **`run_revachol_crew.py`**：直接构建脚本，绕过 CrewAI 1.15.16 解析 `agents/*.jsonc` 中 `${VAR}` 环境变量的 Bug（URL 被错误编码为 `$%7B...%7D`）；通过 `os.getenv()` 直接读取环境变量
+- **DeepSeek 兼容性修复**：移除 `output_pydantic`/`output_json`（两者均经 instructor 注入 `response_format`，DeepSeek API 未实现 → HTTP 400），改为「Prompt 约束 + 后处理校验」（`parse_and_validate_output` 提取/校验/落盘 `output/*_parsed.json`）
+- **Git MCP 集成**：`document_admin` 通过 CrewAI `mcps` DSL 接入官方 `mcp-server-git`（`uvx` 启动，仓库限定 `D:/Revachol`），可调用 `git_diff`/`git_status`/`git_log` 分析代码变更并撰写变更日志
+- **`test_single_model.py`**：单模型独立测试工具（支持 `--model`/`--message`/`--temperature`/`--max-tokens`/`--interactive`）；修复 `LLM.call()` 不接受 `temperature`/`max_tokens` 参数的问题（改为实例级字段设置）
+- **模型适配**：Kimi 强制 `temperature=1.0`；Windows 控制台 UTF-8 输出修复（消除 GBK 无法打印 emoji 的编码噪音）
+- **知识库文档**：`knowledge/docs/development/tools/crewai/{quickstart,crewai-guide}.md`（快速启动 + 完整说明）
+
+**仓库合并（新）：**
+- `my_first_crew/` 从独立嵌套仓库合并为主仓库子目录（移除嵌套 `.git` 后以普通文件纳入，避免 gitlink）；补充 `.gitignore` 排除 `.venv/`、`output/`、`output_backup/` 运行产物
+
+**贴纸编辑器（WIP）：**
+- **锚点插入 DOM 驱动重构**（`content-builder.js`）：正则扫描块级标签字符串插入 → 临时容器 DOM + 直接子元素计数 + 真实 Comment 节点插入，与 `AnchorManager.computeAnchorFromY` 共用同一计数基准，消除位置漂移
+- **Markdown 渲染统一**（`markdown-utils.js`、`editor-content.js`）：移除 `_unescapeHtmlEntities`（转义实体按原样保留）；`isHtml` 识别仅含贴纸标记的内容；`editor-content.js` 统一委托 `MarkdownUtils.toHTML`，收敛审计报告 P1-2 的双实现
+- **html/text 双渲染模式**（`article-editor-mode.js`）：新增 `toggleRenderMode()`/`_captureContent()`，纯文本模式可直接查看/编辑 content 中的贴纸标记
+- **容器样式对齐阅读页**（`sticker-editor/overlay.js`、`sticker-editor.css`）：padding 24px 32px、`box-sizing:border-box`、全宽、衬线字体，与 `.detail-pane` 一致（所见即所得）
+
+**后端与工程（chore）：**
+- **`auth.js` → `auth.cjs` 统一**：后端全量 CommonJS，同步更新 `server.cjs`、`routes/{articles,decos,drafts,settings}.cjs` 与单元测试导入
+- **LangGraph 方案归档**（`legacy/`）：`langgraph.json`/`src/agent.js`/`.env.langgraph` 归档；`package.json` 预留 `@langchain/*`、`better-sqlite3` 依赖；`.gitignore` 忽略 `.langgraph_api`
+- **文档体系迁移**：根目录 `docs/*` 与 `AI_CONTEXT.md` 删除，内容迁至 `my_first_crew/knowledge/`；README 精简为导航式说明；新建根目录 `knowledge/`（`.gitkeep` 占位）；`.github/README.md` 指向知识库文档
 
 ### v1.18.4
 
