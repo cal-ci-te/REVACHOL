@@ -59,22 +59,17 @@ export const EditorContent = {
   renderContent(text) {
     if (!text) return '<p style="color:var(--color-text-muted);">（空内容）</p>';
 
-    // 如果内容已经是 HTML（之前编辑过），直接使用
-    if (this._isHtmlContent(text)) {
-      return text;
-    }
-
-    // Markdown → HTML（委托给公共工具，避免两个编辑器重复实现）
+    // 统一委托给 MarkdownUtils.toHTML：内部会正确检测 HTML 内容（含以贴纸注释
+    // 开头的 HTML），保留 <!-- sticker --> 标记，避免 HTML 被误判为 Markdown 转义。
     return MarkdownUtils.toHTML(text);
   },
 
   /**
    * 判断内容是否已经是 HTML 格式。
-   * 检测特征：以 < 开头且包含 HTML 标签。
+   * 与 MarkdownUtils._isLikelyHtml 保持一致，避免两套检测逻辑产生分歧。
    */
   _isHtmlContent(text) {
-    var trimmed = text.trim();
-    return /^<(\w+)[^>]*>/.test(trimmed) && /<\/\w+>/.test(trimmed);
+    return MarkdownUtils._isLikelyHtml(text);
   },
 
   // =========================================================================

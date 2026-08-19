@@ -15,6 +15,7 @@ backend/revachol.db
 .env
 .env.local
 .env.*.local
+legacy/*.env*
 
 # 日志文件
 *.log
@@ -42,3 +43,6 @@ playwright-report/
 test-results/
 run-history/
 e2e-tests/.auth/
+
+# LangGraph API
+.langgraph_api

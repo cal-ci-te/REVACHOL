@@ -287,6 +287,12 @@ export const UI = {
         modalPublishSuccessTitle: '🚀 文章已发布',
         modalPublishSuccessDetail: '标题',
         modalConfirmBtn: '确定',
+        // 渲染模式切换
+        toggleRender: '🔀 切换渲染',
+        renderHtml: 'HTML 渲染',
+        renderText: '纯文本',
+        renderHtmlToast: '已切换为 HTML 渲染模式',
+        renderTextToast: '已切换为纯文本模式',
     },
 
     draft: {

@@ -38,14 +38,6 @@ describe('MarkdownUtils', () => {
     });
   });
 
-  describe('_unescapeHtmlEntities', () => {
-    it('should unescape entities', () => {
-      expect(
-        MarkdownUtils._unescapeHtmlEntities('&lt;b&gt;&amp;&lt;/b&gt;')
-      ).toBe('<b>&</b>');
-    });
-  });
-
   describe('toHTML', () => {
     it('should return placeholder for empty', () => {
       expect(MarkdownUtils.toHTML('')).toContain('（空内容）');
@@ -95,18 +87,24 @@ describe('MarkdownUtils', () => {
       expect(MarkdownUtils.toHTML('<p>hello</p>')).toBe('<p>hello</p>');
     });
 
-    it('should unescape browser-escaped HTML entities', () => {
+    it('should return escaped HTML entities as-is (no unescape)', () => {
       expect(MarkdownUtils.toHTML('&lt;h1&gt;Hello&lt;/h1&gt;')).toBe(
-        '<h1>Hello</h1>'
+        '&lt;h1&gt;Hello&lt;/h1&gt;'
       );
     });
 
-    it('should preserve sticker markers when unescaping', () => {
+    it('should preserve sticker markers in HTML content', () => {
       const input =
         '<!-- sticker:x x=1 y=2 w=10 h=10 align=left -->&lt;p&gt;text&lt;/p&gt;';
       const html = MarkdownUtils.toHTML(input);
       expect(html).toContain('<!-- sticker:x x=1 y=2 w=10 h=10 align=left -->');
-      expect(html).toContain('<p>text</p>');
+      expect(html).toContain('&lt;p&gt;text&lt;/p&gt;');
+    });
+
+    it('should preserve sticker marker with anchor field intact', () => {
+      const input =
+        '<p>para</p><!-- sticker:deco_xxx x=50 y=50 w=120 h=120 align=left margin=20 anchor=p:7:p_7:before --><p>next</p>';
+      expect(MarkdownUtils.toHTML(input)).toBe(input);
     });
   });
 });

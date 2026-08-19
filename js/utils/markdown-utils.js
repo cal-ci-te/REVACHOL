@@ -27,12 +27,9 @@ export var MarkdownUtils = {
     // 兼容 contentEditable 中直接键入 HTML 时浏览器自动转义的实体标签
     // 如 &lt;h1&gt;Hello&lt;/h1&gt; — 浏览器将用户键入的 < > 转义为实体
     if (/&lt;\/?\w+[^&]*&gt;/.test(text)) return true;
+    // 兼容仅含贴纸标记（无其他 HTML 标签）的内容，避免标记被当作 Markdown 转义
+    if (/<!--\s*sticker:/.test(text)) return true;
     return false;
-  },
-
-  /** 将浏览器转义的 HTML 实体还原为原始标签（contentEditable 键入转义恢复） */
-  _unescapeHtmlEntities: function (text) {
-    return text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
   },
 
   /**
@@ -52,67 +49,74 @@ export var MarkdownUtils = {
                 '| len:', text ? text.length : 0,
                 '| head80:', JSON.stringify(text ? text.substring(0, 80) : ''));
     if (isHtml) {
-      // contentEditable 中用户直接键入 HTML 标签时，浏览器自动转义为 &lt; &gt;
-      // 此时需要在渲染前还原，否则 innerHTML 会显示为原始实体文本。
-      // 但必须先保护贴纸标记（<!-- sticker:... -->），避免 _unescapeHtmlEntities
-      // 的全局替换改变标记周围的段落结构。
-      var hasStickerMarkers = /<!--\s*sticker:/.test(text);
-      if (/&lt;\/?\w+[^&]*&gt;/.test(text)) {
-        // 提取贴纸标记，避免被实体还原影响
-        var markerPlaceholders = [];
-        var cleanText = text;
-        if (hasStickerMarkers) {
-          cleanText = text.replace(/<!--\s*sticker:.*?-->/g, function (match) {
-            var idx = markerPlaceholders.length;
-            markerPlaceholders.push(match);
-            return '\x00STICKER_' + idx + '\x00';
-          });
-        }
-        var unescaped = this._unescapeHtmlEntities(cleanText);
-        // 重新插入贴纸标记
-        if (hasStickerMarkers) {
-          unescaped = unescaped.replace(/\x00STICKER_(\d+)\x00/g, function (_, idx) {
-            return markerPlaceholders[parseInt(idx)];
-          });
-        }
-        console.log('[MarkdownUtils.toHTML] unescaped browser-escaped HTML entities' +
-                    (hasStickerMarkers ? ' (stickers preserved)' : ''));
-        return unescaped;
-      }
+      // 内容已是 HTML（WYSIWYG 编辑器输出），直接返回，保留所有 HTML 注释节点
+      // （如 <!-- sticker:xxx -->）。不做任何转义/实体还原，避免标记被移除或损坏。
+      console.log('[MarkdownUtils.toHTML] HTML 内容，直接返回，保留注释');
       return text;
     }
 
     console.log('[MarkdownUtils.toHTML] Processing as Markdown, calling escapeHtml...');
     var html = Utils.escapeHtml(text);
 
-    // 代码块（在 inline code 之前处理）
+    // 行内格式转换（用于段落/标题/列表/引用内的文本）
+    var inline = function (s) {
+      return s
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>');
+    };
+
+    // 代码块（跨行，先整体处理，避免被段落分割；两侧补空行作为块边界）
     html = html.replace(/```([\s\S]*?)```/g, function (match, code) {
-      return '<pre><code>' + code + '</code></pre>';
+      return '\n\n<pre><code>' + code + '</code></pre>\n\n';
     });
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    // 标题
-    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-    // 粗体/斜体
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // 引用
-    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-    // 列表
-    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>\s*)+/g, function (match) {
-      return '<ul>' + match + '</ul>';
-    });
-    // 段落
-    html = html.replace(/\n{2,}/g, '</p><p>');
-    html = html.replace(/\n/g, '<br>');
-    html = '<p>' + html + '</p>';
-    html = html.replace(/<p><\/p>/g, '');
-    html = html.replace(/<p><br><\/p>/g, '');
-    html = html.replace(/<(h[1-6]|ul|ol|li|blockquote|pre)>/g, function (match) {
-      return match.replace('<br>', '');
-    });
+
+    // 按空行分割为块，逐块转换，避免块级元素被错误包裹进 <p>
+    var blocks = html.split(/\n{2,}/);
+    var outBlocks = [];
+    for (var i = 0; i < blocks.length; i++) {
+      var block = blocks[i];
+      var trimmed = block.trim();
+      if (!trimmed) continue;
+
+      // 代码块（已转换为 <pre>）
+      if (/^<pre><code>/.test(trimmed)) {
+        outBlocks.push(trimmed);
+        continue;
+      }
+
+      // 标题 # / ## / ###
+      var hMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+      if (hMatch) {
+        var level = hMatch[1].length;
+        outBlocks.push('<h' + level + '>' + inline(hMatch[2]) + '</h' + level + '>');
+        continue;
+      }
+
+      // 引用 > text（多行合并为 <br>）
+      if (/^&gt;\s+/.test(trimmed)) {
+        var quote = block.split('\n').map(function (l) {
+          return l.replace(/^&gt;\s+/, '');
+        }).join('<br>');
+        outBlocks.push('<blockquote>' + inline(quote) + '</blockquote>');
+        continue;
+      }
+
+      // 无序列表 - item
+      if (/^-\s+/.test(trimmed)) {
+        var items = block.split('\n').map(function (l) {
+          return '<li>' + inline(l.replace(/^-\s+/, '')) + '</li>';
+        }).join('');
+        outBlocks.push('<ul>' + items + '</ul>');
+        continue;
+      }
+
+      // 普通段落（多行用 <br>）
+      var p = block.replace(/\n/g, '<br>');
+      outBlocks.push('<p>' + inline(p) + '</p>');
+    }
+
+    html = outBlocks.join('\n');
 
     return html;
   }

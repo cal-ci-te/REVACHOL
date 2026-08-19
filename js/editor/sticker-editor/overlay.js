@@ -31,13 +31,12 @@ export const Overlay = {
       }
     });
 
-    // 文章容器 — 与主页面 detail-pane 阅读样式完全一致
+    // 文章容器 — 与文章编辑页/阅读页 .detail-pane 容器尺寸完全一致（padding 24px 32px，全宽）
     var articleContainer = document.createElement('div');
     articleContainer.id = 'sticker-editor-article';
     articleContainer.style.cssText = [
-      'max-width:800px', 'margin:40px auto', 'padding:40px 50px',
-      'position:relative', 'overflow:visible',
-      'min-height:80vh',
+      'padding:24px 32px', 'position:relative', 'overflow:visible',
+      'box-sizing:border-box', 'min-height:100%',
     ].join(';');
     overlay.appendChild(articleContainer);
 
@@ -65,6 +64,7 @@ export const Overlay = {
       'color:var(--color-text-heading, #e8c88a)',
       'font-size:28px', 'margin:0 0 8px', 'padding-bottom:16px',
       'border-bottom:1px solid var(--color-border, #5a3e2b)',
+      'font-family:var(--font-family-serif, Georgia, serif)',
     ].join(';');
     titleEl.textContent = article.title || '未命名文章';
     container.appendChild(titleEl);

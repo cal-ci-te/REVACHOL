@@ -32,25 +32,22 @@ export const ContentBuilder = {
       return AnchorManager.compareAnchors(b.anchor, a.anchor);
     });
 
-    var result = content;
+    // 用临时容器把内容解析为 DOM，按「直接子元素」计数（与 AnchorManager.computeAnchorFromY
+    // 的计数逻辑一致），避免用正则扫描块级标签时与真实 DOM 结构（嵌套列表、注释等）产生偏差。
+    var container = document.createElement('div');
+    container.innerHTML = content;
 
     for (var i = 0; i < sorted.length; i++) {
       var sticker = sorted[i];
       var anchor = sticker.anchor || { type: 'end', index: -1 };
-      var marker = this._createMarker(sticker);
-
-      // 根据锚点类型决定插入位置
-      if (anchor.type === 'begin') {
-        result = marker + '\n' + result;
-      } else if (anchor.type === 'end' || anchor.index < 0) {
-        result = result + '\n' + marker;
-      } else {
-        // 在指定段落位置插入
-        result = this._insertAtBlockElement(result, marker, anchor);
-      }
+      var markerStr = this._createMarker(sticker);
+      var commentNode = document.createComment(
+        markerStr.replace(/^<!--\s*/, '').replace(/\s*-->$/, '')
+      );
+      this._insertCommentAtAnchor(container, commentNode, anchor);
     }
 
-    return result.trim();
+    return container.innerHTML;
   },
 
   /**
@@ -82,116 +79,58 @@ export const ContentBuilder = {
   },
 
   /**
-   * 在内容字符串中，于第 anchor.index 个块级元素附近插入标记。
-   * 支持 <p>、<h1>-<h6>、<blockquote>、<ul>、<ol>、<pre>、<div> 等块级元素。
-   * 按锚点 direction 决定插入位置：
-   *   'before' → 在目标元素之前
-   *   'after'  → 在目标元素之后
-   *   'inside' → 在目标元素的开始标签之后
+   * 将贴纸标记注释插入到内容 DOM 的指定锚点位置。
    *
-   * @param {string} content - HTML 内容
-   * @param {string} marker - 贴纸标记字符串
-   * @param {object} anchor - 锚点 { index, direction }
-   * @returns {string}
+   * 计数逻辑与 AnchorManager.computeAnchorFromY 完全一致：遍历容器的直接子元素，
+   * 跳过 .article-sticker 与 .sticker-clearfix，用剩下的内容元素作为索引依据。
+   * 相比旧的正则扫描块级标签，此方法能正确处理嵌套列表、注释等结构。
+   *
+   * @param {HTMLElement} container - 内容容器（临时 DOM）
+   * @param {Comment} commentNode - 贴纸标记注释节点
+   * @param {object} anchor - 锚点 { type, index, direction }
    */
-  _insertAtBlockElement: function (content, marker, anchor) {
-    var targetIndex = anchor.index || 0;
+  _insertCommentAtAnchor: function (container, commentNode, anchor) {
+    var type = anchor.type || 'end';
+    var index = anchor.index;
+
+    // begin：插入到容器最前面
+    if (type === 'begin') {
+      container.insertBefore(commentNode, container.firstChild);
+      return;
+    }
+
+    // 收集直接子「内容」元素（跳过贴纸/clearfix），与 computeAnchorFromY 计数一致
+    var contentChildren = [];
+    for (var i = 0; i < container.childNodes.length; i++) {
+      var node = container.childNodes[i];
+      if (node.nodeType !== 1) continue; // 仅元素节点
+      if (node.classList && (
+        node.classList.contains('article-sticker') ||
+        node.classList.contains('sticker-clearfix')
+      )) continue;
+      contentChildren.push(node);
+    }
+
+    // end 或无效 index：追加到末尾
+    if (type === 'end' || index === undefined || index < 0) {
+      container.appendChild(commentNode);
+      return;
+    }
+
+    var target = contentChildren[index];
+    if (!target) {
+      container.appendChild(commentNode);
+      return;
+    }
+
     var direction = anchor.direction || 'before';
-
-    // 匹配块级元素开始标签（含自闭合属性的完整开始标签）
-    var blockTagRe = /<(p|h[1-6]|blockquote|ul|ol|pre|div|table|section|article|li|dd|dt|figcaption|figure|header|footer|main|nav|aside)(\s[^>]*)?>/gi;
-
-    // 如果目标索引为 0 且方向为 before，直接在开头插入
-    if (targetIndex === 0 && direction === 'before') {
-      return marker + '\n' + content;
+    if (direction === 'after') {
+      container.insertBefore(commentNode, target.nextSibling);
+    } else if (direction === 'inside') {
+      target.insertBefore(commentNode, target.firstChild);
+    } else {
+      // before（默认）
+      container.insertBefore(commentNode, target);
     }
-
-    // 扫描所有块级元素，找到第 targetIndex 个
-    var count = 0;
-    var lastIndex = 0;
-    var match;
-    var re = new RegExp(blockTagRe.source, 'gi');
-
-    while ((match = re.exec(content)) !== null) {
-      if (count === targetIndex) {
-        // 找到了目标元素
-        if (direction === 'before') {
-          // 在目标元素之前插入
-          return content.substring(0, match.index) + marker + '\n' + content.substring(match.index);
-        } else if (direction === 'inside') {
-          // 在目标元素的开始标签之后插入
-          var tagEnd = match.index + match[0].length;
-          return content.substring(0, tagEnd) + marker + content.substring(tagEnd);
-        } else {
-          // 'after' — 需要找到该元素的结束标签之后再插入
-          // 简化处理：在下一个块级元素之前插入，或在末尾
-          var afterPos = this._findBlockEnd(content, match.index, match[1]);
-          return content.substring(0, afterPos) + '\n' + marker + '\n' + content.substring(afterPos);
-        }
-      }
-      count++;
-      lastIndex = match.index;
-    }
-
-    // 未找到足够多的块级元素 → 追加到末尾
-    return content + '\n' + marker;
-  },
-
-  /**
-   * 找到块级元素的结束位置。
-   * 使用简单的标签计数法找到匹配的闭合标签。
-   *
-   * @param {string} html - HTML 内容
-   * @param {number} startIndex - 开始标签的位置
-   * @param {string} tagName - 标签名
-   * @returns {number} 结束位置（闭合标签之后）
-   */
-  _findBlockEnd: function (html, startIndex, tagName) {
-    // 找到开始标签结束位置
-    var tagStart = html.indexOf('>', startIndex);
-    if (tagStart === -1) return startIndex;
-    tagStart++; // 跳过 >
-
-    // 检查是否为自闭合标签
-    var tagContent = html.substring(startIndex, tagStart);
-    if (/\/\s*>$/.test(tagContent)) {
-      return tagStart;
-    }
-
-    // 使用简单的栈计数匹配闭合标签
-    var openRe = new RegExp('<' + tagName + '(\\s[^>]*)?>', 'gi');
-    var closeRe = new RegExp('<\\/' + tagName + '\\s*>', 'gi');
-    var depth = 1;
-    var pos = tagStart;
-
-    openRe.lastIndex = pos;
-    closeRe.lastIndex = pos;
-
-    while (depth > 0) {
-      var nextOpen = openRe.exec(html);
-      var nextClose = closeRe.exec(html);
-
-      var openPos = nextOpen ? nextOpen.index : Infinity;
-      var closePos = nextClose ? nextClose.index : Infinity;
-
-      if (closePos === Infinity) {
-        // 无匹配闭合标签 → 返回末尾
-        return html.length;
-      }
-
-      if (closePos < openPos) {
-        depth--;
-        pos = closePos + nextClose[0].length;
-        openRe.lastIndex = pos;
-        closeRe.lastIndex = pos;
-      } else {
-        depth++;
-        pos = openPos + nextOpen[0].length;
-        openRe.lastIndex = pos;
-        closeRe.lastIndex = pos;
-      }
-    }
-
-    return pos;
   },
 };

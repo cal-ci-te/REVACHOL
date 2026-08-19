@@ -51,6 +51,9 @@ export const ArticleEditorMode = {
   _inputHandler: null,
   _pasteHandler: null,
 
+  // 渲染模式：'html'（渲染 HTML 标签 + 贴纸）| 'text'（纯文本源码，不渲染标签和贴纸）
+  _renderMode: 'html',
+
   // ---- CSS 由 EditorOverlay 管理 ----
 
   // =========================================================================
@@ -178,6 +181,46 @@ export const ArticleEditorMode = {
     return EditorContent._isHtmlContent(text);
   },
 
+  /**
+   * 切换渲染模式：'html'（渲染 HTML 标签 + 贴纸） ↔ 'text'（纯文本源码）。
+   */
+  toggleRenderMode() {
+    if (!this._article) return;
+    // 切换前先把当前模式下内容区的编辑结果写回 article.content，避免丢失
+    this._captureContent();
+    this._renderMode = (this._renderMode === 'html') ? 'text' : 'html';
+    this._applyRenderMode();
+    if (this._toolbar) this._toolbar.updateRenderMode(this._renderMode);
+    Utils.showToast(
+      this._renderMode === 'html'
+        ? (UI.editor.renderHtmlToast || '已切换为 HTML 渲染模式')
+        : (UI.editor.renderTextToast || '已切换为纯文本模式'),
+      false
+    );
+  },
+
+  /** 将内容区当前内容写回 article.content（按当前模式读取，HTML 模式下贴纸还原为标记）。 */
+  _captureContent() {
+    if (!this._contentEl || !this._article) return;
+    this._article.content = this._buildSaveContent();
+  },
+
+  /** 按当前渲染模式重绘内容区（含贴纸层）。 */
+  _applyRenderMode() {
+    if (!this._contentEl || !this._article) return;
+    var content = this._article.content || '';
+    if (this._renderMode === 'text') {
+      // 纯文本：清空贴纸，显示原始源码（HTML 标签/贴纸标记以纯文本呈现）
+      EditorStickers.cleanup(this._contentEl);
+      this._contentEl.textContent = content;
+    } else {
+      // HTML：渲染标签，并按标记位置渲染贴纸（float 文字绕排）
+      this._contentEl.innerHTML = EditorContent.renderContent(content);
+      this._renderExistingStickers(this._article);
+    }
+    this._dirty = true;
+  },
+
   // =========================================================================
   //  编辑能力 — 委托给 EditorContent 模块
   // =========================================================================
@@ -203,6 +246,10 @@ export const ArticleEditorMode = {
   },
 
   _buildSaveContent() {
+    // 纯文本模式：内容区保存的是原始源码（HTML 标签/贴纸标记可见），直接返回其文本内容
+    if (this._renderMode === 'text') {
+      return this._contentEl ? (this._contentEl.textContent || '') : '';
+    }
     return EditorContent.buildSaveContent(this._contentEl, this._article);
   },
 
@@ -498,6 +545,10 @@ export const ArticleEditorMode = {
 
     try { await this.saveDraft(); } catch (e) { /* 不阻断 */ }
 
+    // 打开贴纸编辑器前，把当前内容区的最新编辑写回 article.content，
+    // 确保贴纸编辑器渲染的内容与后续保存的内容一致（锚点计算基于同一份内容）
+    this._captureContent();
+
     var article = {
       id: this._articleId,
       title: this.getTitle(),
@@ -563,6 +614,7 @@ export const ArticleEditorMode = {
       onSaveDraft: function () { self.saveDraft(); },
       onPublish: function () { self.saveAndPublish(); },
       onStickers: function () { self._openStickers(); },
+      onToggleRender: function () { self.toggleRenderMode(); },
       onDiscard: function () { self.discardChanges(); },
       onTitleChange: function (val) { self.setTitle(val); },
       onExit: function () {
@@ -579,6 +631,7 @@ export const ArticleEditorMode = {
       article.title || '未命名',
       article.category || article.categoryName || '未分类'
     );
+    this._toolbar.updateRenderMode(this._renderMode);
   },
 
   /** 创建草稿管理面板 */

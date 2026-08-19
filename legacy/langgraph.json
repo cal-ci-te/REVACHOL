@@ -1,0 +1,7 @@
+{
+  "node_version": "24",
+  "graphs": {
+    "agent": "./src/agent.js:agent"
+  },
+  "env": ".env"
+}

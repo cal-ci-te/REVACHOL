@@ -2,7 +2,7 @@
 const { send, json } = require('../enhance.cjs');
 const dbModule = require('../db.cjs');
 const { broadcast } = require('../websocket.cjs');
-const { requireAuth } = require('../auth.js');
+const { requireAuth } = require('../auth.cjs');
 
 function registerSettingsRoutes(GET, PUT) {
 

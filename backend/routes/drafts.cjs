@@ -5,7 +5,7 @@ const { send, sendError, json } = require('../enhance.cjs');
 const dbModule = require('../db.cjs');
 const { broadcast } = require('../websocket.cjs');
 const { cleanExpiredDrafts, enforceDraftLimit } = require('../cleanup-drafts.cjs');
-const { requireAuth } = require('../auth.js');
+const { requireAuth } = require('../auth.cjs');
 
 function registerDraftsRoutes(GET, POST, PUT, DELETE) {
 

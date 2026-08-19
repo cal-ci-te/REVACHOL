@@ -18,7 +18,7 @@ export const ArticleEditorToolbar = {
   _posKey: 'article_editor_toolbar_pos',
 
   /**
-   * @param {object} cb { onSaveDraft, onPublish, onStickers, onDiscard, onExit, onTitleChange }
+   * @param {object} cb { onSaveDraft, onPublish, onStickers, onDiscard, onExit, onTitleChange, onToggleRender }
    */
   create(cb) {
     this._callbacks = cb || {};
@@ -104,6 +104,16 @@ export const ArticleEditorToolbar = {
     return ti ? ti.value.trim() : '';
   },
 
+  /** 更新渲染模式按钮文案（'html' | 'text'） */
+  updateRenderMode(mode) {
+    var btn = document.getElementById('editorBtnToggleRender');
+    if (btn) {
+      var label = (mode === 'text') ? (UI.editor.renderHtml || 'HTML 渲染') : (UI.editor.renderText || '纯文本');
+      btn.textContent = '🔀 ' + label;
+      btn.title = (mode === 'text') ? '当前为纯文本模式，点击切换到 HTML 渲染' : '当前为 HTML 渲染模式，点击切换到纯文本';
+    }
+  },
+
   _bindButtons() {
     var cb = this._callbacks || {};
     var b = function (id, fn) {
@@ -114,6 +124,7 @@ export const ArticleEditorToolbar = {
     b('editorBtnSaveDraft', cb.onSaveDraft);
     b('editorBtnPublish',  cb.onPublish);
     b('editorBtnStickers', cb.onStickers);
+    b('editorBtnToggleRender', cb.onToggleRender);
     b('editorBtnDiscard',  cb.onDiscard);
     b('editorBtnExit',     cb.onExit);
 
@@ -188,6 +199,7 @@ function _buildHTML() {
       _b('editorBtnSaveDraft', '💾 ' + (UI.editor.saveDraft || '保存草稿'), ''),
       _b('editorBtnPublish', '🚀 ' + (UI.editor.publish || '发布/应用'), 'primary'),
       _b('editorBtnStickers', '📌 ' + (UI.stickerEditor.addStickerBtn || '贴纸'), ''),
+      _b('editorBtnToggleRender', '🔀 ' + (UI.editor.toggleRender || '切换渲染'), ''),
       '<div style="border-top:1px solid var(--color-border);margin:2px 0;"></div>',
       _b('editorBtnDiscard', '↩ ' + (UI.editor.cancel || '放弃修改'), ''),
       _b('editorBtnExit', '✕ ' + (UI.common.close || '退出编辑'), 'danger'),

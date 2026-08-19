@@ -5,7 +5,7 @@ const { send, sendError, json } = require('../enhance.cjs');
 const dbModule = require('../db.cjs');
 const { broadcast } = require('../websocket.cjs');
 const { validate } = require('../validate.cjs');
-const { requireAuth } = require('../auth.js');
+const { requireAuth } = require('../auth.cjs');
 
 function validateFields(res, fields) {
     const err = validate(fields);

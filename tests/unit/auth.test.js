@@ -11,7 +11,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // 中间件测试通过 spyOn tokenStore 来控制行为。
 // ============================================================
 
-const auth = await import('../../backend/auth.js');
+const authModule = await import('../../backend/auth.cjs');
+const auth = authModule.default || authModule;
 
 // ============================================================
 // 工具函数：创建 mock req/res

@@ -5,7 +5,7 @@ const { ensureUploadDir } = require('./utils.cjs');
 const { handleDecoUpload } = require('./upload.cjs');
 
 // 认证模块：Token 生成/验证/撤销 + requireAuth 包装器
-const { requireAuth, generateToken, revokeToken } = require('./auth.js');
+const { requireAuth, generateToken, revokeToken } = require('./auth.cjs');
 
 // 管理员凭据：优先从环境变量读取，未设置时回退到默认值（开发环境兼容）
 // 生产部署时通过 .env 或 docker-compose.yml 注入 ADMIN_PASSWORD 环境变量

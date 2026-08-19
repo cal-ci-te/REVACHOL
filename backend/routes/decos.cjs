@@ -5,7 +5,7 @@ const { send, sendError, json } = require('../enhance.cjs');
 const { storage } = require('../storage/index.cjs');
 const dbModule = require('../db.cjs');
 const { broadcast } = require('../websocket.cjs');
-const { requireAuth } = require('../auth.js');
+const { requireAuth } = require('../auth.cjs');
 
 function registerDecoRoutes(GET, PUT, DELETE) {
 
