@@ -344,12 +344,12 @@ SiteIcon.playEntranceAnimation();
 document.addEventListener('keydown', function (e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
     // 跳过在输入框/编辑器中的触发
-    var tag = document.activeElement && document.activeElement.tagName;
+    const tag = document.activeElement && document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement && document.activeElement.contentEditable === 'true')) return;
 
     e.preventDefault();
     // 获取当前活跃的文章（来自详情标签页或目录选中）
-    var activeId = null;
+    let activeId = null;
     if (UIController && UIController.detail && UIController.detail.activeId) {
       activeId = UIController.detail.activeId;
     }

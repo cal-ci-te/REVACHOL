@@ -16,7 +16,7 @@ export const EditorOverlay = {
    */
   ensureCSS() {
     if (this._cssInjected) return;
-    var link = document.getElementById('article-editor-css');
+    let link = document.getElementById('article-editor-css');
     if (!link) {
       link = document.createElement('link');
       link.id = 'article-editor-css';
@@ -35,7 +35,7 @@ export const EditorOverlay = {
    */
   create() {
     // 全屏覆盖层 — 与 StickerEditorMode 完全一致的布局
-    var overlay = document.createElement('div');
+    const overlay = document.createElement('div');
     overlay.id = 'article-editor-overlay';
     overlay.style.cssText = [
       'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
@@ -45,13 +45,13 @@ export const EditorOverlay = {
     document.body.appendChild(overlay);
 
     // 标签栏占位条 — 外观与阅读页 .detail-topbar 一致（36px，深色背景 + 底边框）
-    var topbar = document.createElement('div');
+    const topbar = document.createElement('div');
     topbar.id = 'article-editor-topbar';
     topbar.textContent = '文章编辑';
     overlay.appendChild(topbar);
 
     // 文章容器 — 完全匹配阅读页 .detail-pane（padding 24px 32px）
-    var articleContainer = document.createElement('div');
+    const articleContainer = document.createElement('div');
     articleContainer.id = 'article-editor-article';
     articleContainer.style.cssText = [
       'padding:24px 32px', 'position:relative', 'overflow:visible',

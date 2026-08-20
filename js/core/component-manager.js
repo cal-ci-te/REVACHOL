@@ -56,7 +56,7 @@ const STATE_LABELS = {
 function withTimeout(promise, ms, label) {
   if (!ms || ms <= 0) return promise;
   return new Promise(function (resolve, reject) {
-    var timer = setTimeout(function () {
+    const timer = setTimeout(function () {
       reject(new Error(label || '操作超时 (' + ms + 'ms)'));
     }, ms);
     promise.then(function (result) {
@@ -87,15 +87,15 @@ export var ComponentManager = {
       return this;
     }
 
-    var name = descriptor.name;
+    const name = descriptor.name;
 
     if (this._registry.has(name)) {
       console.warn('[ComponentManager] 组件已注册，跳过:', name);
       return this;
     }
 
-    var config = descriptor.config || {};
-    var entry = {
+    const config = descriptor.config || {};
+    const entry = {
       name: name,
       config: {
         dependencies: Array.isArray(config.dependencies) ? config.dependencies : [],
@@ -144,24 +144,24 @@ export var ComponentManager = {
   // =========================================================================
 
   initAll: async function (options) {
-    var filter = options && options.filter ? new Set(options.filter) : null;
-    var force = options && options.force;
-    var order = this._getTopologicalOrder();
-    var results = { success: 0, failed: 0, skipped: 0, details: [] };
+    const filter = options && options.filter ? new Set(options.filter) : null;
+    const force = options && options.force;
+    const order = this._getTopologicalOrder();
+    const results = { success: 0, failed: 0, skipped: 0, details: [] };
 
     console.log('[ComponentManager] initAll 开始，共 ' + order.length + ' 个组件');
 
-    for (var i = 0; i < order.length; i++) {
-      var name = order[i];
+    for (let i = 0; i < order.length; i++) {
+      const name = order[i];
       if (filter && !filter.has(name)) continue;
-      var entry = this._registry.get(name);
+      const entry = this._registry.get(name);
       if (!entry) continue;
       if (!force && entry.state !== 'registered') {
         results.skipped++;
         results.details.push({ name: name, ok: null, skipped: true });
         continue;
       }
-      var ok = await this._tryInit(entry);
+      const ok = await this._tryInit(entry);
       results.details.push({ name: name, ok: ok });
       ok ? results.success++ : results.failed++;
     }
@@ -178,16 +178,16 @@ export var ComponentManager = {
   },
 
   mountAll: async function (options) {
-    var filter = options && options.filter ? new Set(options.filter) : null;
-    var order = this._getTopologicalOrder();
-    var results = { success: 0, failed: 0, skipped: 0, details: [] };
+    const filter = options && options.filter ? new Set(options.filter) : null;
+    const order = this._getTopologicalOrder();
+    const results = { success: 0, failed: 0, skipped: 0, details: [] };
 
     console.log('[ComponentManager] mountAll 开始');
 
-    for (var i = 0; i < order.length; i++) {
-      var name = order[i];
+    for (let i = 0; i < order.length; i++) {
+      const name = order[i];
       if (filter && !filter.has(name)) continue;
-      var entry = this._registry.get(name);
+      const entry = this._registry.get(name);
       if (!entry || entry.state !== 'initialized') {
         if (entry) results.skipped++;
         continue;
@@ -202,7 +202,7 @@ export var ComponentManager = {
         continue;
       }
 
-      var ok = await this._tryMount(entry);
+      const ok = await this._tryMount(entry);
       results.details.push({ name: name, ok: ok });
       ok ? results.success++ : results.failed++;
     }
@@ -219,22 +219,22 @@ export var ComponentManager = {
   },
 
   unmountAll: async function (options) {
-    var filter = options && options.filter ? new Set(options.filter) : null;
-    var useSync = options && options.sync;
-    var self = this;
+    const filter = options && options.filter ? new Set(options.filter) : null;
+    const useSync = options && options.sync;
+    const self = this;
 
-    var entries = [];
+    const entries = [];
     this._registry.forEach(function (entry) {
       if (entry.state === 'mounted' || entry.state === 'error') entries.push(entry);
     });
     entries.reverse();
 
-    var results = { success: 0, failed: 0, details: [] };
+    const results = { success: 0, failed: 0, details: [] };
 
     console.log('[ComponentManager] unmountAll 开始 (' + (useSync ? '同步' : '异步') + '模式)');
 
-    for (var i = 0; i < entries.length; i++) {
-      var entry = entries[i];
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
       if (filter && !filter.has(entry.name)) continue;
 
       EventBus.emit(EVENTS.COMPONENT_BEFORE_DESTROY, { name: entry.name });
@@ -256,14 +256,14 @@ export var ComponentManager = {
   },
 
   updateAll: async function (payload) {
-    var entries = [];
+    const entries = [];
     this._registry.forEach(function (entry) {
       if (entry.state === 'mounted') entries.push(entry);
     });
-    var results = { success: 0, failed: 0 };
+    const results = { success: 0, failed: 0 };
 
-    for (var i = 0; i < entries.length; i++) {
-      var entry = entries[i];
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
       if (typeof entry.hooks.update === 'function') {
         try {
           entry.instance = await entry.hooks.update(entry.instance, payload);
@@ -283,7 +283,7 @@ export var ComponentManager = {
   // =========================================================================
 
   initComponent: async function (name) {
-    var entry = this._registry.get(name);
+    const entry = this._registry.get(name);
     if (!entry || entry.state !== 'registered') {
       console.warn('[ComponentManager] initComponent: 无法初始化', name);
       return false;
@@ -292,7 +292,7 @@ export var ComponentManager = {
   },
 
   mountComponent: async function (name) {
-    var entry = this._registry.get(name);
+    const entry = this._registry.get(name);
     if (!entry || entry.state !== 'initialized') {
       console.warn('[ComponentManager] mountComponent: 无法挂载', name);
       return false;
@@ -307,7 +307,7 @@ export var ComponentManager = {
   },
 
   unmountComponent: async function (name) {
-    var entry = this._registry.get(name);
+    const entry = this._registry.get(name);
     if (!entry || (entry.state !== 'mounted' && entry.state !== 'error')) {
       console.warn('[ComponentManager] unmountComponent: 无法卸载', name);
       return false;
@@ -318,7 +318,7 @@ export var ComponentManager = {
   },
 
   remountComponent: async function (name) {
-    var entry = this._registry.get(name);
+    const entry = this._registry.get(name);
     if (!entry || entry.state !== 'unmounted') {
       console.warn('[ComponentManager] remountComponent: 状态不允许:', name,
         entry ? entry.state : '不存在');
@@ -330,7 +330,7 @@ export var ComponentManager = {
     entry.instance = null;
     entry.lastStateChange = Date.now();
 
-    var initOk = await this._tryInit(entry);
+    const initOk = await this._tryInit(entry);
     if (!initOk) return false;
 
     if (entry.config.desktopOnly && this._isMobile()) {
@@ -344,7 +344,7 @@ export var ComponentManager = {
   },
 
   updateConfig: function (name, partialConfig) {
-    var entry = this._registry.get(name);
+    const entry = this._registry.get(name);
     if (!entry) {
       console.warn('[ComponentManager] updateConfig: 组件不存在:', name);
       return false;
@@ -369,7 +369,7 @@ export var ComponentManager = {
   },
 
   updateComponent: async function (name, payload) {
-    var entry = this._registry.get(name);
+    const entry = this._registry.get(name);
     if (!entry || entry.state !== 'mounted') {
       console.warn('[ComponentManager] updateComponent: 组件不可更新:', name);
       return false;
@@ -391,12 +391,12 @@ export var ComponentManager = {
   // =========================================================================
 
   getComponent: function (name) {
-    var entry = this._registry.get(name);
+    const entry = this._registry.get(name);
     return entry ? entry.instance : null;
   },
 
   getState: function (name) {
-    var entry = this._registry.get(name);
+    const entry = this._registry.get(name);
     if (!entry) return null;
     return {
       name: entry.name,
@@ -412,7 +412,7 @@ export var ComponentManager = {
   },
 
   getAllStates: function () {
-    var result = {};
+    const result = {};
     this._registry.forEach(function (entry, name) {
       result[name] = ComponentManager.getState(name);
     });
@@ -420,7 +420,7 @@ export var ComponentManager = {
   },
 
   getSummary: function () {
-    var registered = 0, initialized = 0, mounted = 0, unmounted = 0, error = 0;
+    let registered = 0, initialized = 0, mounted = 0, unmounted = 0, error = 0;
     this._registry.forEach(function (entry) {
       switch (entry.state) {
         case 'registered': registered++; break;
@@ -442,8 +442,8 @@ export var ComponentManager = {
       return false;
     }
     try {
-      var mod = await import(modulePath);
-      var descriptor = mod.default || mod[name + 'Component'] || mod[name];
+      const mod = await import(modulePath);
+      const descriptor = mod.default || mod[name + 'Component'] || mod[name];
       if (!descriptor || !descriptor.name) {
         console.error('[ComponentManager] loadComponent: 模块未导出有效组件描述符:', modulePath);
         return false;
@@ -479,10 +479,10 @@ export var ComponentManager = {
       return true;
     }
 
-    var start = performance.now();
+    const start = performance.now();
     try {
       if (entry.options.debug) console.log('[ComponentManager] 初始化组件:', entry.name);
-      var promise = entry.hooks.init();
+      const promise = entry.hooks.init();
       entry.instance = entry.options.initTimeout
         ? await withTimeout(promise, entry.options.initTimeout,
             'init 超时 (' + entry.options.initTimeout + 'ms)')
@@ -515,10 +515,10 @@ export var ComponentManager = {
       return true;
     }
 
-    var start = performance.now();
+    const start = performance.now();
     try {
       if (entry.options.debug) console.log('[ComponentManager] 挂载组件:', entry.name);
-      var promise = entry.hooks.mount(entry.instance);
+      const promise = entry.hooks.mount(entry.instance);
       entry.instance = entry.options.mountTimeout
         ? await withTimeout(promise, entry.options.mountTimeout,
             'mount 超时 (' + entry.options.mountTimeout + 'ms)')
@@ -554,10 +554,10 @@ export var ComponentManager = {
       return true;
     }
 
-    var start = performance.now();
+    const start = performance.now();
     try {
       if (entry.options.debug) console.log('[ComponentManager] 卸载组件:', entry.name);
-      var promise = entry.hooks.unmount(entry.instance);
+      const promise = entry.hooks.unmount(entry.instance);
       await (entry.options.unmountTimeout
         ? withTimeout(promise, entry.options.unmountTimeout,
             'unmount 超时 (' + entry.options.unmountTimeout + 'ms)')
@@ -594,7 +594,7 @@ export var ComponentManager = {
     }
 
     try {
-      var result = entry.hooks.unmount(entry.instance);
+      const result = entry.hooks.unmount(entry.instance);
       if (result && typeof result.then === 'function') {
         result.catch(function (err) {
           console.error('[ComponentManager] unmount 异步错误:', entry.name, err);
@@ -623,7 +623,7 @@ export var ComponentManager = {
   },
 
   _autoCleanupEvents: function (name) {
-    var tokens = this._eventTokens.get(name);
+    const tokens = this._eventTokens.get(name);
     if (!tokens || tokens.length === 0) return;
     tokens.forEach(function (t) {
       try { EventBus.off(t.eventName, t.callback); } catch (e) { /* ignore */ }
@@ -642,16 +642,16 @@ export var ComponentManager = {
   _getTopologicalOrder: function () {
     if (!this._dirty && this._sortedOrder) return this._sortedOrder;
 
-    var names = [];
+    const names = [];
     this._registry.forEach(function (_, n) { names.push(n); });
 
-    var adj = new Map();
-    var inDegree = new Map();
+    const adj = new Map();
+    const inDegree = new Map();
 
     names.forEach(function (n) { adj.set(n, []); inDegree.set(n, 0); });
 
     names.forEach(function (n) {
-      var entry = this._registry.get(n);
+      const entry = this._registry.get(n);
       (entry.config.dependencies || []).forEach(function (dep) {
         if (this._registry.has(dep)) {
           adj.get(dep).push(n);
@@ -662,24 +662,24 @@ export var ComponentManager = {
       }, this);
     }, this);
 
-    var queue = [];
+    const queue = [];
     inDegree.forEach(function (deg, name) {
       if (deg === 0) queue.push(name);
     });
 
-    var result = [];
+    const result = [];
     while (queue.length > 0) {
-      var name = queue.shift();
+      const name = queue.shift();
       result.push(name);
       adj.get(name).forEach(function (neighbor) {
-        var newDeg = inDegree.get(neighbor) - 1;
+        const newDeg = inDegree.get(neighbor) - 1;
         inDegree.set(neighbor, newDeg);
         if (newDeg === 0) queue.push(neighbor);
       });
     }
 
     if (result.length < names.length) {
-      var unresolved = names.filter(function (n) { return result.indexOf(n) === -1; });
+      const unresolved = names.filter(function (n) { return result.indexOf(n) === -1; });
       console.warn('[ComponentManager] ⚠️ 存在循环依赖！已解析:', result.length,
         '/', names.length, '| 未解析:', unresolved.join(', '));
     }

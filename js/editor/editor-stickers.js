@@ -23,39 +23,39 @@ export const EditorStickers = {
    * @param {function} ctx.onDirty - 标记脏状态回调
    */
   render(ctx) {
-    var contentEl = ctx.contentEl;
-    var article = ctx.article;
-    var onDirty = ctx.onDirty;
+    const contentEl = ctx.contentEl;
+    const article = ctx.article;
+    const onDirty = ctx.onDirty;
     if (!contentEl || !article) return;
-    var stickers = article.stickers || [];
+    const stickers = article.stickers || [];
     if (!stickers || !stickers.length) return;
 
-    var stickerMap = {};
+    const stickerMap = {};
     stickers.forEach(function (s) { if (s && s.decoId) stickerMap[s.decoId] = s; });
 
-    var walker = document.createTreeWalker(
+    const walker = document.createTreeWalker(
       contentEl, NodeFilter.SHOW_COMMENT,
       { acceptNode: function (c) {
         return (c.nodeValue && /^\s*sticker:/.test(c.nodeValue.trim())) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       }}
     );
 
-    var comments = [];
-    var node;
+    const comments = [];
+    let node;
     while ((node = walker.nextNode())) { comments.push(node); }
 
-    var self = this;
+    const self = this;
     comments.forEach(function (comment) {
-      var match = comment.nodeValue.match(/sticker:([a-zA-Z0-9_-]+)/);
+      const match = comment.nodeValue.match(/sticker:([a-zA-Z0-9_-]+)/);
       if (!match) return;
-      var decoId = match[1];
-      var data = stickerMap[decoId];
+      const decoId = match[1];
+      const data = stickerMap[decoId];
       if (!data) return;
 
-      var deco = DecoShelf.get(decoId);
+      const deco = DecoShelf.get(decoId);
       if (!deco) return;
 
-      var el = self._createStickerElementWithContext(data, deco, article, onDirty);
+      const el = self._createStickerElementWithContext(data, deco, article, onDirty);
       comment.parentNode.replaceChild(el, comment);
     });
 
@@ -67,24 +67,24 @@ export const EditorStickers = {
    * 新增的贴纸追加到末尾，已删除的贴纸移除 DOM 元素。
    */
   refresh(ctx) {
-    var contentEl = ctx.contentEl;
-    var article = ctx.article;
-    var onDirty = ctx.onDirty;
+    const contentEl = ctx.contentEl;
+    const article = ctx.article;
+    const onDirty = ctx.onDirty;
     if (!contentEl || !article) return;
 
-    var stickers = article.stickers || [];
-    var self = this;
+    const stickers = article.stickers || [];
+    const self = this;
 
     // 收集现有贴纸元素，按 decoId 索引
-    var existingEls = contentEl.querySelectorAll('.article-sticker');
-    var existingMap = {};
+    const existingEls = contentEl.querySelectorAll('.article-sticker');
+    const existingMap = {};
     existingEls.forEach(function (el) {
-      var id = el.dataset.decoId;
+      const id = el.dataset.decoId;
       if (id) existingMap[id] = el;
     });
 
     // 构建新 decoId 集合
-    var newDecoIds = {};
+    const newDecoIds = {};
     stickers.forEach(function (s) { if (s && s.decoId) newDecoIds[s.decoId] = true; });
 
     // 移除已不存在的贴纸元素
@@ -96,16 +96,16 @@ export const EditorStickers = {
 
     // 更新现有贴纸 + 添加新贴纸
     stickers.forEach(function (data) {
-      var deco = DecoShelf.get(data.decoId);
+      const deco = DecoShelf.get(data.decoId);
       if (!deco) return;
 
-      var existing = existingMap[data.decoId];
+      const existing = existingMap[data.decoId];
       if (existing) {
         // 原地更新：只改样式和图片，不改变 DOM 位置
-        var imgSrc = deco.dataUrl || deco.url || '';
-        var w = data.width || StickerShape.DEFAULT_SIZE;
-        var h = data.height || StickerShape.DEFAULT_SIZE;
-        var shapeData = {
+        const imgSrc = deco.dataUrl || deco.url || '';
+        const w = data.width || StickerShape.DEFAULT_SIZE;
+        const h = data.height || StickerShape.DEFAULT_SIZE;
+        const shapeData = {
           width: w, height: h,
           align: data.align || 'left',
           margin: data.margin || StickerShape.DEFAULT_MARGIN,
@@ -113,26 +113,26 @@ export const EditorStickers = {
         existing.style.cssText = StickerShape.buildInlineStyle(shapeData, imgSrc);
       } else {
         // 新贴纸：追加到末尾
-        var el = self._createStickerElementWithContext(data, deco, article, onDirty);
+        const el = self._createStickerElementWithContext(data, deco, article, onDirty);
         contentEl.appendChild(el);
       }
     });
 
     // 清理旧的 clearfix，追加新的
-    var oldCf = contentEl.querySelectorAll('.sticker-clearfix');
+    const oldCf = contentEl.querySelectorAll('.sticker-clearfix');
     oldCf.forEach(function (el) { el.remove(); });
     this._ensureClearfix(contentEl);
   },
 
   removeContextMenu() {
-    var m = document.getElementById('editor-sticker-context-menu');
+    const m = document.getElementById('editor-sticker-context-menu');
     if (m) m.remove();
   },
 
   cleanup(contentEl) {
     this.removeContextMenu();
     if (contentEl) {
-      var existing = contentEl.querySelectorAll('.article-sticker, .sticker-clearfix');
+      const existing = contentEl.querySelectorAll('.article-sticker, .sticker-clearfix');
       existing.forEach(function (el) { el.remove(); });
     }
   },
@@ -143,23 +143,23 @@ export const EditorStickers = {
    * 创建单个贴纸 DOM 元素（render 和 refresh 共用）。
    */
   _createStickerElementWithContext(data, deco, article, onDirty) {
-    var el = document.createElement('div');
+    const el = document.createElement('div');
     el.className = 'article-sticker';
     el.id = 'editor-sticker-' + data.decoId;
     el.dataset.decoId = data.decoId;
 
-    var imgSrc = deco.dataUrl || deco.url || '';
-    var w = data.width || StickerShape.DEFAULT_SIZE;
-    var h = data.height || StickerShape.DEFAULT_SIZE;
+    const imgSrc = deco.dataUrl || deco.url || '';
+    const w = data.width || StickerShape.DEFAULT_SIZE;
+    const h = data.height || StickerShape.DEFAULT_SIZE;
 
-    var shapeData = {
+    const shapeData = {
       width: w, height: h,
       align: data.align || 'left',
       margin: data.margin || StickerShape.DEFAULT_MARGIN,
     };
     el.style.cssText = StickerShape.buildInlineStyle(shapeData, imgSrc);
 
-    var self = this;
+    const self = this;
     el.addEventListener('contextmenu', function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -170,11 +170,11 @@ export const EditorStickers = {
   },
 
   _ensureClearfix(container) {
-    var existing = container.querySelector('.sticker-clearfix');
+    const existing = container.querySelector('.sticker-clearfix');
     if (existing) {
       container.appendChild(existing);
     } else {
-      var cf = document.createElement('div');
+      const cf = document.createElement('div');
       cf.className = 'sticker-clearfix';
       cf.style.cssText = 'clear:both;height:0;visibility:hidden;';
       container.appendChild(cf);
@@ -182,17 +182,17 @@ export const EditorStickers = {
   },
 
   _showContextMenu(x, y, stickerData, stickerEl, article, onDirty) {
-    var self = this;
+    const self = this;
     this.removeContextMenu();
 
-    var menu = document.createElement('div');
+    const menu = document.createElement('div');
     menu.id = 'editor-sticker-context-menu';
     menu.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;z-index:10002;background:var(--color-bg-tertiary,#2a231c);border:1px solid var(--color-border-highlight,#c47a44);border-radius:4px;padding:4px 0;min-width:160px;box-shadow:4px 4px 0 rgba(0,0,0,0.35);font-family:Courier New,monospace;font-size:13px';
 
     [{ label: '🔄 切换浮动方向', action: function () {
-       var newAlign = stickerData.align === 'right' ? 'left' : 'right';
+       const newAlign = stickerData.align === 'right' ? 'left' : 'right';
        stickerData.align = newAlign;
-       var margin = stickerData.margin || StickerShape.DEFAULT_MARGIN;
+       const margin = stickerData.margin || StickerShape.DEFAULT_MARGIN;
        stickerEl.style.float = newAlign;
        stickerEl.style.margin = '10px ' + margin + 'px 10px ' + margin + 'px';
        self.removeContextMenu();
@@ -208,9 +208,9 @@ export const EditorStickers = {
        self.removeContextMenu();
        if (onDirty) onDirty();
      }}].forEach(function (item) {
-      if (item.sep) { var s = document.createElement('div'); s.style.cssText = 'height:1px;background:var(--color-border);margin:4px 0'; menu.appendChild(s); }
+      if (item.sep) { const s = document.createElement('div'); s.style.cssText = 'height:1px;background:var(--color-border);margin:4px 0'; menu.appendChild(s); }
       else {
-        var b = document.createElement('button'); b.textContent = item.label;
+        const b = document.createElement('button'); b.textContent = item.label;
         b.style.cssText = 'display:block;width:100%;text-align:left;padding:8px 16px;background:none;border:none;color:var(--color-text-accent);cursor:pointer;font-family:Courier New,monospace;font-size:13px';
         b.addEventListener('mouseenter', function () { b.style.background = 'var(--color-hover)'; });
         b.addEventListener('mouseleave', function () { b.style.background = 'none'; });

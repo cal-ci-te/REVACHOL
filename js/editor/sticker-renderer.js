@@ -37,7 +37,7 @@ export const StickerRenderer = {
   stripMarkers: function (content) {
     if (!content) return '';
     // 移除标记连同其前面的换行符（标记总是以 \n + <!-- 形式写入）
-    var cleaned = content.replace(/\n?<!--\s*sticker:.*?-->/g, '');
+    let cleaned = content.replace(/\n?<!--\s*sticker:.*?-->/g, '');
     // 压缩 3 个以上连续换行为双换行（最多保留一个段落间距）
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
     return cleaned.trim();
@@ -54,7 +54,7 @@ export const StickerRenderer = {
   stripStickerDivs: function (content) {
     if (!content) return '';
     // 移除 .article-sticker div（含其全部内部内容）
-    var cleaned = content.replace(/<div[^>]*class="[^"]*article-sticker[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+    let cleaned = content.replace(/<div[^>]*class="[^"]*article-sticker[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
     // 移除 .sticker-clearfix div
     cleaned = cleaned.replace(/<div[^>]*class="[^"]*sticker-clearfix[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
     return cleaned;
@@ -81,13 +81,13 @@ export const StickerRenderer = {
    * @returns {{ cleanContent: string, stickers: Array<{decoId:string, align:string, w:number, h:number}> }}
    */
   parseMarkers(content) {
-    var stickers = [];
-    var regex = this._MARKER_REGEX;
+    const stickers = [];
+    const regex = this._MARKER_REGEX;
     regex.lastIndex = 0;
 
-    var match;
+    let match;
     while ((match = regex.exec(content)) !== null) {
-      var fields = this._parseMarkerContent(match[1]);
+      const fields = this._parseMarkerContent(match[1]);
       stickers.push({
         decoId: fields.decoId,
         x: fields.x ? parseInt(fields.x) : StickerShape.DEFAULT_X,
@@ -107,7 +107,7 @@ export const StickerRenderer = {
 
     // 移除所有标记（复用 stripMarkers 清理空白）
     regex.lastIndex = 0;
-    var cleanContent = this.stripMarkers(content);
+    const cleanContent = this.stripMarkers(content);
 
     return { cleanContent: cleanContent, stickers: stickers };
   },
@@ -122,21 +122,21 @@ export const StickerRenderer = {
    */
   createMarker(decoId, opts) {
     opts = opts || {};
-    var x = opts.x !== undefined ? opts.x : StickerShape.DEFAULT_X;
-    var y = opts.y !== undefined ? opts.y : StickerShape.DEFAULT_Y;
-    var align = opts.align || 'left';
-    var w = opts.w || opts.width || StickerShape.DEFAULT_SIZE;
-    var h = opts.h || opts.height || StickerShape.DEFAULT_SIZE;
-    var margin = opts.margin !== undefined ? opts.margin : StickerShape.DEFAULT_MARGIN;
+    const x = opts.x !== undefined ? opts.x : StickerShape.DEFAULT_X;
+    const y = opts.y !== undefined ? opts.y : StickerShape.DEFAULT_Y;
+    const align = opts.align || 'left';
+    const w = opts.w || opts.width || StickerShape.DEFAULT_SIZE;
+    const h = opts.h || opts.height || StickerShape.DEFAULT_SIZE;
+    const margin = opts.margin !== undefined ? opts.margin : StickerShape.DEFAULT_MARGIN;
 
-    var marker = '<!-- sticker:' + decoId +
+    let marker = '<!-- sticker:' + decoId +
       ' x=' + x + ' y=' + y + ' w=' + w + ' h=' + h +
       ' align=' + align + ' margin=' + margin;
 
     // 数据驱动锚点：仅非默认锚点写入标记字段
-    var anchorReceived = !!opts.anchor;
-    var isDefault = opts.anchor ? AnchorManager.isDefaultAnchor(opts.anchor) : true;
-    var willWrite = anchorReceived && !isDefault;
+    const anchorReceived = !!opts.anchor;
+    const isDefault = opts.anchor ? AnchorManager.isDefaultAnchor(opts.anchor) : true;
+    const willWrite = anchorReceived && !isDefault;
     console.log('[StickerRenderer.createMarker] decoId=' + decoId +
                 ' | anchorReceived=' + anchorReceived +
                 ' | isDefault=' + isDefault +
@@ -177,11 +177,11 @@ export const StickerRenderer = {
     this.clearElements();
 
     // 构建 decoId → sticker 快速查找表
-    var stickerMap = {};
+    const stickerMap = {};
     stickers.forEach(function (s) { if (s && s.decoId) stickerMap[s.decoId] = s; });
 
     // TreeWalker 遍历所有注释节点，收集贴纸标记
-    var walker = document.createTreeWalker(
+    const walker = document.createTreeWalker(
       container,
       NodeFilter.SHOW_COMMENT,
       {
@@ -195,33 +195,33 @@ export const StickerRenderer = {
     );
 
     // 先收集再替换（遍历中修改 DOM 会破坏迭代器）
-    var comments = [];
-    var node;
+    const comments = [];
+    let node;
     while ((node = walker.nextNode())) {
       comments.push(node);
     }
     console.log('[StickerRenderer.renderInArticle] TreeWalker 找到 ' + comments.length + ' 个注释节点 | stickerMap keys=' + Object.keys(stickerMap).join(','));
     console.log('[StickerRenderer.renderInArticle] 注释节点 DOM 顺序: ' + comments.map(function (c) {
-      var m = c.nodeValue.match(/sticker:([a-zA-Z0-9_-]+)/);
-      var a = m && stickerMap[m[1]] ? stickerMap[m[1]].anchor : null;
+      const m = c.nodeValue.match(/sticker:([a-zA-Z0-9_-]+)/);
+      const a = m && stickerMap[m[1]] ? stickerMap[m[1]].anchor : null;
       return (m ? m[1] : '?') + '@idx' + (a ? a.index : '?');
     }).join(', '));
 
-    var self = this;
+    const self = this;
     comments.forEach(function (comment) {
-      var match = comment.nodeValue.match(/sticker:([a-zA-Z0-9_-]+)/);
+      const match = comment.nodeValue.match(/sticker:([a-zA-Z0-9_-]+)/);
       if (!match) {
         console.warn('[StickerRenderer.renderInArticle] 注释无法解析 decoId: ' + comment.nodeValue.substring(0, 40));
         return;
       }
-      var decoId = match[1];
-      var sticker = stickerMap[decoId];
+      const decoId = match[1];
+      const sticker = stickerMap[decoId];
       if (!sticker) {
         console.warn('[StickerRenderer.renderInArticle] stickerMap 中无 decoId=' + decoId + ' | 可用: ' + Object.keys(stickerMap).join(','));
         return;
       }
 
-      var deco = DecoShelf.get(decoId);
+      const deco = DecoShelf.get(decoId);
       if (!deco) {
         console.warn('[StickerRenderer.renderInArticle] DecoShelf.get(' + decoId + ') 返回 null/undefined');
         return;
@@ -232,8 +232,8 @@ export const StickerRenderer = {
                   ' | hasUrl=' + !!deco.url +
                   ' | sticker.keys=' + Object.keys(sticker).join(','));
 
-      var el = self._createStickerElement(sticker, deco);
-      var imgSrc = deco.dataUrl || deco.url || '';
+      const el = self._createStickerElement(sticker, deco);
+      const imgSrc = deco.dataUrl || deco.url || '';
       console.log('[StickerRenderer.renderInArticle] 创建元素: tagName=' + el.tagName +
                   ' | className=' + el.className +
                   ' | imgSrc前40=' + (imgSrc ? imgSrc.substring(0, 40) : '(empty)') +
@@ -242,8 +242,8 @@ export const StickerRenderer = {
       comment.parentNode.replaceChild(el, comment);
       // 强制浏览器重排，确保浮动元素尺寸被正确计算
       void el.offsetHeight;
-      var cs = getComputedStyle(el);
-      var rect = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
       console.log('[StickerRenderer.renderInArticle] replaceChild 完成: parentNode=' + (el.parentNode ? el.parentNode.tagName + '.' + el.parentNode.className : 'null') +
                   ' | offsetWidth=' + el.offsetWidth + ' offsetHeight=' + el.offsetHeight +
                   ' | compWidth=' + cs.width + ' compHeight=' + cs.height +
@@ -264,10 +264,10 @@ export const StickerRenderer = {
    */
   _ensureClearfix(container) {
     // 移除旧的避免累积
-    var old = container.querySelectorAll('.sticker-clearfix');
+    const old = container.querySelectorAll('.sticker-clearfix');
     old.forEach(function (el) { el.remove(); });
     // 添加新的
-    var cf = document.createElement('div');
+    const cf = document.createElement('div');
     cf.className = 'sticker-clearfix';
     cf.style.cssText = 'clear:both;height:0;overflow:hidden;';
     container.appendChild(cf);
@@ -283,13 +283,13 @@ export const StickerRenderer = {
     if (!parentContainer || !stickerData || !stickerData.length) return;
     this.clearElements();
 
-    var self = this;
+    const self = this;
 
     stickerData.forEach(function (data) {
-      var deco = DecoShelf.get(data.decoId);
+      const deco = DecoShelf.get(data.decoId);
       if (!deco) return;
 
-      var el = self._createEditorStickerElement(data, deco);
+      const el = self._createEditorStickerElement(data, deco);
       parentContainer.appendChild(el);
       self._elements.push(el);
     });
@@ -299,11 +299,11 @@ export const StickerRenderer = {
    * 创建单个贴纸浮动元素（用于文章阅读视图）
    */
   _createStickerElement(sticker, deco) {
-    var el = document.createElement('div');
+    const el = document.createElement('div');
     el.className = 'article-sticker';
     el.dataset.decoId = sticker.decoId;
 
-    var imgSrc = deco.dataUrl || deco.url || '';
+    const imgSrc = deco.dataUrl || deco.url || '';
     el.style.cssText = StickerShape.buildInlineStyle(sticker, imgSrc);
 
     el.addEventListener('contextmenu', function (e) {
@@ -317,14 +317,14 @@ export const StickerRenderer = {
    * 创建编辑器模式下的贴纸元素（绝对定位，可拖拽）
    */
   _createEditorStickerElement(data, deco) {
-    var el = document.createElement('div');
+    const el = document.createElement('div');
     el.className = 'article-sticker article-sticker-editing';
     el.id = 'article-sticker-' + data.decoId;
     el.dataset.decoId = data.decoId;
 
-    var imgSrc = deco.dataUrl || deco.url || '';
-    var w = data.width || data.w || StickerShape.DEFAULT_SIZE;
-    var h = data.height || data.h || StickerShape.DEFAULT_SIZE;
+    const imgSrc = deco.dataUrl || deco.url || '';
+    const w = data.width || data.w || StickerShape.DEFAULT_SIZE;
+    const h = data.height || data.h || StickerShape.DEFAULT_SIZE;
 
     el.style.cssText = [
       'position:absolute',
@@ -373,8 +373,8 @@ export const StickerRenderer = {
    */
   collectStickerData(container) {
     if (!container) return [];
-    var result = [];
-    var els = container.querySelectorAll('.article-sticker-editing');
+    const result = [];
+    const els = container.querySelectorAll('.article-sticker-editing');
     els.forEach(function (el) {
       result.push({
         decoId: el.dataset.decoId,

@@ -47,6 +47,9 @@ export const MUTATIONS = {
   // 拼图组件
   SET_PUZZLE_IMAGE: 'SET_PUZZLE_IMAGE',           // 拼图自定义图片 dataUrl
   SET_PUZZLE_COMPLETED: 'SET_PUZZLE_COMPLETED',   // 拼图是否已对齐完成
+
+  // CrewAI Web Dashboard
+  SET_CREW_STATE: 'SET_CREW_STATE',               // 整体替换 crew 运行状态快照
 };
 
 /**

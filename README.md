@@ -2,7 +2,7 @@
 
 > 原创角色档案馆 —— 一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-> 当前版本：`v1.19.0` ⚠️ WIP（开发中）
+> 当前版本：`v1.20.0` ⚠️ WIP（开发中）
 
 ## ✨ 预览
 <!-- ===== 预览 ===== -->
@@ -58,6 +58,7 @@
 - **管理面板**：登录、头像、背景、纹理、水印、色卡
 - **滑动拼图**：可配置交互组件（尺寸/图片/位置可自定义）
 - **多 Agent 协作**：CrewAI 四角色流水线（规划 → 编码 → 审查 → 文档），Git MCP 集成
+- **Crew Dashboard**：Web 端四 Agent 状态卡片 + 实时日志流（`/crew-dashboard.html`），替代终端 TUI
 
 ## 🚀 快速开始
 
@@ -77,6 +78,50 @@ Docker 一键部署：
 ```bash
 docker compose up -d --build
 ```
+
+## 🤖 Crew Dashboard 部署（Docker）
+
+Crew Dashboard 已打包进后端镜像，复用现有 `docker-compose.yml` 单容器启动：
+
+```bash
+# 1. （可选）准备根环境变量，默认管理员密码 admin123
+cp .env.example .env
+
+# 2. 确保模型密钥位于 my_first_crew/.env
+#    compose 已挂载 ./my_first_crew:/app/my_first_crew，脚本会自动读取其中 .env
+
+# 3. 构建并启动
+docker compose up -d --build
+
+# 4. 访问
+#    主站：           http://localhost:3000
+#    Crew Dashboard： http://localhost:3000/crew-dashboard.html
+```
+
+使用流程：
+
+1. 打开 `/crew-dashboard.html`，使用管理员账号登录（默认 `admin` / `ADMIN_PASSWORD`，可在根 `.env` 配置）
+2. 在需求输入框填写任务描述（如“为贴纸系统新增旋转功能”）
+3. 勾选 **dry-run** 先验证 Agent/Task 配置；确认无误后取消勾选真实执行
+4. 页面通过 WebSocket 实时展示四 Agent 状态卡片、日志流、执行回放与 Token 统计
+5. 执行完成后结构化输出写入宿主机 `./output/`（`*_parsed.json`）
+
+验证命令：
+
+```bash
+docker compose ps
+curl -s http://localhost:3000/api/crew/status          # 经 frontend 代理访问
+docker compose exec backend node -e "require('http').get('http://localhost:9999/api/crew/status',r=>{r.resume();r.on('end',()=>process.exit(0))})"
+docker compose exec backend ps -o user,pid,cmd | grep -E "node|python"   # 非 root 检查
+```
+
+注意事项：
+
+- 容器以非 root `node` 用户运行（镜像内 `USER node`）
+- `my_first_crew/.venv` 使用匿名卷保留镜像内 Linux venv，避免宿主机 Windows `.venv` 通过绑定挂载覆盖
+- `my_first_crew/.env` 为密钥文件，不复制进镜像，运行时由绑定挂载提供
+- `CREW_DIR` 由 compose 注入为 `/app/my_first_crew`，用于后端定位 Python 脚本（本地开发无需设置）
+- Linux 宿主如遇 `./output` 写入权限不足：`sudo chown -R 1000:1000 output`
 
 ## 📦 技术栈
 

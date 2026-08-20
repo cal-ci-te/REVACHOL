@@ -17,8 +17,8 @@ describe('state-mutations', () => {
       expect(MUTATIONS.SET_PUZZLE_COMPLETED).toBe('SET_PUZZLE_COMPLETED');
     });
 
-    it('should contain 19 mutation types', () => {
-      expect(Object.keys(MUTATIONS)).toHaveLength(19);
+    it('should contain 20 mutation types', () => {
+      expect(Object.keys(MUTATIONS)).toHaveLength(20);
     });
   });
 

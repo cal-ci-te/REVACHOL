@@ -80,5 +80,17 @@ export const EVENTS = {
   STICKER_EDITOR_OPENED: 'sticker-editor:opened',
   STICKER_EDITOR_CLOSED: 'sticker-editor:closed',
   STICKER_EDITOR_SAVED: 'sticker-editor:saved',
+
+  // CrewAI Web Dashboard
+  CREW_STATUS_LOADED: 'crew:status-loaded',
+  CREW_STARTED: 'crew:started',
+  CREW_AGENT_STATUS: 'crew:agent-status',
+  CREW_TASK: 'crew:task',
+  CREW_LOG: 'crew:log',
+  CREW_OUTPUT: 'crew:output',
+  CREW_STATS: 'crew:stats',
+  CREW_FINISHED: 'crew:finished',
+  CREW_STOPPED: 'crew:stopped',
+  CREW_ERROR: 'crew:error',
 };
 

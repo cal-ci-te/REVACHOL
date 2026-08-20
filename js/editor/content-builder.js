@@ -28,20 +28,20 @@ export const ContentBuilder = {
     }
 
     // 按锚点降序排序（从后往前插入，避免位置偏移）
-    var sorted = stickers.slice().sort(function (a, b) {
+    const sorted = stickers.slice().sort(function (a, b) {
       return AnchorManager.compareAnchors(b.anchor, a.anchor);
     });
 
     // 用临时容器把内容解析为 DOM，按「直接子元素」计数（与 AnchorManager.computeAnchorFromY
     // 的计数逻辑一致），避免用正则扫描块级标签时与真实 DOM 结构（嵌套列表、注释等）产生偏差。
-    var container = document.createElement('div');
+    const container = document.createElement('div');
     container.innerHTML = content;
 
-    for (var i = 0; i < sorted.length; i++) {
-      var sticker = sorted[i];
-      var anchor = sticker.anchor || { type: 'end', index: -1 };
-      var markerStr = this._createMarker(sticker);
-      var commentNode = document.createComment(
+    for (let i = 0; i < sorted.length; i++) {
+      const sticker = sorted[i];
+      const anchor = sticker.anchor || { type: 'end', index: -1 };
+      const markerStr = this._createMarker(sticker);
+      const commentNode = document.createComment(
         markerStr.replace(/^<!--\s*/, '').replace(/\s*-->$/, '')
       );
       this._insertCommentAtAnchor(container, commentNode, anchor);
@@ -54,7 +54,7 @@ export const ContentBuilder = {
    * 创建贴纸标记字符串。
    */
   _createMarker: function (sticker) {
-    var opts = {
+    const opts = {
       x: sticker.x || 50,
       y: sticker.y || 50,
       w: sticker.width || 120,
@@ -63,7 +63,7 @@ export const ContentBuilder = {
       margin: sticker.margin !== undefined ? sticker.margin : 20,
     };
     // 如果有有效的锚点信息（非默认末尾），添加到标记中
-    var hasValidAnchor = sticker.anchor && !AnchorManager.isDefaultAnchor(sticker.anchor);
+    const hasValidAnchor = sticker.anchor && !AnchorManager.isDefaultAnchor(sticker.anchor);
     if (hasValidAnchor) {
       opts.anchor = sticker.anchor;
     }
@@ -73,7 +73,7 @@ export const ContentBuilder = {
                 ' | willWrite=' + hasValidAnchor +
                 ' | anchor=' + JSON.stringify(sticker.anchor) +
                 ' | opts.anchor=' + JSON.stringify(opts.anchor));
-    var marker = StickerRenderer.createMarker(sticker.decoId, opts);
+    const marker = StickerRenderer.createMarker(sticker.decoId, opts);
     console.log('[ContentBuilder._createMarker] 结果: ' + marker);
     return marker;
   },
@@ -90,8 +90,8 @@ export const ContentBuilder = {
    * @param {object} anchor - 锚点 { type, index, direction }
    */
   _insertCommentAtAnchor: function (container, commentNode, anchor) {
-    var type = anchor.type || 'end';
-    var index = anchor.index;
+    const type = anchor.type || 'end';
+    const index = anchor.index;
 
     // begin：插入到容器最前面
     if (type === 'begin') {
@@ -100,9 +100,9 @@ export const ContentBuilder = {
     }
 
     // 收集直接子「内容」元素（跳过贴纸/clearfix），与 computeAnchorFromY 计数一致
-    var contentChildren = [];
-    for (var i = 0; i < container.childNodes.length; i++) {
-      var node = container.childNodes[i];
+    const contentChildren = [];
+    for (let i = 0; i < container.childNodes.length; i++) {
+      const node = container.childNodes[i];
       if (node.nodeType !== 1) continue; // 仅元素节点
       if (node.classList && (
         node.classList.contains('article-sticker') ||
@@ -117,13 +117,13 @@ export const ContentBuilder = {
       return;
     }
 
-    var target = contentChildren[index];
+    const target = contentChildren[index];
     if (!target) {
       container.appendChild(commentNode);
       return;
     }
 
-    var direction = anchor.direction || 'before';
+    const direction = anchor.direction || 'before';
     if (direction === 'after') {
       container.insertBefore(commentNode, target.nextSibling);
     } else if (direction === 'inside') {

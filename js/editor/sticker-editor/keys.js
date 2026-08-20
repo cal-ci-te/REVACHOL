@@ -15,8 +15,8 @@ export const Keys = {
    * @returns {function} 注销函数
    */
   bind(ctx) {
-    var pressCount = 0;
-    var pressTimer = null;
+    let pressCount = 0;
+    let pressTimer = null;
 
     function handler(e) {
       if (e.key === 'Escape') {

@@ -24,18 +24,18 @@ export const AnchorManager = {
   computeAnchor: function (el, container) {
     if (!el || !container) return { type: 'end', index: -1 };
 
-    var children = container.children;
+    const children = container.children;
     if (!children || !children.length) {
       return { type: 'begin', index: 0 };
     }
 
-    var elRect = el.getBoundingClientRect();
-    var elCenterY = elRect.top + elRect.height / 2;
+    const elRect = el.getBoundingClientRect();
+    const elCenterY = elRect.top + elRect.height / 2;
 
     // 收集非贴纸子节点的信息（跳过 .article-sticker 和 .sticker-clearfix）
-    var blockIndex = 0;
-    for (var i = 0; i < children.length; i++) {
-      var child = children[i];
+    let blockIndex = 0;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
 
       // 跳过贴纸和 clearfix 元素——它们不是内容段落
       if (child.classList && (
@@ -56,7 +56,7 @@ export const AnchorManager = {
       }
 
       // 检查贴纸是否在这个子节点之前（按垂直中心点比较）
-      var childRect = child.getBoundingClientRect();
+      const childRect = child.getBoundingClientRect();
       if (elCenterY < childRect.top + childRect.height / 2) {
         return {
           type: 'paragraph',
@@ -90,18 +90,18 @@ export const AnchorManager = {
   computeAnchorFromY: function (y, container) {
     if (!container) return { type: 'end', index: -1 };
 
-    var children = container.children;
+    const children = container.children;
     if (!children || !children.length) {
       return { type: 'begin', index: 0 };
     }
 
     // 获取容器在视口中的偏移
-    var containerRect = container.getBoundingClientRect();
-    var absoluteY = y + containerRect.top;
+    const containerRect = container.getBoundingClientRect();
+    const absoluteY = y + containerRect.top;
 
-    var blockIndex = 0;
-    for (var i = 0; i < children.length; i++) {
-      var child = children[i];
+    let blockIndex = 0;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
 
       // 跳过贴纸和 clearfix 元素
       if (child.classList && (
@@ -111,7 +111,7 @@ export const AnchorManager = {
         continue;
       }
 
-      var childRect = child.getBoundingClientRect();
+      const childRect = child.getBoundingClientRect();
       if (absoluteY < childRect.top + childRect.height / 2) {
         return {
           type: 'paragraph',
@@ -142,10 +142,10 @@ export const AnchorManager = {
   locateAnchor: function (container, anchor) {
     if (!container || !anchor) return null;
 
-    var children = container.children;
-    var contentChildren = [];
-    for (var i = 0; i < children.length; i++) {
-      var child = children[i];
+    const children = container.children;
+    const contentChildren = [];
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
       if (child.classList && (
         child.classList.contains('article-sticker') ||
         child.classList.contains('sticker-clearfix')
@@ -186,7 +186,7 @@ export const AnchorManager = {
    * @returns {number} -1: a < b, 0: 相等, 1: a > b
    */
   compareAnchors: function (a, b) {
-    var getOrder = function (anchor) {
+    const getOrder = function (anchor) {
       if (!anchor || anchor.type === 'begin') return -999;
       if (anchor.type === 'end') return 999;
       return anchor.index || 0;
@@ -200,7 +200,7 @@ export const AnchorManager = {
    */
   serialize: function (anchor) {
     if (!anchor) return '';
-    var parts = [
+    const parts = [
       (anchor.type || 'end').charAt(0),
       anchor.index !== undefined ? anchor.index : -1,
     ];
@@ -218,7 +218,7 @@ export const AnchorManager = {
     // 尝试解析旧 JSON 格式
     if (data.charAt(0) === '{') {
       try {
-        var parsed = JSON.parse(data);
+        const parsed = JSON.parse(data);
         return {
           type: parsed.type || 'end',
           index: parsed.index !== undefined ? parsed.index : -1,
@@ -228,8 +228,8 @@ export const AnchorManager = {
       } catch (e) { /* 回退 */ }
     }
     // 新格式：type:index[:paraId:dir]
-    var parts = data.split(':');
-    var typeMap = { p: 'paragraph', h: 'heading', b: 'begin', e: 'end' };
+    const parts = data.split(':');
+    const typeMap = { p: 'paragraph', h: 'heading', b: 'begin', e: 'end' };
     return {
       type: typeMap[parts[0]] || 'end',
       index: parts[1] !== undefined ? parseInt(parts[1]) : -1,
@@ -246,15 +246,15 @@ export const AnchorManager = {
    * @returns {object} { decoId, ...fields, anchor }
    */
   parseFromMarker: function (raw) {
-    var parts = raw.trim().split(/\s+/);
-    var result = { anchor: { type: 'end', index: -1 } };
+    const parts = raw.trim().split(/\s+/);
+    const result = { anchor: { type: 'end', index: -1 } };
     if (parts.length > 0) result.decoId = parts[0];
 
-    for (var i = 1; i < parts.length; i++) {
-      var eqIndex = parts[i].indexOf('=');
+    for (let i = 1; i < parts.length; i++) {
+      const eqIndex = parts[i].indexOf('=');
       if (eqIndex === -1) continue;
-      var key = parts[i].substring(0, eqIndex);
-      var value = parts[i].substring(eqIndex + 1);
+      const key = parts[i].substring(0, eqIndex);
+      const value = parts[i].substring(eqIndex + 1);
       if (key === 'anchor') {
         result.anchor = this.deserialize(value);
       } else {

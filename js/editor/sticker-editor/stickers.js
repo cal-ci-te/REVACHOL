@@ -19,13 +19,13 @@ export const Stickers = {
   render(ctx) {
     if (!ctx.stickerData || !ctx.stickerData.length) return;
 
-    var self = this;
+    const self = this;
 
     ctx.stickerData.forEach(function (data, index) {
-      var deco = DecoShelf.get(data.decoId);
+      const deco = DecoShelf.get(data.decoId);
       if (!deco) return;
 
-      var el = self._buildElement(deco, data, ctx.articleContainer);
+      const el = self._buildElement(deco, data, ctx.articleContainer);
       el.dataset.index = index;
 
       self._bindDrag(el, ctx.articleContainer);
@@ -45,16 +45,16 @@ export const Stickers = {
    * @param {object} deco - 贴纸对象
    */
   addOne(ctx, deco) {
-    var cr = ctx.articleContainer.getBoundingClientRect();
-    var w = StickerShape.DEFAULT_SIZE;
-    var h = StickerShape.DEFAULT_SIZE;
+    const cr = ctx.articleContainer.getBoundingClientRect();
+    const w = StickerShape.DEFAULT_SIZE;
+    const h = StickerShape.DEFAULT_SIZE;
 
-    var suggested = StickerShape.suggestPosition(
+    const suggested = StickerShape.suggestPosition(
       ctx.stickerData, cr.width,
       80 + ctx.stickerData.length * 30
     );
 
-    var data = {
+    const data = {
       decoId: deco.id,
       x: suggested.x,
       y: suggested.y,
@@ -66,13 +66,13 @@ export const Stickers = {
 
     ctx.stickerData.push(data);
 
-    var el = this._buildElement(deco, data, ctx.articleContainer);
+    const el = this._buildElement(deco, data, ctx.articleContainer);
     el.dataset.index = ctx.stickerData.length - 1;
 
     // 入场动画
     el.style.animation = 'sticker-appear 0.3s ease-out';
 
-    var self = this;
+    const self = this;
     this._bindDrag(el, ctx.articleContainer);
     el.addEventListener('contextmenu', function (e) {
       e.preventDefault();
@@ -90,14 +90,14 @@ export const Stickers = {
    * 创建单个贴纸 DOM 元素。
    */
   _buildElement(deco, data, container) {
-    var el = document.createElement('div');
+    const el = document.createElement('div');
     el.className = 'article-sticker-editing';
     el.id = 'sticker-el-' + deco.id;
     el.dataset.decoId = deco.id;
 
-    var imgSrc = deco.dataUrl || deco.url || '';
-    var w = data.width || StickerShape.DEFAULT_SIZE;
-    var h = data.height || StickerShape.DEFAULT_SIZE;
+    const imgSrc = deco.dataUrl || deco.url || '';
+    const w = data.width || StickerShape.DEFAULT_SIZE;
+    const h = data.height || StickerShape.DEFAULT_SIZE;
 
     el.style.cssText = [
       'position:absolute',
@@ -131,31 +131,31 @@ export const Stickers = {
    * 绑定贴纸拖拽交互。
    */
   _bindDrag(el, container) {
-    var onDown = function (e) {
+    const onDown = function (e) {
       if (e.button !== undefined && e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
 
-      var startX = e.clientX;
-      var startY = e.clientY;
-      var startLeft = parseFloat(el.style.left) || 0;
-      var startTop = parseFloat(el.style.top) || 0;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startLeft = parseFloat(el.style.left) || 0;
+      const startTop = parseFloat(el.style.top) || 0;
       el.style.cursor = 'grabbing';
       el.style.zIndex = '20';
       document.body.style.userSelect = 'none';
       el.style.borderColor = 'var(--color-accent, #c47a44)';
 
-      var onMove = function (ev) {
+      const onMove = function (ev) {
         ev.preventDefault();
-        var dx = ev.clientX - startX;
-        var dy = ev.clientY - startY;
-        var newLeft = startLeft + dx;
-        var newTop = startTop + dy;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        let newLeft = startLeft + dx;
+        let newTop = startTop + dy;
 
         if (container) {
-          var cr = container.getBoundingClientRect();
-          var ew = el.offsetWidth || 100;
-          var eh = el.offsetHeight || 100;
+          const cr = container.getBoundingClientRect();
+          const ew = el.offsetWidth || 100;
+          const eh = el.offsetHeight || 100;
           newLeft = Math.max(0, Math.min(newLeft, cr.width - ew));
           newTop = Math.max(0, Math.min(newTop, cr.height - eh));
         }
@@ -164,7 +164,7 @@ export const Stickers = {
         el.style.top = newTop + 'px';
       };
 
-      var onUp = function () {
+      const onUp = function () {
         el.style.cursor = 'grab';
         el.style.zIndex = '10';
         el.style.borderColor = 'transparent';
@@ -187,8 +187,8 @@ export const Stickers = {
   _showContextMenu(x, y, stickerData, stickerEl, ctx) {
     this.removeContextMenu();
 
-    var self = this;
-    var menu = document.createElement('div');
+    const self = this;
+    const menu = document.createElement('div');
     menu.id = 'sticker-context-menu';
     menu.style.cssText = [
       'position:fixed', 'left:' + x + 'px', 'top:' + y + 'px',
@@ -200,17 +200,17 @@ export const Stickers = {
       'font-family:Courier New,monospace', 'font-size:13px',
     ].join(';');
 
-    var items = [
+    const items = [
       { label: UI.stickerEditor.ctxToggleAlign || '🔄 切换浮动方向',
         action: function () {
-          var newAlign = stickerData.align === 'right' ? 'left' : 'right';
+          const newAlign = stickerData.align === 'right' ? 'left' : 'right';
           stickerData.align = newAlign;
-          var container = ctx.articleContainer;
+          const container = ctx.articleContainer;
           if (container && stickerEl) {
-            var cw = container.getBoundingClientRect().width || 800;
-            var ew = parseFloat(stickerEl.style.width) || StickerShape.DEFAULT_SIZE;
-            var curLeft = parseFloat(stickerEl.style.left) || 0;
-            var margin = stickerData.margin || StickerShape.DEFAULT_MARGIN;
+            const cw = container.getBoundingClientRect().width || 800;
+            const ew = parseFloat(stickerEl.style.width) || StickerShape.DEFAULT_SIZE;
+            const curLeft = parseFloat(stickerEl.style.left) || 0;
+            const margin = stickerData.margin || StickerShape.DEFAULT_MARGIN;
             if (newAlign === 'right') {
               stickerEl.style.left = (cw - ew - margin) + 'px';
             } else {
@@ -231,7 +231,7 @@ export const Stickers = {
           stickerEl.onmouseleave = null;
           stickerEl.oncontextmenu = null;
           // 从数据中移除（通过回调通知主控更新 _stickerData）
-          var newData = ctx.stickerData.filter(function (s) {
+          const newData = ctx.stickerData.filter(function (s) {
             return s.decoId !== stickerData.decoId;
           });
           if (ctx.onDataChange) ctx.onDataChange(newData);
@@ -245,11 +245,11 @@ export const Stickers = {
 
     items.forEach(function (item) {
       if (item.type === 'sep') {
-        var sep = document.createElement('div');
+        const sep = document.createElement('div');
         sep.style.cssText = 'height:1px;background:var(--color-border);margin:4px 0;';
         menu.appendChild(sep);
       } else {
-        var btn = document.createElement('button');
+        const btn = document.createElement('button');
         btn.textContent = item.label;
         btn.style.cssText = [
           'display:block', 'width:100%', 'text-align:left',
@@ -280,7 +280,7 @@ export const Stickers = {
   },
 
   removeContextMenu() {
-    var m = document.getElementById('sticker-context-menu');
+    const m = document.getElementById('sticker-context-menu');
     if (m) m.remove();
   },
 
@@ -289,7 +289,7 @@ export const Stickers = {
    */
   unbindAll(stickerLayer) {
     if (!stickerLayer) return;
-    var els = stickerLayer.querySelectorAll('.article-sticker-editing');
+    const els = stickerLayer.querySelectorAll('.article-sticker-editing');
     els.forEach(function (el) {
       if (el._stickerDragDown) {
         el.removeEventListener('mousedown', el._stickerDragDown);

@@ -24,7 +24,7 @@ export const Save = {
     if (!article) return;
 
     // 从 DOM 收集最终位置写入 stickerData
-    var collected = this.collect(stickerLayer, stickerData);
+    const collected = this.collect(stickerLayer, stickerData);
 
     article.stickers = JSON.parse(JSON.stringify(collected));
 
@@ -44,30 +44,30 @@ export const Save = {
    */
   collect(stickerLayer, stickerData) {
     if (!stickerLayer) return [];
-    var result = [];
-    var dataMap = {};
+    const result = [];
+    const dataMap = {};
     if (stickerData) {
       stickerData.forEach(function (d) { if (d && d.decoId) dataMap[d.decoId] = d; });
     }
 
     // 贴纸层的父元素是 articleContainer，其中包含内容容器（.detail-body）
-    var articleContainer = stickerLayer.parentElement;
-    var contentContainer = articleContainer ? articleContainer.querySelector('.detail-body') : null;
+    const articleContainer = stickerLayer.parentElement;
+    const contentContainer = articleContainer ? articleContainer.querySelector('.detail-body') : null;
 
-    var els = stickerLayer.querySelectorAll('.article-sticker-editing');
+    const els = stickerLayer.querySelectorAll('.article-sticker-editing');
     els.forEach(function (el) {
-      var decoId = el.dataset.decoId;
-      var orig = dataMap[decoId] || {};
-      var y = parseFloat(el.style.top) || 0;
+      const decoId = el.dataset.decoId;
+      const orig = dataMap[decoId] || {};
+      const y = parseFloat(el.style.top) || 0;
 
       // 校正 y 坐标：贴纸的 top 相对于 articleContainer（stickerLayer 的 parent），
       // 但 computeAnchorFromY 期望 y 相对于 contentContainer。
       // 将 y 从 articleContainer 坐标系转换到 contentContainer 坐标系。
-      var anchor = { type: 'end', index: -1 };
+      let anchor = { type: 'end', index: -1 };
       if (contentContainer && articleContainer) {
-        var aRect = articleContainer.getBoundingClientRect();
-        var cRect = contentContainer.getBoundingClientRect();
-        var yInContent = y + aRect.top - cRect.top;
+        const aRect = articleContainer.getBoundingClientRect();
+        const cRect = contentContainer.getBoundingClientRect();
+        const yInContent = y + aRect.top - cRect.top;
         anchor = AnchorManager.computeAnchorFromY(yInContent, contentContainer);
         console.log('[Save.collect] decoId=' + decoId +
                     ' | y=' + y + ' | yInContent=' + yInContent.toFixed(0) +

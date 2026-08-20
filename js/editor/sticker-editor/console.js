@@ -15,27 +15,27 @@ export const Console = {
    * @returns {HTMLElement}
    */
   create(ctx) {
-    var self = this;
+    const self = this;
 
     // 面板容器 — 复用 .admin-panel CSS
-    var panel = document.createElement('div');
+    const panel = document.createElement('div');
     panel.className = 'admin-panel open';
     panel.id = 'sticker-console-panel';
     panel.style.cssText = 'width:280px;z-index:10000;display:block;';
 
-    var savedPos = this._loadPos();
+    const savedPos = this._loadPos();
     panel.style.right = (savedPos.right || 20) + 'px';
     panel.style.bottom = (savedPos.bottom || 80) + 'px';
 
     // 标题栏 — 复用 .panel-header CSS
-    var header = document.createElement('div');
+    const header = document.createElement('div');
     header.className = 'panel-header';
     header.style.cursor = 'grab';
     header.innerHTML = '<h4>' + (UI.stickerEditor.consoleTitle || '📚 贴纸库') + '</h4>' +
       '<span class="toggle-icon" id="stickerConsoleToggle">▶</span>';
 
     // 内容区 — 复用 .panel-content CSS
-    var content = document.createElement('div');
+    const content = document.createElement('div');
     content.className = 'panel-content';
     content.id = 'sticker-console-content';
     content.style.maxHeight = '320px';
@@ -49,7 +49,7 @@ export const Console = {
     this._bindDrag(panel, header, function (r, b) { self._savePos(r, b); });
 
     // 折叠/展开
-    var collapsed = false;
+    let collapsed = false;
     document.getElementById('stickerConsoleToggle').addEventListener('click', function (e) {
       e.stopPropagation();
       collapsed = !collapsed;
@@ -78,12 +78,12 @@ export const Console = {
   // ---- 内部实现 ----
 
   _refresh(ctx) {
-    var content = document.getElementById('sticker-console-content');
+    const content = document.getElementById('sticker-console-content');
     if (!content) return;
 
-    var allDecos = DecoShelf.getAll() || [];
-    var placedIds = new Set((ctx.stickerData || []).map(function (s) { return s.decoId; }));
-    var self = this;
+    const allDecos = DecoShelf.getAll() || [];
+    const placedIds = new Set((ctx.stickerData || []).map(function (s) { return s.decoId; }));
+    const self = this;
 
     content.innerHTML = '';
 
@@ -94,9 +94,9 @@ export const Console = {
     }
 
     allDecos.forEach(function (deco) {
-      var isPlaced = placedIds.has(deco.id);
+      const isPlaced = placedIds.has(deco.id);
 
-      var item = document.createElement('div');
+      const item = document.createElement('div');
       item.style.cssText = [
         'display:flex', 'align-items:center', 'gap:10px',
         'padding:8px 10px', 'margin-bottom:4px',
@@ -107,7 +107,7 @@ export const Console = {
       ].join(';');
 
       // 缩略图
-      var thumb = document.createElement('div');
+      const thumb = document.createElement('div');
       thumb.style.cssText = [
         'width:40px', 'height:40px', 'border-radius:4px', 'flex-shrink:0',
         'background-image:url(' + (deco.dataUrl || deco.url || '') + ')',
@@ -118,9 +118,9 @@ export const Console = {
       item.appendChild(thumb);
 
       // 名称 + 状态
-      var info = document.createElement('div');
+      const info = document.createElement('div');
       info.style.cssText = 'flex:1;min-width:0;';
-      var name = deco.name || '未命名';
+      let name = deco.name || '未命名';
       if (name.length > 16) name = name.slice(0, 14) + '..';
       info.innerHTML = '<div style="color:var(--color-text-accent);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
         name + '</div>' +
@@ -150,14 +150,14 @@ export const Console = {
       if (e.target.closest('.toggle-icon')) return;
       e.preventDefault();
 
-      var rect = panel.getBoundingClientRect();
-      var offsetX = e.clientX - rect.left;
-      var offsetY = e.clientY - rect.top;
+      const rect = panel.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
       panel.style.transition = 'none';
 
-      var onMove = function (ev) {
-        var newRight = window.innerWidth - (ev.clientX - offsetX + rect.width);
-        var newBottom = window.innerHeight - (ev.clientY - offsetY + rect.height);
+      const onMove = function (ev) {
+        let newRight = window.innerWidth - (ev.clientX - offsetX + rect.width);
+        let newBottom = window.innerHeight - (ev.clientY - offsetY + rect.height);
         newRight = Math.max(0, Math.min(newRight, window.innerWidth - 50));
         newBottom = Math.max(0, Math.min(newBottom, window.innerHeight - 50));
         panel.style.right = newRight + 'px';
@@ -166,7 +166,7 @@ export const Console = {
         panel.style.top = 'auto';
       };
 
-      var onUp = function () {
+      const onUp = function () {
         panel.style.transition = '';
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
@@ -187,7 +187,7 @@ export const Console = {
 
   _loadPos() {
     try {
-      var s = localStorage.getItem('sticker_console_pos');
+      const s = localStorage.getItem('sticker_console_pos');
       return s ? JSON.parse(s) : { right: 20, bottom: 80 };
     } catch (e) { return { right: 20, bottom: 80 }; }
   },

@@ -1,15 +1,15 @@
 # Docker Compose — 容器化环境
 
-> 版本：v1.17.0 | 更新：2026-08-03
+> 版本：v1.20.0 | 更新：2026-08-20
 
-用于本地开发和部署的容器化方案，一键启动前后端双容器 + 可选 E2E 测试容器。
+用于本地开发和部署的容器化方案，一键启动前后端双容器 + 可选 E2E 测试容器，并内置 Crew Dashboard（CrewAI Web UI）。
 
 ## 服务概览
 
 | 服务 | 镜像 | 端口 | 职责 |
 |------|------|:--:|------|
-| `backend` | `node:22-alpine` | `9999` | REST API + SQLite + 文件存储 |
-| `frontend` | `node:22-alpine` | `3000` | Vite dev server（开发/预览） |
+| `backend` | `node:22-bookworm-slim` | `9999` | REST API + SQLite + 文件存储 + Crew Python 子进程 |
+| `frontend` | `node:22-bookworm-slim` | `3000` | Vite dev server（开发/预览）+ WebSocket 代理 |
 | `playwright-tests` | `playwright:v1.48.0-noble` | — | E2E 自动化测试（一次性容器） |
 
 ## 快速开始
@@ -34,24 +34,35 @@ docker compose logs -f
 服务就绪后：
 - 前端：`http://localhost:3000`
 - 后端 API：`http://localhost:9999/api/`
+- Crew Dashboard：`http://localhost:3000/crew-dashboard.html`
 - 默认管理员密码：`admin123`（可通过环境变量 `ADMIN_PASSWORD` 修改）
+
+### Crew Dashboard
+
+登录后填写需求即可触发 CrewAI 四 Agent 流水线：
+
+1. 打开 `/crew-dashboard.html`，管理员登录
+2. 输入需求描述，勾选 **dry-run** 先验证配置
+3. 页面通过 WebSocket 实时展示 Agent 状态卡片 / 日志流 / 执行回放 / Token 统计
+4. 真实执行后结构化输出写入宿主机 `./output/`（`*_parsed.json`）
 
 ### 安全说明
 
 - 端口默认绑定 `127.0.0.1`（仅本地访问）。如需外部访问，修改 `docker-compose.yml` 中 `${BIND_ADDR:-127.0.0.1}` 或设置环境变量 `BIND_ADDR=0.0.0.0`
 - 后端容器以 `node` 非特权用户运行
 - 管理员密码通过环境变量注入，不进入代码仓库
+- `my_first_crew/.env`（模型 API Key）不复制进镜像，运行时通过 `./my_first_crew` 绑定挂载提供
 
 ## 配置说明
 
 | 文件 | 说明 |
 |------|------|
 | `docker-compose.yml` | 服务编排、端口、卷、环境变量 |
-| `Dockerfile` | 后端镜像（Node 22、非 root 用户） |
-| `Dockerfile.frontend` | 前端镜像（Vite 开发服务器） |
+| `Dockerfile` | 后端镜像（Node 22 + Python 3.11 + CrewAI venv + 非 root） |
+| `Dockerfile.frontend` | 前端镜像（Vite dev server + 原生模块编译工具链） |
 | `Dockerfile.test` | E2E 测试镜像（Playwright + 编译工具链） |
 
-关键环境变量（`docker-compose.yml`）：
+关键环境变量（`docker-compose.yml` / `.env`）：
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
@@ -59,17 +70,23 @@ docker compose logs -f
 | `STORAGE_TYPE` | `local` | 存储模式，可选 `local` 或 `rustfs` |
 | `DB_PATH` | `/app/data/revachol.db` | 数据库文件路径 |
 | `VITE_BACKEND_URL` | `http://backend:9999` | Vite 代理目标（Docker 内部网络） |
+| `CREWAI_DISABLE_ASYNC` | `1` | 关闭 CrewAI 异步客户端 |
+| `PYTHONUNBUFFERED` | `1` | Python stdout 实时刷新（NDJSON 按行解析） |
+| `CREW_PYTHON` | `/app/my_first_crew/.venv/bin/python` | 容器内 venv Python 路径 |
+| `CREW_DIR` | `/app/my_first_crew` | Crew 脚本目录 |
+| `CREW_OUTPUT_DIR` | `/app/my_first_crew/output` | 结构化输出目录 |
 
 ## 数据持久化
 
-两个命名卷用于持久化数据：
+命名卷 + 绑定挂载：
 
-| 卷名 | 挂载路径 | 内容 |
+| 卷/挂载 | 挂载路径 | 内容 |
 |------|----------|------|
 | `revachol_data` | `/app/data` | SQLite 数据库文件（`revachol.db`） |
 | `revachol_uploads` | `/app/uploads` | 贴纸图片文件（本地存储模式） |
-
-这些卷在 `docker compose down` 后仍然保留。重置所有数据：`docker compose down -v`。
+| `./my_first_crew` | `/app/my_first_crew` | CrewAI 源码 + `.env`（绑定挂载） |
+| `/app/my_first_crew/.venv` | 匿名卷 | 镜像内 Linux venv（防止宿主机 Windows `.venv` 覆盖） |
+| `./output` | `/app/my_first_crew/output` | Crew 结构化输出（`*_parsed.json`，绑定挂载） |
 
 ## E2E 测试容器构建说明
 
@@ -117,13 +134,11 @@ RUN apt-get update && apt-get install -y \
 
 ### 为什么不用多阶段构建？
 
-一个自然的想法是：先用 `node:22-alpine` 安装依赖，再把 `node_modules` 复制到 Playwright 镜像。但这**不可行**：
+一个自然的想法是：先用 `node:22-bookworm-slim` 安装依赖，再把 `node_modules` 复制到 Playwright 镜像。技术上可行（后端现为 glibc 的 Debian 基础镜像），但**当前不采用**：
 
-- 后端 Dockerfile 使用 `node:22-alpine`，其 C 运行时库为 **musl libc**
-- Playwright 镜像基于 Ubuntu Noble（**glibc**）
-- `bcrypt` 编译出的 `.node` 原生二进制与 libc 绑定 —— musl 编译的二进制在 glibc 系统上无法加载（`Error: invalid ELF header`）
-
-要用多阶段构建，第一阶段必须使用 glibc 发行版（如 `node:22` 基于 Debian），但这会拉入 ~1GB 基础镜像，与直接在 Playwright 镜像中安装编译工具的增量（约 200MB，安装后清理）相比并无优势，且增加维护复杂度。
+- Playwright 官方镜像已包含 Chromium 与系统运行时依赖，直接在其上安装编译工具（约 200MB，安装后清理）增量最小
+- 多阶段构建会额外维护一份“依赖安装阶段”，增加 Dockerfile 复杂度和 CI 缓存策略成本
+- `bcrypt` 等原生模块在 Debian/glibc 下编译产物与 Playwright 的 glibc 环境天然兼容，复制方案没有额外收益
 
 **结论**：直接在 Playwright 镜像中安装编译工具是当前最简洁可靠的方案。
 
@@ -154,7 +169,7 @@ docker compose run --rm playwright-tests --archive
 1. **前端静态构建**：`npm run build` → Nginx 反向代理静态文件，启用 gzip + 缓存头
 2. **HTTPS**：在 Nginx 层配置 Let's Encrypt TLS 证书
 3. **S3 存储**：设置 `STORAGE_TYPE=rustfs` 并用环境变量配置 S3 兼容存储的 endpoint/密钥
-4. **健康检查**：`/api/health` 端点已就绪，可直接接入容器编排（K8s liveness probe）或外部监控
+4. **健康检查**：`/api/health` 与 `/api/crew/status` 端点已就绪，可直接接入容器编排（K8s liveness probe）或外部监控
 5. **日志**：当前输出到 stdout/stderr，可通过 Docker 日志驱动收集
 
 ## 常见问题

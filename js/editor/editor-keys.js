@@ -21,18 +21,18 @@ export const EditorKeys = {
    * @returns {function} 注销函数（调用后移除监听）
    */
   bind(ctx) {
-    var self = this;
+    const self = this;
 
     function handler(e) {
       // 跳过在 contentEditable 中的常规输入
-      var target = e.target;
-      var isEditing = target && (target.contentEditable === 'true' ||
+      const target = e.target;
+      const isEditing = target && (target.contentEditable === 'true' ||
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'));
 
       if (e.key === 'Escape') {
         e.preventDefault();
         if (ctx._dirty || ctx.hasChanges()) {
-          var discard = confirm(UI.editor.unsavedConfirm || '有未保存的更改，确定要退出吗？');
+          const discard = confirm(UI.editor.unsavedConfirm || '有未保存的更改，确定要退出吗？');
           if (discard) {
             ctx.close(false);
           }

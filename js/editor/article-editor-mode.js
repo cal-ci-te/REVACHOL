@@ -77,8 +77,8 @@ export const ArticleEditorMode = {
 
     console.log('[ArticleEditorMode] 打开编辑模式，文章 ID:', articleId);
 
-    var articles = ArticleService.getAllArticles();
-    var article = articles.find(function (a) { return a.id === articleId; });
+    const articles = ArticleService.getAllArticles();
+    const article = articles.find(function (a) { return a.id === articleId; });
     if (!article) {
       Utils.showToast('文章不存在', true);
       return;
@@ -104,7 +104,7 @@ export const ArticleEditorMode = {
     };
 
     // 加载贴纸库
-    var decos = DecoShelf.getAll();
+    const decos = DecoShelf.getAll();
     if (!decos || !decos.length) {
       try { await DecoShelf.loadLibrary(); } catch (e) { /* 继续 */ }
     }
@@ -157,7 +157,7 @@ export const ArticleEditorMode = {
   // =========================================================================
 
   _createOverlay() {
-    var elements = EditorOverlay.create();
+    const elements = EditorOverlay.create();
     this._overlay = elements.overlay;
     this._topbar = elements.topbar;
     this._articleContainer = elements.articleContainer;
@@ -168,7 +168,7 @@ export const ArticleEditorMode = {
   // =========================================================================
 
   _renderArticle(article) {
-    var elements = EditorContent.render(article, this._articleContainer);
+    const elements = EditorContent.render(article, this._articleContainer);
     this._titleEl = elements.titleEl;
     this._contentEl = elements.contentEl;
   },
@@ -208,7 +208,7 @@ export const ArticleEditorMode = {
   /** 按当前渲染模式重绘内容区（含贴纸层）。 */
   _applyRenderMode() {
     if (!this._contentEl || !this._article) return;
-    var content = this._article.content || '';
+    const content = this._article.content || '';
     if (this._renderMode === 'text') {
       // 纯文本：清空贴纸，显示原始源码（HTML 标签/贴纸标记以纯文本呈现）
       EditorStickers.cleanup(this._contentEl);
@@ -226,8 +226,8 @@ export const ArticleEditorMode = {
   // =========================================================================
 
   _enableEditing() {
-    var self = this;
-    var handlers = EditorContent.enableEditing(this._titleEl, this._contentEl, function () { self._dirty = true; });
+    const self = this;
+    const handlers = EditorContent.enableEditing(this._titleEl, this._contentEl, function () { self._dirty = true; });
     this._inputHandler = handlers.inputHandler;
     this._pasteHandler = handlers.pasteHandler;
   },
@@ -237,7 +237,7 @@ export const ArticleEditorMode = {
   },
 
   setTitle(val) {
-    var self = this;
+    const self = this;
     EditorContent.setTitle(this._titleEl, val, this._toolbar, this._article, function () { self._dirty = true; });
   },
 
@@ -267,7 +267,7 @@ export const ArticleEditorMode = {
 
   /** 构建贴纸模块所需的 ctx 对象 */
   _getStickerCtx(article) {
-    var self = this;
+    const self = this;
     return {
       contentEl: self._contentEl,
       article: article || self._article,
@@ -302,10 +302,10 @@ export const ArticleEditorMode = {
    * @param {Array<{label:string, value:string}>} details - 详情行 [{label, value}]
    */
   _showFeedbackModal(title, details) {
-    var existing = document.getElementById('editor-feedback-modal');
+    const existing = document.getElementById('editor-feedback-modal');
     if (existing) existing.remove();
 
-    var overlay = document.createElement('div');
+    const overlay = document.createElement('div');
     overlay.id = 'editor-feedback-modal';
     overlay.style.cssText = [
       'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
@@ -313,7 +313,7 @@ export const ArticleEditorMode = {
       'background:rgba(0,0,0,0.5)', 'backdrop-filter:blur(4px)',
     ].join(';');
 
-    var box = document.createElement('div');
+    const box = document.createElement('div');
     box.style.cssText = [
       'background:var(--color-bg-tertiary, #2a231c)',
       'border:1px solid var(--color-border-highlight, #c47a44)',
@@ -323,14 +323,14 @@ export const ArticleEditorMode = {
       'text-align:center',
     ].join(';');
 
-    var titleEl = document.createElement('h3');
+    const titleEl = document.createElement('h3');
     titleEl.style.cssText = 'color:var(--color-text-heading, #e8c88a);margin:0 0 16px;font-size:16px;';
     titleEl.textContent = title;
     box.appendChild(titleEl);
 
     if (details && details.length) {
       details.forEach(function (row) {
-        var line = document.createElement('div');
+        const line = document.createElement('div');
         line.style.cssText = 'margin-bottom:8px;';
         line.innerHTML =
           '<span style="color:var(--color-text-muted);">' + row.label + '：</span>' +
@@ -339,7 +339,7 @@ export const ArticleEditorMode = {
       });
     }
 
-    var btn = document.createElement('button');
+    const btn = document.createElement('button');
     btn.textContent = UI.editor.modalConfirmBtn || '确定';
     btn.style.cssText = [
       'margin-top:16px', 'padding:8px 32px',
@@ -347,7 +347,7 @@ export const ArticleEditorMode = {
       'color:#fff', 'border:none', 'border-radius:4px',
       'cursor:pointer', 'font-family:Courier New,monospace', 'font-size:13px',
     ].join(';');
-    var closeModal = function () { if (overlay.parentNode) overlay.remove(); };
+    const closeModal = function () { if (overlay.parentNode) overlay.remove(); };
     btn.addEventListener('click', closeModal);
     box.appendChild(btn);
 
@@ -368,7 +368,7 @@ export const ArticleEditorMode = {
       return;
     }
 
-    var title = this.getTitle();
+    const title = this.getTitle();
     if (!title) {
       Utils.showToast(UI.editor.titleRequired, true);
       return;
@@ -376,8 +376,8 @@ export const ArticleEditorMode = {
 
     this._saving = true;
     try {
-      var content = this._buildSaveContent();
-      var category = this._article ? (this._article.category || '未分类') : '未分类';
+      const content = this._buildSaveContent();
+      const category = this._article ? (this._article.category || '未分类') : '未分类';
       await ApiClient.post('/api/articles/' + this._articleId + '/drafts', {
         title: title,
         content: content,
@@ -411,7 +411,7 @@ export const ArticleEditorMode = {
       return;
     }
 
-    var title = this.getTitle();
+    const title = this.getTitle();
     if (!title) {
       Utils.showToast(UI.editor.titleRequired, true);
       return;
@@ -419,8 +419,8 @@ export const ArticleEditorMode = {
 
     this._saving = true;
     try {
-      var content = this._buildSaveContent();
-      var category = this._article ? (this._article.category || '未分类') : '未分类';
+      const content = this._buildSaveContent();
+      const category = this._article ? (this._article.category || '未分类') : '未分类';
       await ApiClient.put('/api/articles/' + this._articleId, {
         title: title,
         content: content,
@@ -439,7 +439,7 @@ export const ArticleEditorMode = {
       this._dirty = false;
 
       try {
-        var channel = new BroadcastChannel('revachol');
+        const channel = new BroadcastChannel('revachol');
         channel.postMessage({ type: 'article_updated', payload: { articleId: this._articleId } });
         channel.close();
       } catch (e) { /* ignore */ }
@@ -549,16 +549,16 @@ export const ArticleEditorMode = {
     // 确保贴纸编辑器渲染的内容与后续保存的内容一致（锚点计算基于同一份内容）
     this._captureContent();
 
-    var article = {
+    const article = {
       id: this._articleId,
       title: this.getTitle(),
       content: this._article ? (this._article.content || '') : '',
       stickers: this._article ? (this._article.stickers || []) : [],
     };
 
-    var self = this;
+    const self = this;
 
-    var onStickerSaved = async function (data) {
+    const onStickerSaved = async function (data) {
       if (data.articleId === self._articleId && data.stickers) {
         if (self._article) {
           self._article.stickers = JSON.parse(JSON.stringify(data.stickers));
@@ -567,7 +567,7 @@ export const ArticleEditorMode = {
         self._refreshStickerLayer();
 
         // 从 DOM 构建保存内容（贴纸 div 就地替换为标记，保留位置）
-        var content = self._buildSaveContent();
+        const content = self._buildSaveContent();
         if (self._article) {
           self._article.content = content;
         }
@@ -608,7 +608,7 @@ export const ArticleEditorMode = {
   // =========================================================================
 
   _createToolbar(article) {
-    var self = this;
+    const self = this;
 
     this._toolbar = ArticleEditorToolbar.create({
       onSaveDraft: function () { self.saveDraft(); },
@@ -619,7 +619,7 @@ export const ArticleEditorMode = {
       onTitleChange: function (val) { self.setTitle(val); },
       onExit: function () {
         if (self._dirty || self.hasChanges()) {
-          var ok = confirm(UI.editor.unsavedConfirm || '有未保存的更改，确定要退出吗？');
+          const ok = confirm(UI.editor.unsavedConfirm || '有未保存的更改，确定要退出吗？');
           if (ok) self.close(false);
         } else {
           self.close(false);
@@ -636,7 +636,7 @@ export const ArticleEditorMode = {
 
   /** 创建草稿管理面板 */
   _createDraftManager(articleId) {
-    var self = this;
+    const self = this;
     this._draftManager = DraftManager.create(articleId, {
       onRestore: function (draft) {
         self._restoreFromDraft(draft);

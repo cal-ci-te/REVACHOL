@@ -53,7 +53,7 @@ export const StickerEditorMode = {
     this._article = article;
 
     // 加载贴纸库
-    var decos = DecoShelf.getAll();
+    const decos = DecoShelf.getAll();
     if (!decos || !decos.length) {
       try { await DecoShelf.loadLibrary(); } catch (e) { console.warn("[StickerEditorMode] 贴纸库加载失败:", e); Utils.showToast(UI.stickerEditor.emptyLibrary || "贴纸库加载失败，请检查网络连接", true); }
     }
@@ -63,20 +63,20 @@ export const StickerEditorMode = {
     this._stickerData = article.stickers ? JSON.parse(JSON.stringify(article.stickers)) : [];
 
     // 构建 UI（按依赖顺序）
-    var dom = Overlay.create();
+    const dom = Overlay.create();
     this._overlay = dom.overlay;
     this._articleContainer = dom.articleContainer;
     this._stickerLayer = dom.stickerLayer;
 
     // 空白区点击关闭
-    var self = this;
+    const self = this;
     this._overlay._onBlankClick = function () { self.close(false); };
 
     Overlay.renderArticle(article, this._articleContainer);
     Overlay.showCursorHighlight(this._articleContainer, cursorY);
 
     // 构建贴纸交互 ctx
-    var stickerCtx = this._buildStickerCtx();
+    const stickerCtx = this._buildStickerCtx();
     Stickers.render(stickerCtx);
 
     // 工具栏
@@ -125,7 +125,7 @@ export const StickerEditorMode = {
   // =========================================================================
 
   _buildStickerCtx() {
-    var self = this;
+    const self = this;
     return {
       stickerLayer: self._stickerLayer,
       stickerData: self._stickerData,
@@ -136,7 +136,7 @@ export const StickerEditorMode = {
   },
 
   _buildConsoleCtx() {
-    var self = this;
+    const self = this;
     return {
       stickerLayer: self._stickerLayer,
       stickerData: self._stickerData,

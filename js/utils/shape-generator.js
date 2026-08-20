@@ -26,9 +26,9 @@ export const ShapeGenerator = {
    */
   circle(cx, cy, r, count) {
     count = count || this.DEFAULT_VERTICES;
-    var vertices = [];
-    for (var i = 0; i < count; i++) {
-      var angle = (i / count) * 2 * Math.PI - Math.PI / 2; // 从顶部开始
+    const vertices = [];
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * 2 * Math.PI - Math.PI / 2; // 从顶部开始
       vertices.push({
         x: Math.round((cx + r * Math.cos(angle)) * 100) / 100,
         y: Math.round((cy + r * Math.sin(angle)) * 100) / 100,
@@ -70,10 +70,10 @@ export const ShapeGenerator = {
    * 圆形贴纸顶点：取较短边为直径
    */
   _circleVertices(w, h, vertices) {
-    var size = Math.min(w, h);
-    var r = size / 2;
-    var cx = w / 2;
-    var cy = h / 2;
+    const size = Math.min(w, h);
+    const r = size / 2;
+    const cx = w / 2;
+    const cy = h / 2;
     return this.circle(cx, cy, r, vertices);
   },
 
@@ -81,13 +81,13 @@ export const ShapeGenerator = {
    * 椭圆贴纸顶点：填充整个贴纸区域
    */
   _ellipseVertices(w, h, vertices) {
-    var rx = w / 2;
-    var ry = h / 2;
-    var cx = rx;
-    var cy = ry;
-    var pts = [];
-    for (var i = 0; i < vertices; i++) {
-      var angle = (i / vertices) * 2 * Math.PI - Math.PI / 2;
+    const rx = w / 2;
+    const ry = h / 2;
+    const cx = rx;
+    const cy = ry;
+    const pts = [];
+    for (let i = 0; i < vertices; i++) {
+      const angle = (i / vertices) * 2 * Math.PI - Math.PI / 2;
       pts.push({
         x: Math.round((cx + rx * Math.cos(angle)) * 100) / 100,
         y: Math.round((cy + ry * Math.sin(angle)) * 100) / 100,
@@ -104,31 +104,31 @@ export const ShapeGenerator = {
    * 圆角矩形贴纸顶点：用 16 边形近似（4 个角各 4 个顶点）
    */
   _roundedRectVertices(w, h, vertices) {
-    var r = Math.min(w, h) * 0.2; // 圆角半径 = 短边的 20%
-    var vPerCorner = Math.max(2, Math.floor(vertices / 4));
-    var pts = [];
+    const r = Math.min(w, h) * 0.2; // 圆角半径 = 短边的 20%
+    const vPerCorner = Math.max(2, Math.floor(vertices / 4));
+    const pts = [];
 
     // 上边（含右上角）
-    for (var i = 0; i < vPerCorner; i++) {
-      var angle = Math.PI * 1.5 + (i / vPerCorner) * (Math.PI / 2);
+    for (let i = 0; i < vPerCorner; i++) {
+      const angle = Math.PI * 1.5 + (i / vPerCorner) * (Math.PI / 2);
       pts.push({ x: Math.round((w - r + r * Math.cos(angle)) * 100) / 100,
                  y: Math.round((r + r * Math.sin(angle)) * 100) / 100 });
     }
     // 右边（含右下角）
-    for (var j = 0; j < vPerCorner; j++) {
-      var a2 = 0 + (j / vPerCorner) * (Math.PI / 2);
+    for (let j = 0; j < vPerCorner; j++) {
+      const a2 = 0 + (j / vPerCorner) * (Math.PI / 2);
       pts.push({ x: Math.round((w - r + r * Math.cos(a2)) * 100) / 100,
                  y: Math.round((h - r + r * Math.sin(a2)) * 100) / 100 });
     }
     // 下边（含左下角）
-    for (var k = 0; k < vPerCorner; k++) {
-      var a3 = Math.PI / 2 + (k / vPerCorner) * (Math.PI / 2);
+    for (let k = 0; k < vPerCorner; k++) {
+      const a3 = Math.PI / 2 + (k / vPerCorner) * (Math.PI / 2);
       pts.push({ x: Math.round((r + r * Math.cos(a3)) * 100) / 100,
                  y: Math.round((h - r + r * Math.sin(a3)) * 100) / 100 });
     }
     // 左边（含左上角）
-    for (var l = 0; l < (vertices - vPerCorner * 3); l++) {
-      var a4 = Math.PI + (l / (vertices - vPerCorner * 3)) * (Math.PI / 2);
+    for (let l = 0; l < (vertices - vPerCorner * 3); l++) {
+      const a4 = Math.PI + (l / (vertices - vPerCorner * 3)) * (Math.PI / 2);
       pts.push({ x: Math.round((r + r * Math.cos(a4)) * 100) / 100,
                  y: Math.round((r + r * Math.sin(a4)) * 100) / 100 });
     }
@@ -146,7 +146,7 @@ export const ShapeGenerator = {
    * @returns {string} e.g. "polygon(50% 0%, 85% 15%, ...)"
    */
   _toCssPolygon(vertices) {
-    var parts = vertices.map(function (v) {
+    const parts = vertices.map(function (v) {
       return v.x + 'px ' + v.y + 'px';
     });
     return 'polygon(' + parts.join(', ') + ')';
@@ -161,9 +161,9 @@ export const ShapeGenerator = {
    */
   toPercentPolygon(vertices, w, h) {
     if (w <= 0 || h <= 0) return this._toCssPolygon(vertices);
-    var parts = vertices.map(function (v) {
-      var px = Math.round((v.x / w) * 10000) / 100;
-      var py = Math.round((v.y / h) * 10000) / 100;
+    const parts = vertices.map(function (v) {
+      const px = Math.round((v.x / w) * 10000) / 100;
+      const py = Math.round((v.y / h) * 10000) / 100;
       return px + '% ' + py + '%';
     });
     return 'polygon(' + parts.join(', ') + ')';

@@ -8,15 +8,27 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
+      # CrewAI 源码热挂载（.env 密钥随目录进入容器）
+      - ./my_first_crew:/app/my_first_crew
+      # 匿名卷：保留镜像内 Linux venv，避免被宿主机 Windows .venv 覆盖
+      - /app/my_first_crew/.venv
+      # 结构化输出落盘到宿主机 output/
+      - ./output:/app/my_first_crew/output
       - revachol_data:/app/data
       - revachol_uploads:/app/uploads
     environment:
       - DB_PATH=/app/data/revachol.db
       - STORAGE_TYPE=local
       - HOST=0.0.0.0
+      # Crew Dashboard：Python 子进程
+      - CREWAI_DISABLE_ASYNC=1
+      - PYTHONUNBUFFERED=1
+      - CREW_PYTHON=/app/my_first_crew/.venv/bin/python
+      - CREW_DIR=/app/my_first_crew
+      - CREW_OUTPUT_DIR=/app/my_first_crew/output
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:9999/api/health',(r)=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{const j=JSON.parse(d);process.exit(j.status==='ok'?0:1)}catch(_){process.exit(1)}})}).on('error',()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:9999/api/crew/status',(r)=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{const j=JSON.parse(d);process.exit(j&&typeof j.running==='boolean'?0:1)}catch(_){process.exit(1)}})}).on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -36,6 +48,7 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    # Vite 已配置 /api 代理（vite.config.js），/api/crew/* 自动转发到 backend:9999
 
   # ============================================================
   # Playwright E2E 测试容器

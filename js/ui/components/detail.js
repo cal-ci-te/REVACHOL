@@ -142,7 +142,7 @@ export const UIDetail = {
     const id = article.id;
 
     // 去重：已存在激活则 focus，已最小化则恢复，都不存在才新建
-    var existing = this.openArticles.find(function (e) { return e.id === id; });
+    const existing = this.openArticles.find(function (e) { return e.id === id; });
     if (existing) {
       if (existing.isMinimized) {
         this.restoreFromMinimize(id);
@@ -227,7 +227,7 @@ export const UIDetail = {
     console.log('[UIDetail.renderContent] input len=' + (text ? text.length : 0) +
                 ' | stickerMarkers=' + (text.match(/sticker:/g) || []).length +
                 ' | head80=' + JSON.stringify(text ? text.substring(0, 80) : ''));
-    var result = MarkdownUtils.toHTML(text);
+    const result = MarkdownUtils.toHTML(text);
     console.log('[UIDetail.renderContent] output len=' + (result ? result.length : 0) +
                 ' | head80=' + JSON.stringify(result ? result.substring(0, 80) : ''));
     return result;
@@ -235,7 +235,7 @@ export const UIDetail = {
 
   activateTab: function (id) {
     this.activeId = id;
-    var isActiveNonMinimized = false;
+    let isActiveNonMinimized = false;
     this.openArticles.forEach(function (item) {
       if (item.id === id) {
         if (item.tabElement) item.tabElement.classList.add('active');
@@ -292,9 +292,9 @@ export const UIDetail = {
       return;
     }
     // 有激活的非最小化标签页时隐藏，避免覆盖在详情页上方
-    var hasActive = this.openArticles.some(function (e) { return !e.isMinimized; });
+    const hasActive = this.openArticles.some(function (e) { return !e.isMinimized; });
     bar.style.display = hasActive ? 'none' : 'flex';
-    var self = this;
+    const self = this;
     minimized.forEach(function (entry) {
       const item = document.createElement('div');
       item.className = 'minimized-item';
@@ -322,15 +322,15 @@ export const UIDetail = {
   },
 
   _saveMinimizedState: function () {
-    var data = this.openArticles
+    const data = this.openArticles
       .filter(function (e) { return e.isMinimized; })
       .map(function (e) { return { id: e.id, title: e.title }; });
     Utils.storage.set('minimized_articles', data);
   },
 
   _restoreMinimizedState: function () {
-    var self = this;
-    var data = Utils.storage.get('minimized_articles');
+    const self = this;
+    const data = Utils.storage.get('minimized_articles');
     if (!data || !Array.isArray(data) || data.length === 0) return;
     data.forEach(function (item) {
       self.openArticles.push({
@@ -357,7 +357,7 @@ export const UIDetail = {
     if (!entry.paneElement) {
       this.openArticles = this.openArticles.filter(function (e) { return e.id !== id; });
       this._renderMinimizedBar();
-      var article = ArticleListStore.getArticleById(id);
+      const article = ArticleListStore.getArticleById(id);
       if (article) { this.createTab(article); }
       else { Utils.showToast(UI.detail.defaultContent, true); }
       return;
@@ -470,17 +470,17 @@ export const UIDetail = {
   _renderStickersForArticle: function (article, pane) {
     if (!pane) return;
     // 清除旧贴纸
-    var existing = pane.querySelectorAll('.detail-sticker, .article-sticker, .sticker-clearfix');
+    const existing = pane.querySelectorAll('.detail-sticker, .article-sticker, .sticker-clearfix');
     existing.forEach(function (el) { el.remove(); });
 
     // 优先使用 article.stickers 数组
-    var stickers = article.stickers;
+    let stickers = article.stickers;
     if (!stickers || !stickers.length) {
-      var parsed = this._parseStickerMarkers(article.content || '');
+      const parsed = this._parseStickerMarkers(article.content || '');
       stickers = parsed.stickers;
       console.log('[UIDetail._renderStickersForArticle] 从 content 解析到 ' + stickers.length + ' 张贴纸');
       if (stickers.length) {
-        var s0 = stickers[0];
+        const s0 = stickers[0];
         console.log('[UIDetail._renderStickersForArticle] sticker[0]: decoId=' + s0.decoId +
                     ' | w=' + s0.width + ' h=' + s0.height +
                     ' | align=' + s0.align + ' shape=' + s0.shape + ' vertices=' + s0.vertices +
@@ -496,21 +496,21 @@ export const UIDetail = {
     console.log('[UIDetail._renderStickersForArticle] 开始渲染 ' + stickers.length + ' 张贴纸');
 
     // 找到正文容器（.detail-body），贴纸需注入正文流中才能触发 float + shape-outside 绕排
-    var bodyEl = pane.querySelector('.detail-body');
+    let bodyEl = pane.querySelector('.detail-body');
     if (!bodyEl) bodyEl = pane;
     console.log('[UIDetail._renderStickersForArticle] bodyEl=' + (bodyEl ? (bodyEl.tagName + '.' + bodyEl.className) : 'null') +
                 ' | childNodes=' + (bodyEl ? bodyEl.childNodes.length : 0));
 
     // 检查 bodyEl 中是否有 marker 注释节点
-    var commentCount = 0;
+    let commentCount = 0;
     if (bodyEl) {
-      var walker = document.createTreeWalker(bodyEl, NodeFilter.SHOW_COMMENT);
+      const walker = document.createTreeWalker(bodyEl, NodeFilter.SHOW_COMMENT);
       while (walker.nextNode()) { commentCount++; }
     }
     console.log('[UIDetail._renderStickersForArticle] bodyEl 中注释节点总数: ' + commentCount);
 
     // 延迟到下一帧渲染贴纸，让浏览器先完成内容布局，避免浮动元素尺寸为零
-    var self = this;
+    const self = this;
     requestAnimationFrame(function () {
       StickerRenderer.renderInArticle(bodyEl, stickers);
     });
@@ -518,13 +518,13 @@ export const UIDetail = {
 
   /** 从内容中解析贴纸标记（复用 StickerRenderer._MARKER_REGEX 统一正则，含 anchor 字段） */
   _parseStickerMarkers: function (content) {
-    var stickers = [];
-    var regex = StickerRenderer._MARKER_REGEX;
+    const stickers = [];
+    const regex = StickerRenderer._MARKER_REGEX;
     regex.lastIndex = 0; // 重置全局正则状态（共享实例可能被其他模块使用后残留 lastIndex）
-    var match;
+    let match;
     while ((match = regex.exec(content)) !== null) {
       console.log('[UIDetail._parseStickerMarkers] 匹配到标记: index=' + match.index + ' | raw=' + match[0].substring(0, 80));
-      var fields = StickerRenderer._parseMarkerContent(match[1]);
+      const fields = StickerRenderer._parseMarkerContent(match[1]);
       console.log('[UIDetail._parseStickerMarkers] 解析字段: decoId=' + fields.decoId +
                   ' | x=' + fields.x + ' y=' + fields.y +
                   ' | w=' + fields.w + ' h=' + fields.h +

@@ -147,7 +147,7 @@ export const HealthMonitor = {
 
   /** [NEW] 边缘情况 #1 — 指数退避：成功恢复默认间隔，失败逐步放大 */
   _applyBackoff(success) {
-    var prevFailures = this._consecutiveFailures;
+    const prevFailures = this._consecutiveFailures;
 
     if (success) {
       this._consecutiveFailures = 0;

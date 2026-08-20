@@ -31,6 +31,7 @@ const mutationHandlers = {
   },
   [MUTATIONS.SET_PUZZLE_IMAGE]: (state, payload) => { state.puzzleImage = payload; },
   [MUTATIONS.SET_PUZZLE_COMPLETED]: (state, payload) => { state.puzzleCompleted = payload; },
+  [MUTATIONS.SET_CREW_STATE]: (state, payload) => { state.crew = payload; },
 };
 
 const mutationKeyMap = {
@@ -53,7 +54,26 @@ const mutationKeyMap = {
   [MUTATIONS.SET_KEY]: null,
   [MUTATIONS.SET_PUZZLE_IMAGE]: 'puzzleImage',
   [MUTATIONS.SET_PUZZLE_COMPLETED]: 'puzzleCompleted',
+  [MUTATIONS.SET_CREW_STATE]: 'crew',
 };
+
+function defaultCrewState() {
+  return {
+    running: false,
+    runId: null,
+    requirement: '',
+    process: 'sequential',
+    memory: false,
+    planning: false,
+    startedAt: null,
+    finishedAt: null,
+    agents: [],
+    logs: [],
+    outputs: [],
+    stats: {},
+    lastError: null,
+  };
+}
 
 export const AppState = {
   _state: {
@@ -65,7 +85,7 @@ export const AppState = {
     watermarkText: 'REVACHOL', watermarkOpacity: 0.08,
     textureDataUrl: null, textureOpacity: 0.12,
     bgColor: '#1a1612', // → var(--color-bg-primary); admin: null, ui: null,
-    puzzleImage: null, puzzleCompleted: false,
+    puzzleImage: null, puzzleCompleted: false, crew: defaultCrewState(),
   },
 
   _subscribers: {},
@@ -119,7 +139,7 @@ export const AppState = {
       watermarkText: 'REVACHOL', watermarkOpacity: 0.08,
       textureDataUrl: null, textureOpacity: 0.12,
       bgColor: '#1a1612', // → var(--color-bg-primary); admin: null, ui: null,
-      puzzleImage: null, puzzleCompleted: false,
+      puzzleImage: null, puzzleCompleted: false, crew: defaultCrewState(),
     };
     this._subscribers = {};
     return this;

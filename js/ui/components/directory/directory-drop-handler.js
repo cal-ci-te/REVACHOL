@@ -40,7 +40,7 @@ export async function handleDirectoryDrop(sourceData, targetData, context) {
             return;
         }
 
-        let newCategory = isSibling ? (targetFolderId || '未分类') : (targetFolderId || '未分类');
+        const newCategory = isSibling ? (targetFolderId || '未分类') : (targetFolderId || '未分类');
         if (article.category === newCategory) {
             Utils.showToast(UI.toast.articleAlreadyInTarget, false);
             return;

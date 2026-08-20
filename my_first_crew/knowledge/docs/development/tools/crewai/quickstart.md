@@ -1,7 +1,7 @@
 # CrewAI 多 Agent 协作 — 快速启动
 
 > 面向新接入的开发者或 AI 助手。完整说明见 [crewai-guide.md](crewai-guide.md)。
-> 项目版本：crewai 1.15.16 | 更新：2026-08-19
+> 项目版本：crewai 1.15.16 | 更新：2026-08-20
 
 REVACHOL 使用 **CrewAI 框架**（JSON-first 声明式配置）编排多 Agent 协作。四个 Agent 各司其职：技术规划 → 代码开发 → 代码审查 → 文档处理。
 
@@ -11,8 +11,9 @@ REVACHOL 使用 **CrewAI 框架**（JSON-first 声明式配置）编排多 Agent
 
 ### 1.1 Python 版本要求
 
-- Python **3.10 – 3.14**（`pyproject.toml` 中 `requires-python = ">=3.10,<3.14"`）
+- Python **3.10 – 3.13**（`pyproject.toml` 中 `requires-python = ">=3.10,<3.14"`）
 - 依赖管理器：[uv](https://docs.astral.sh/uv/)（本项目的虚拟环境与依赖锁定均由 uv 管理）
+- Docker 镜像内使用 Python 3.11（`node:22-bookworm-slim`）
 
 ### 1.2 安装依赖
 
@@ -20,6 +21,12 @@ REVACHOL 使用 **CrewAI 框架**（JSON-first 声明式配置）编排多 Agent
 
 ```bash
 uv sync
+```
+
+或使用 pip（Docker 构建路径）：
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
 核心依赖：
@@ -147,6 +154,20 @@ crewai run --inputs '{"requirement": "为贴纸系统新增旋转功能", "proje
 ```
 
 运行后将看到四个 Agent 按 `sequential` 顺序依次执行，最终输出汇总结果。详细日志由 `crew.jsonc` 的 `"verbose": true` 控制。
+
+### 3.1 Web Dashboard 无头模式（`--once --json-logs`）
+
+REVACHOL 内置 Crew Dashboard（`/crew-dashboard.html`）通过后端 `child_process.spawn()` 调用脚本的无头模式：
+
+```bash
+# 单次执行一个需求后退出，并向 stdout 输出 NDJSON 事件流
+python run_revachol_crew.py --once --json-logs --requirement "为贴纸系统新增旋转功能"
+
+# 安全验证：只构建 Agent/Task/Crew，不调用 LLM
+python run_revachol_crew.py --once --json-logs --dry-run --requirement "验证配置"
+```
+
+事件流类型：`crew:started` / `crew:log` / `crew:agent-status` / `crew:task` / `crew:output` / `crew:stats` / `crew:finished`。后端 `backend/routes/crew.cjs` 解析后翻译为 WebSocket 广播 `CREW_*` 事件，由前端实时渲染。
 
 ---
 

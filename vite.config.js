@@ -68,11 +68,8 @@ export default defineConfig(({ mode }) => {
                 
                 // WebSocket 代理
                 "/websocket": {
-                    target: wsBackendUrl,
+                    target: backendUrl,
                     ws: true,
-                    changeOrigin: true,
-                    secure: false,
-                    timeout: 60000,
                 },
             },
             
@@ -116,6 +113,7 @@ export default defineConfig(({ mode }) => {
             rollupOptions: {
                 input: {
                     main: "index.html",
+                    crewDashboard: "crew-dashboard.html",
                     // 如果有其他页面，在这里添加
                     // editor: "article-editor.html",
                 },

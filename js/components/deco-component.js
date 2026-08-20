@@ -15,7 +15,7 @@ export var decoComponent = {
   },
 
   init: async function () {
-    var items = await DecoShelf.loadLibrary();
+    const items = await DecoShelf.loadLibrary();
     console.log('[deco-component] init: 已加载 ' + (items ? items.length : 0) + ' 张贴纸');
     return DecoShelf;
   },

@@ -3,6 +3,13 @@ node_modules
 *.db-journal
 backend/uploads
 .env
+**/.env
+my_first_crew/.venv/
+my_first_crew/output/
+my_first_crew/output_backup/
+my_first_crew/staging/
+my_first_crew/__pycache__/
+my_first_crew/.input_history
 .git
 dist
 .vite

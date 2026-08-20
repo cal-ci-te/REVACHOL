@@ -1,6 +1,6 @@
 # REVACHOL 架构文档
 
-> 版本：v1.18.3 | 更新：2026-08-07
+> 版本：v1.20.0 | 更新：2026-08-20
 
 ---
 
@@ -170,12 +170,12 @@ Puzzle.js（总入口）
 ### 4.1 服务启动流程
 
 ```
-1. require('dotenv').config()    加载环境变量（含 ADMIN_PASSWORD）
+1. require('dotenv').config()    加载环境变量（含 ADMIN_PASSWORD / CREW_*）
 2. storage.init()                初始化存储适配器（local/rustfs）
-3. 注册路由（articles/decos/settings/drafts）
-4. require('./auth.js')          初始化 Token 认证（密钥生成/验证/撤销）
+3. 注册路由（articles/decos/settings/drafts/crew）
+4. require('./auth.cjs')         初始化 Token 认证（密钥生成/验证/撤销）
 5. http.createServer()           创建原生 HTTP 服务
-6. initWebSocket(server)         挂载 WebSocket
+6. initWebSocket(server)         挂载 WebSocket（perMessageDeflate: false）
 7. db.initDb()                   初始化 SQLite（建表 + 迁移）
 8. server.listen(9999)           开始监听
 9. cleanExpiredDrafts()          3 秒后清理过期草稿
@@ -220,7 +220,7 @@ StorageService (门面)
 
 切换：改 `.env` 中 `STORAGE_TYPE=local|rustfs` 即可，业务代码零改动。
 
-### 4.5 全部 API 端点（18 个）
+### 4.5 全部 API 端点（21 个）
 
 | 方法 | 路径 | 功能 | 权限 |
 |------|------|------|:--:|
@@ -242,11 +242,22 @@ StorageService (门面)
 | POST | `/api/auth/login` | 管理员登录（返回 Token） | 公开* |
 | POST | `/api/auth/logout` | 管理员登出（撤销 Token） | 🔒 |
 | GET | `/api/auth/me` | 查询当前登录用户信息 | 🔒 |
+| GET | `/api/crew/status` | Crew 运行状态快照（agents/logs/outputs/stats） | 公开 |
+| POST | `/api/crew/run` | 触发 Crew 任务（requirement + dryRun 等） | 🔒 |
+| POST | `/api/crew/stop` | 手动停止 Crew 子进程 | 🔒 |
 
 > 🔒 = 需携带 Bearer Token（`Authorization` 头），由 `requireAuth` 中间件校验
 > 公开* = 无需 Token，但需输入正确用户名/密码（`ADMIN_PASSWORD` 环境变量）
 >
-> POST `/api/decos` 和 3 个认证端点直接在 `server.cjs` 内联处理（不经过 `enhance.cjs` 路由注册），其余 14 个端点通过 `register*Routes()` 注册。
+> POST `/api/decos` 和 3 个认证端点直接在 `server.cjs` 内联处理（不经过 `enhance.cjs` 路由注册），其余 17 个端点通过 `register*Routes()` 注册。
+
+### 4.6 Crew Dashboard（CrewAI Web UI）
+
+- **Python 无头模式**：`my_first_crew/run_revachol_crew.py --once --json-logs` 单次执行并输出 NDJSON 事件流（`crew:*`），由后端 `backend/routes/crew.cjs` 通过 `child_process.spawn()` 启动
+- **事件桥接**：后端解析 NDJSON → WebSocket 广播 `CREW_*`（`CREW_STARTED` / `CREW_AGENT_STATUS` / `CREW_LOG` / `CREW_OUTPUT` / `CREW_STATS` / `CREW_FINISHED` / `CREW_STOPPED`）
+- **前端**：`/crew-dashboard.html` 独立页面，复用 `AppState` / `EventBus` / `ComponentManager`；`js/services/crew-service.js` 负责 REST + WebSocket，`js/components/crew-dashboard-component.js` 负责渲染
+- **目录定位**：`CREW_DIR` 环境变量指定 `my_first_crew` 目录（Docker 下为 `/app/my_first_crew`），`CREW_PYTHON` 指定 venv Python
+- **输出落盘**：`CREW_OUTPUT_DIR` 指定结构化输出目录（Docker 挂载宿主机 `./output`）
 
 ---
 
@@ -343,41 +354,40 @@ BroadcastChannel 承载主题切换、可见性变更等轻量同步。WebSocket
 ```
 revachol/
 ├── index.html               入口 HTML
+├── crew-dashboard.html      Crew Dashboard 独立页面
 ├── js/
 │   ├── app.js               应用入口（模块挂载、事件绑定）
 │   ├── config.js            全局配置（API 地址、默认值）
 │   ├── core/                基础设施（状态、事件、DOM 引用）
-│   ├── services/            业务逻辑（与后端通信 + 领域逻辑）
+│   ├── services/            业务逻辑（含 crew-service.js）
 │   ├── stores/              视图数据派生层
 │   ├── puzzle/              滑动拼图组件（独立可实例化）
 │   ├── ui/components/       UI 组件（按功能域划分）
+│   ├── components/          ComponentManager 组件适配器（含 crew-dashboard-component.js）
+│   ├── pages/               独立页面入口（crew-dashboard.js）
 │   ├── admin/               管理模块（认证、面板、贴纸、拼图自定义）
-│   ├── editor/              文章编辑器（独立页面）
+│   ├── editor/              文章编辑器（内嵌 + 贴纸编辑）
 │   ├── mobile/              移动端适配
 │   ├── bootstrap/           启动引导（模块注册、UI 文案注入）
 │   └── utils/               工具函数
 ├── css/                     样式
 │   ├── base/                重置 + 变量 + 布局
-│   ├── components/          组件样式
+│   ├── components/          组件样式（含 crew-dashboard.css）
 │   ├── themes/{dark,light,lofi}/ 主题
-│   │   └── _*.css           按功能域拆分
-│   ├── pages/editor/        编辑器独立样式
+│   ├── editor/              编辑器样式
 │   └── utilities/           动画 + 响应式
 ├── backend/
 │   ├── server.cjs           入口（含内联认证路由）
 │   ├── enhance.cjs          路由/响应工具
-│   ├── auth.js              JWT Token 认证（generateToken, requireAuth, revokeToken）
+│   ├── auth.cjs             Token 认证（generateToken, requireAuth, revokeToken）
 │   ├── db.cjs               SQLite 封装
-│   ├── routes/              路由处理器（articles, decos, settings, drafts）
+│   ├── routes/              路由处理器（articles, decos, settings, drafts, crew）
 │   ├── storage/             存储适配器
-│   ├── upload.cjs           贴纸上传处理器（FormData/base64 解析 + WebP 转码）
-│   ├── websocket.cjs        WebSocket 广播
+│   ├── upload.cjs           贴纸上传处理器
+│   ├── websocket.cjs        WebSocket 广播（perMessageDeflate: false）
 │   └── uploads/decos/       贴纸文件（本地存储模式）
-├── docs/                    文档
-│   ├── architecture/        架构文档
-│   ├── deployment/          部署指南
-│   ├── development/tools/   工具文档
-│   └── node-22-upgrade-review.md
+├── my_first_crew/           CrewAI 子项目（run_revachol_crew.py + requirements.txt + .venv）
+├── docs/                    文档（knowledge/docs/）
 ├── tests/                   单元测试
 ├── docker-compose.yml
 ├── Dockerfile / Dockerfile.frontend

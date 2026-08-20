@@ -14,7 +14,7 @@ export const Overlay = {
    */
   create() {
     // 遮罩层
-    var overlay = document.createElement('div');
+    const overlay = document.createElement('div');
     overlay.id = 'sticker-editor-overlay';
     overlay.style.cssText = [
       'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
@@ -32,7 +32,7 @@ export const Overlay = {
     });
 
     // 文章容器 — 与文章编辑页/阅读页 .detail-pane 容器尺寸完全一致（padding 24px 32px，全宽）
-    var articleContainer = document.createElement('div');
+    const articleContainer = document.createElement('div');
     articleContainer.id = 'sticker-editor-article';
     articleContainer.style.cssText = [
       'padding:24px 32px', 'position:relative', 'overflow:visible',
@@ -41,7 +41,7 @@ export const Overlay = {
     overlay.appendChild(articleContainer);
 
     // 贴纸层
-    var stickerLayer = document.createElement('div');
+    const stickerLayer = document.createElement('div');
     stickerLayer.id = 'sticker-editor-layer';
     stickerLayer.style.cssText = [
       'position:absolute', 'top:0', 'left:0', 'width:100%', 'height:100%',
@@ -59,7 +59,7 @@ export const Overlay = {
    */
   renderArticle(article, container) {
     // 标题
-    var titleEl = document.createElement('h1');
+    const titleEl = document.createElement('h1');
     titleEl.style.cssText = [
       'color:var(--color-text-heading, #e8c88a)',
       'font-size:28px', 'margin:0 0 8px', 'padding-bottom:16px',
@@ -70,7 +70,7 @@ export const Overlay = {
     container.appendChild(titleEl);
 
     // 内容 — 与 UIDetail.renderContent 完全一致的处理
-    var contentEl = document.createElement('div');
+    const contentEl = document.createElement('div');
     contentEl.className = 'detail-body';
     contentEl.innerHTML = this.renderContent(article.content || '');
     container.appendChild(contentEl);
@@ -91,7 +91,7 @@ export const Overlay = {
   showCursorHighlight(container, cursorY) {
     if (cursorY == null) return;
 
-    var highlight = document.createElement('div');
+    const highlight = document.createElement('div');
     highlight.style.cssText = [
       'position:absolute', 'left:50%', 'top:' + cursorY + 'px',
       'transform:translate(-50%, -50%)',

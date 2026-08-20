@@ -13,7 +13,7 @@ export var puzzleComponent = {
   },
 
   init: async function () {
-    var isMobile = window.innerWidth <= 600;
+    const isMobile = window.innerWidth <= 600;
     if (isMobile) {
       console.log('[puzzle-component] init: 移动端，跳过拼图组件');
       return null;
@@ -29,7 +29,7 @@ export var puzzleComponent = {
     }
 
     try {
-      var puzzle = await initPuzzle({ x: 525, y: 450 });
+      const puzzle = await initPuzzle({ x: 525, y: 450 });
       console.log('[puzzle-component] mount: 拼图已创建');
       return puzzle;
     } catch (err) {

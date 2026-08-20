@@ -1,6 +1,6 @@
 # REVACHOL 路线图
 
-> 版本：v1.19.0-wip | 更新：2026-08-19
+> 版本：v1.20.0-wip | 更新：2026-08-20
 
 ---
 
@@ -35,6 +35,7 @@ REVACHOL 是一个面向个人创作者的、可扩展的创作存档与交互�
 
 | 版本 | 关键里程碑 |
 |------|----------|
+| v1.20.0-wip | Crew Dashboard Web UI（终端 TUI → Web Dashboard：四 Agent 状态卡片 + 实时日志流 + WebSocket CREW_* 事件）；Python 无头模式（--once --json-logs）；Docker 容器化打包（Debian slim + Python 3.11 + CrewAI venv + 非 root + output 挂载）；`.env.example` 环境变量统一。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.19.0-wip | 多 Agent 协作基础设施（CrewAI 四 Agent 流水线 + Git MCP + 单模型测试工具）；my_first_crew 合并为主仓库子目录；贴纸锚点 DOM 驱动重构；Markdown 渲染统一（P1-2 双实现收敛）；编辑器 html/text 双渲染模式；后端 auth.cjs 统一；LangGraph 方案归档；文档体系迁移（docs → knowledge/）。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.0 — v1.7 | 文章 CRUD、目录树、贴纸、三主题、草稿系统、移动端 |
 | v1.8 | Docker 部署、Node 22 升级、安全加固（非 root + localhost 绑定） |
@@ -59,6 +60,7 @@ REVACHOL 是一个面向个人创作者的、可扩展的创作存档与交互�
 
 - [x] 自定义组件开发路线图文档化（`docs/component-roadmap.md`）
 - [x] 目录树排序策略优化（拼音排序 + sort_order 接口）
+- [x] Crew Dashboard Web UI（四 Agent 状态卡片 + 实时日志流，替代终端 TUI）
 - [ ] 贴图尺寸说明文档（标准版 README 内嵌）
 - [ ] 深度版 README（逻辑修改教学、组合玩法说明）
 - [ ] Bugfix 文档（常见问题 + 自助修复 + 反馈渠道）
@@ -69,7 +71,7 @@ REVACHOL 是一个面向个人创作者的、可扩展的创作存档与交互�
 - [ ] Vite build 输出静态文件 → Nginx 反向代理
 - [ ] 前端 `/api/*` 请求通过 Nginx 转发到 backend 容器
 - [ ] 静态资源启用 gzip + 缓存头
-- [ ] 环境变量统一管理（`.env.example` + 文档）
+- [x] 环境变量统一管理（`.env.example` + 文档）
 
 ---
 

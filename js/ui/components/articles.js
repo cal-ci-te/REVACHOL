@@ -102,10 +102,10 @@ export const UIArticles = {
                             if (titleEl) titleEl.textContent = article.title || UI.articles.defaultTitle;
                             const contentEl = cardDiv.querySelector('.card-content');
                             if (contentEl) {
-                                var displayContent = article.content || UI.articles.defaultContent;
+                                const displayContent = article.content || UI.articles.defaultContent;
                                 // 剥离贴纸标记，保留纯净内容用于卡片预览
-                                var clean = StickerRenderer.stripMarkers(displayContent);
-                                var rendered = MarkdownUtils.toHTML(clean);
+                                const clean = StickerRenderer.stripMarkers(displayContent);
+                                const rendered = MarkdownUtils.toHTML(clean);
                                 // 使用 truncateHtml：短文保留富文本样式，长文截断为纯文本预览
                                 contentEl.innerHTML = truncateHtml(rendered, 350);
                             }
@@ -175,10 +175,10 @@ export const UIArticles = {
         const cardId = UIHelpers.generateCardId(article.id);
         const side = cardIndex % 2 === 0 ? 'card-left' : 'card-right';
         const title = article.title || UI.articles.defaultTitle;
-        var content = article.content || UI.articles.defaultContent;
+        const content = article.content || UI.articles.defaultContent;
         // 剥离贴纸标记，统一通过 MarkdownUtils 渲染，再截断预览
-        var clean = StickerRenderer.stripMarkers(content);
-        var rendered = MarkdownUtils.toHTML(clean);
+        const clean = StickerRenderer.stripMarkers(content);
+        const rendered = MarkdownUtils.toHTML(clean);
         const displayContent = truncateHtml(rendered, 350);
         const updateTime = article.updateTime || article.createTime || UI.articles.unknownTime;
         return (

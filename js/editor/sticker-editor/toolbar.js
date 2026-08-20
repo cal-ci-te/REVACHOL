@@ -15,7 +15,7 @@ export const Toolbar = {
    * @returns {HTMLElement}
    */
   create(ctx) {
-    var toolbar = document.createElement('div');
+    const toolbar = document.createElement('div');
     toolbar.className = 'deco-edit-toolbar';
     toolbar.id = 'sticker-edit-toolbar';
     toolbar.innerHTML = [

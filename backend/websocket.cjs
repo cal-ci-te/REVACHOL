@@ -5,7 +5,10 @@ const WebSocket = require('ws');
 const clients = new Set();
 
 function initWebSocket(server) {
-    const wss = new WebSocket.Server({ server });
+    // perMessageDeflate: false — Docker Desktop 端口转发对 permessage-deflate
+    // 扩展的握手存在兼容性问题（宿主 ws 客户端报 “closed before connection established”）。
+    // 本项目广播消息量小，禁用压缩换取跨环境兼容性。
+    const wss = new WebSocket.Server({ server, perMessageDeflate: false });
 
     wss.on('connection', (ws) => {
         console.log('🔗 WebSocket 客户端连接');

@@ -87,9 +87,9 @@ export class CustomIconManager {
     this._ensureDom();
     if (!this.img) return;
 
-    var self = this;
-    var stored = self.getIcon();
-    var src = stored || self._defaultSrc || '';
+    const self = this;
+    const stored = self.getIcon();
+    const src = stored || self._defaultSrc || '';
 
     self.img.onerror = function () {
       self.img.style.display = 'none';
@@ -112,10 +112,10 @@ export class CustomIconManager {
 
   /** [REVIEW] 创建文件上传处理器 */
   createUploadHandler() {
-    var self = this;
+    const self = this;
     return function (file) {
       if (!file || !file.type.startsWith('image/')) return;
-      var reader = new FileReader();
+      const reader = new FileReader();
       reader.onload = function (e) {
         self.setIcon(e.target.result);
       };

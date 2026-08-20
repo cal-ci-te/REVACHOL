@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>REVACHOL - Crew Dashboard</title>
+
+    <!-- ===== 字体 ===== -->
+    <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Special+Elite&family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Press+Start+2P&family=Patrick+Hand&display=swap" rel="stylesheet">
+
+    <!-- ===== 三套主题预加载（与主应用一致） ===== -->
+    <link rel="stylesheet" href="/css/themes/dark.css" id="theme-stylesheet-dark">
+    <link rel="stylesheet" href="/css/themes/light.css" id="theme-stylesheet-light" disabled>
+    <link rel="stylesheet" href="/css/themes/lofi.css" id="theme-stylesheet-lofi" disabled>
+
+    <!-- ===== 主样式 + Crew Dashboard 专属样式 ===== -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/components/crew-dashboard.css">
+</head>
+<body>
+
+<!-- 主题预加载：避免刷新时主题闪烁 -->
+<style id="theme-preload">
+  html[data-theme="dark"]  body { background: #1a1612; }
+  html[data-theme="light"] body { background: #f5f0e8; }
+  html[data-theme="lofi"]  body { background: #f0ead8; }
+</style>
+<script>
+  (function(){var r=localStorage.getItem('rv_selected_theme'),t='dark';
+  if(r){try{t=JSON.parse(r)}catch(e){t=r.replace(/\"/g,'');}}
+  document.documentElement.setAttribute('data-theme',t);})();
+</script>
+
+<!-- Crew Dashboard 挂载点 -->
+<main id="crewDashboardRoot" class="crew-dashboard-root"></main>
+
+<script type="importmap">
+    {
+        "imports": {
+            "./js/": "./js/"
+        }
+    }
+</script>
+<script type="module" src="js/pages/crew-dashboard.js"></script>
+</body>
+</html>

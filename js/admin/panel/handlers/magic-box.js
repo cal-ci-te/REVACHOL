@@ -71,7 +71,7 @@ export function handleItemImageFile(file) {
     const box = getMagicBox();
     if (box) {
       box.setItemImage(itemId, e.target.result);
-      var item = ITEMS.find(function (i) { return i.id === itemId; });
+      const item = ITEMS.find(function (i) { return i.id === itemId; });
       Utils.showToast(T.itemImageUpdated(item ? item.label : itemId), false);
     }
   };
@@ -86,7 +86,7 @@ export function removeItemImage() {
   const box = getMagicBox();
   if (box) {
     box.setItemImage(itemId, null);
-    var item = ITEMS.find(function (i) { return i.id === itemId; });
+    const item = ITEMS.find(function (i) { return i.id === itemId; });
     Utils.showToast(T.itemImageRemoved(item ? item.label : itemId), false);
   }
 }

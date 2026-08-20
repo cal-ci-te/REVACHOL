@@ -97,7 +97,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
     // ---- 编辑文章 → 内联编辑模式 ----
     if (action === 'edit-article') {
         // 通过全局命名空间访问 ArticleEditorMode
-        var AEM = window.__REVACHOL__ && window.__REVACHOL__.ArticleEditorMode;
+        const AEM = window.__REVACHOL__ && window.__REVACHOL__.ArticleEditorMode;
         if (AEM && typeof AEM.open === 'function') {
             AEM.open(data);
         } else {

@@ -12,7 +12,7 @@ export const SiteIcon = new CustomIconManager({
 
 /** 站点图标专属：入场摇摆动画 */
 SiteIcon.playEntranceAnimation = function () {
-  var container = document.querySelector('#siteAvatar');
+  const container = document.querySelector('#siteAvatar');
   if (!container) return;
   setTimeout(function () { container.classList.add('animate'); }, 200);
 };

@@ -3,7 +3,7 @@
 // init: 加载计数状态。mount: 渲染箱子 DOM + 绑定交互。unmount: 清理事件和 DOM。
 import { BoxManager } from '../ui/components/magic-box/index.js';
 
-var _boxInstance = null;
+let _boxInstance = null;
 
 export var magicBoxComponent = {
   name: 'magic-box',
@@ -37,7 +37,7 @@ export var magicBoxComponent = {
         instance._drag.disable();
       }
 
-      var el = instance._renderer ? instance._renderer.getElement() : null;
+      const el = instance._renderer ? instance._renderer.getElement() : null;
       if (el && el.parentNode) {
         el.parentNode.removeChild(el);
       }

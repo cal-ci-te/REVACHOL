@@ -27,7 +27,7 @@ export const EditorContent = {
    */
   render(article, container) {
     // 标题（只读展示，匹配阅读视图；编辑通过工具栏输入框）
-    var titleEl = document.createElement('h1');
+    const titleEl = document.createElement('h1');
     titleEl.id = 'article-editor-title';
     titleEl.style.cssText = [
       'color:var(--color-text-heading, #e8c88a)',
@@ -40,7 +40,7 @@ export const EditorContent = {
     container.appendChild(titleEl);
 
     // 内容
-    var contentEl = document.createElement('div');
+    const contentEl = document.createElement('div');
     contentEl.className = 'detail-body';
     contentEl.innerHTML = this.renderContent(article.content || '');
     contentEl.style.outline = 'none';
@@ -94,30 +94,30 @@ export const EditorContent = {
     contentEl.classList.add('editing');
 
     // 输入事件 → 标记脏状态
-    var inputHandler = function () {
+    const inputHandler = function () {
       if (onDirty) onDirty();
     };
     titleEl.addEventListener('input', inputHandler);
     contentEl.addEventListener('input', inputHandler);
 
     // 粘贴事件 → 清理格式（只保留纯文本 + 基本结构）
-    var pasteHandler = function (e) {
+    const pasteHandler = function (e) {
       e.preventDefault();
-      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
       if (!text) return;
 
       // 将纯文本转为带换行的 HTML
-      var html = Utils.escapeHtml(text)
+      let html = Utils.escapeHtml(text)
         .replace(/\n{2,}/g, "</p><p>")
         .replace(/\n/g, '<br>');
       html = '<p>' + html + '</p>';
 
       // 插入到光标位置
-      var sel = window.getSelection();
+      const sel = window.getSelection();
       if (sel.rangeCount && sel.getRangeAt(0).intersectsNode(contentEl)) {
-        var range = sel.getRangeAt(0);
+        const range = sel.getRangeAt(0);
         range.deleteContents();
-        var fragment = range.createContextualFragment(html);
+        const fragment = range.createContextualFragment(html);
         range.insertNode(fragment);
         range.collapse(false);
       }
@@ -184,7 +184,7 @@ export const EditorContent = {
    */
   getContentHTML(contentEl) {
     if (!contentEl) return '';
-    var html = contentEl.innerHTML;
+    let html = contentEl.innerHTML;
 
     // 移除占位符段落
     html = html.replace(/<p[^>]*>\s*（空内容）\s*<\/p>/g, '');
@@ -209,17 +209,17 @@ export const EditorContent = {
     if (!contentEl) return '';
 
     // 1. 从 DOM 收集贴纸数据（含锚点信息）——在剥离贴纸 div 之前执行
-    var stickersWithAnchor = this.collectStickersWithAnchor(contentEl, article);
+    const stickersWithAnchor = this.collectStickersWithAnchor(contentEl, article);
     console.log('[EditorContent.buildSaveContent] 收集到 ' + stickersWithAnchor.length +
                 ' 张贴纸（含锚点）| decoIds=' + stickersWithAnchor.map(function(s){return s.decoId;}).join(','));
 
     // 2. 获取纯内容（剥离贴纸 div 和 clearfix）
-    var html = this.getContentHTML(contentEl);
+    let html = this.getContentHTML(contentEl);
     html = StickerRenderer.stripStickerDivs(html);
     html = StickerRenderer.stripMarkers(html);
 
     // 3. 使用数据驱动构建：在正确锚点位置插入标记注释
-    var result = ContentBuilder.build(html, stickersWithAnchor);
+    const result = ContentBuilder.build(html, stickersWithAnchor);
 
     console.log('[EditorContent.buildSaveContent] 构建完成 | stickers=' + stickersWithAnchor.length +
                 ' | 输出 len=' + result.length +
@@ -237,26 +237,26 @@ export const EditorContent = {
    */
   collectStickersWithAnchor: function (container, article) {
     if (!container) return [];
-    var result = [];
-    var els = container.querySelectorAll('.article-sticker');
+    const result = [];
+    const els = container.querySelectorAll('.article-sticker');
     if (!els.length) return result;
 
     // 构建 decoId → 已有 sticker 数据的查找表
-    var stickerMap = {};
-    var existing = article ? (article.stickers || []) : [];
+    const stickerMap = {};
+    const existing = article ? (article.stickers || []) : [];
     existing.forEach(function (s) { if (s && s.decoId) stickerMap[s.decoId] = s; });
 
     els.forEach(function (el) {
-      var decoId = el.dataset.decoId;
+      const decoId = el.dataset.decoId;
       if (!decoId) return;
 
       // 优先从已有 sticker 数据获取属性，回退到 DOM 计算
-      var existingData = stickerMap[decoId] || {};
+      const existingData = stickerMap[decoId] || {};
 
       // 锚点：优先使用贴纸编辑器保存时计算的锚点（基于覆盖层正确位置）；
       // 若无已有锚点（如首次打开未进贴纸编辑器），从主编辑器 DOM 计算
-      var anchor = existingData.anchor;
-      var anchorSource = 'none';
+      let anchor = existingData.anchor;
+      let anchorSource = 'none';
       if (!anchor || AnchorManager.isDefaultAnchor(anchor)) {
         anchor = AnchorManager.computeAnchor(el, container);
         anchorSource = 'DOM';
@@ -268,19 +268,19 @@ export const EditorContent = {
                   ' | existingAnchor=' + JSON.stringify(existingData.anchor) +
                   ' | finalAnchor=' + JSON.stringify(anchor));
 
-      var width = parseFloat(el.style.width) ||
+      const width = parseFloat(el.style.width) ||
                   existingData.width || existingData.w ||
                   StickerShape.DEFAULT_SIZE;
-      var height = parseFloat(el.style.height) ||
+      const height = parseFloat(el.style.height) ||
                    existingData.height || existingData.h ||
                    StickerShape.DEFAULT_SIZE;
-      var align = existingData.align || 'left';
-      var margin = existingData.margin !== undefined
+      let align = existingData.align || 'left';
+      const margin = existingData.margin !== undefined
                    ? existingData.margin
                    : StickerShape.DEFAULT_MARGIN;
 
       // 从 DOM 补充 align（如果现有数据中不存在）
-      var floatVal = el.style.float;
+      const floatVal = el.style.float;
       if (!existingData.align && floatVal) {
         align = floatVal;
       }
@@ -309,14 +309,14 @@ export const EditorContent = {
    * @returns {Array} 贴纸数据数组
    */
   parseStickersFromContent(content) {
-    var stickers = [];
+    const stickers = [];
     if (!content) return stickers;
-    var regex = StickerRenderer._MARKER_REGEX;
+    const regex = StickerRenderer._MARKER_REGEX;
     regex.lastIndex = 0; // 重置全局正则状态（共享实例可能被其他模块使用后残留 lastIndex）
-    var match;
+    let match;
     while ((match = regex.exec(content)) !== null) {
       // 使用 AnchorManager 统一解析（支持 anchor 字段 + 向后兼容旧格式）
-      var fields = AnchorManager.parseFromMarker(match[1]);
+      const fields = AnchorManager.parseFromMarker(match[1]);
       stickers.push({
         decoId: fields.decoId,
         x: fields.x ? parseInt(fields.x) : StickerShape.DEFAULT_X,
@@ -349,13 +349,13 @@ export const EditorContent = {
   hasChanges(snapshot, titleEl, contentEl, article, dirty) {
     if (!snapshot) return dirty;
 
-    var currentTitle = this.getTitle(titleEl);
-    var currentContent = this.getContentHTML(contentEl);
-    var currentStickers = article ? (article.stickers || []) : [];
+    const currentTitle = this.getTitle(titleEl);
+    const currentContent = this.getContentHTML(contentEl);
+    const currentStickers = article ? (article.stickers || []) : [];
 
     // 剥离贴纸标记后比较内容（快照 content 可能含标记）
-    var snapshotContent = StickerRenderer.stripMarkers(snapshot.content || '');
-    var cleanContent = StickerRenderer.stripMarkers(currentContent || '');
+    const snapshotContent = StickerRenderer.stripMarkers(snapshot.content || '');
+    const cleanContent = StickerRenderer.stripMarkers(currentContent || '');
 
     return currentTitle !== snapshot.title ||
            cleanContent !== snapshotContent ||

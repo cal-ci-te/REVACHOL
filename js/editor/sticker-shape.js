@@ -36,13 +36,13 @@ export const StickerShape = {
    * @returns {{ float: string, width: string, height: string, margin: string }}
    */
   buildFloatStyles(sticker) {
-    var w = sticker.width || this.DEFAULT_SIZE;
-    var h = sticker.height || this.DEFAULT_SIZE;
-    var align = sticker.align || this.DEFAULT_ALIGN;
-    var margin = sticker.margin !== undefined ? sticker.margin : this.DEFAULT_MARGIN;
+    const w = sticker.width || this.DEFAULT_SIZE;
+    const h = sticker.height || this.DEFAULT_SIZE;
+    const align = sticker.align || this.DEFAULT_ALIGN;
+    const margin = sticker.margin !== undefined ? sticker.margin : this.DEFAULT_MARGIN;
 
     // 固定矩形绕排：只使用 float + margin，无 shape-outside / clip-path
-    var marginCSS = '10px ' + margin + 'px 10px ' + margin + 'px';
+    const marginCSS = '10px ' + margin + 'px 10px ' + margin + 'px';
 
     return {
       float: align,
@@ -60,8 +60,8 @@ export const StickerShape = {
    * @returns {string} CSS 内联样式字符串
    */
   buildInlineStyle(sticker, imageUrl) {
-    var styles = this.buildFloatStyles(sticker);
-    var parts = [
+    const styles = this.buildFloatStyles(sticker);
+    const parts = [
       'float:' + styles.float,
       'width:' + styles.width,
       'height:' + styles.height,
@@ -83,8 +83,8 @@ export const StickerShape = {
    * @returns {boolean}
    */
   isOverlapping(a, b) {
-    var ax = a.x || 0, ay = a.y || 0, aw = a.width || this.DEFAULT_SIZE, ah = a.height || this.DEFAULT_SIZE;
-    var bx = b.x || 0, by = b.y || 0, bw = b.width || this.DEFAULT_SIZE, bh = b.height || this.DEFAULT_SIZE;
+    const ax = a.x || 0, ay = a.y || 0, aw = a.width || this.DEFAULT_SIZE, ah = a.height || this.DEFAULT_SIZE;
+    const bx = b.x || 0, by = b.y || 0, bw = b.width || this.DEFAULT_SIZE, bh = b.height || this.DEFAULT_SIZE;
 
     return !(ax + aw + 20 < bx || bx + bw + 20 < ax || ay + ah + 20 < by || by + bh + 20 < ay);
   },
@@ -98,42 +98,42 @@ export const StickerShape = {
    * @returns {{ x: number, y: number, align: string }}
    */
   suggestPosition(existing, containerWidth, insertY) {
-    var size = this.DEFAULT_SIZE;
-    var margin = this.DEFAULT_MARGIN;
+    const size = this.DEFAULT_SIZE;
+    const margin = this.DEFAULT_MARGIN;
     containerWidth = containerWidth || 800;
     insertY = insertY || 100;
     existing = existing || [];
 
     // 尝试在左右两侧交替放置
-    var candidates = [
+    const candidates = [
       { x: margin, y: insertY, align: 'left' },
       { x: containerWidth - size - margin, y: insertY, align: 'right' },
     ];
 
-    for (var i = 0; i < candidates.length; i++) {
+    for (let i = 0; i < candidates.length; i++) {
       var candidate = candidates[i];
-      var overlap = existing.some(function (s) {
+      const overlap = existing.some(function (s) {
         return StickerShape.isOverlapping(candidate, s);
       });
       if (!overlap) return candidate;
     }
 
     // 所有候选位都被占用 → 向下偏移，交替左右
-    for (var j = 0; j < 20; j++) {
-      var offsetY = insertY + j * (size + margin);
-      var alignSide = (j % 2 === 0) ? 'left' : 'right';
-      var altX = (alignSide === 'left') ? margin : (containerWidth - size - margin);
+    for (let j = 0; j < 20; j++) {
+      const offsetY = insertY + j * (size + margin);
+      const alignSide = (j % 2 === 0) ? 'left' : 'right';
+      const altX = (alignSide === 'left') ? margin : (containerWidth - size - margin);
       var altCandidate = { x: altX, y: offsetY, align: alignSide };
-      var conflicts = existing.some(function (s) {
+      const conflicts = existing.some(function (s) {
         return StickerShape.isOverlapping(altCandidate, s);
       });
       if (!conflicts) return altCandidate;
     }
 
     // 最终兜底：放在最下方
-    var maxY = 0;
+    let maxY = 0;
     existing.forEach(function (s) {
-      var bottom = (s.y || 0) + (s.height || size);
+      const bottom = (s.y || 0) + (s.height || size);
       if (bottom > maxY) maxY = bottom;
     });
     return { x: margin, y: maxY + margin, align: 'left' };

@@ -51,10 +51,10 @@ DeepSeek 的 OpenAI 兼容 API 未实现该参数，直接拒绝。
 
 使用方法
 --------
-    python run_revachol_crew.py                        # 默认 sequential，跑全部四个 Task
-    python run_revachol_crew.py --requirement "为贴纸系统新增旋转功能"
+    python run_revachol_crew.py                        # 默认 sequential；未传需求时进入仪表盘交互式输入
+    python run_revachol_crew.py --requirement "为贴纸系统新增旋转功能"   # 跳过输入面板
     python run_revachol_crew.py --debug                # 开启 LITELLM_LOG=DEBUG
-    python run_revachol_crew.py --dry-run              # 只构建不执行（验证配置）
+    python run_revachol_crew.py --dry-run              # 只构建不执行（验证配置，不启动输入面板）
     python run_revachol_crew.py --process hierarchical  # 层级流程（需 manager LLM）
     python run_revachol_crew.py --memory               # 启用记忆（需 OPENAI_API_KEY/BASE）
 
@@ -72,19 +72,31 @@ DeepSeek 的 OpenAI 兼容 API 未实现该参数，直接拒绝。
 且 `pyproject.toml` 中 `[tool.crewai] type = "flow"`。
 """
 
+# 在导入 CrewAI / httpx 之前禁用异步客户端，避免退出时 asyncio 事件循环冲突
+import os
+
+os.environ.setdefault("CREWAI_DISABLE_ASYNC", "1")
+os.environ.setdefault("HTTPX_USE_SYNC", "1")
+
 import argparse
 import json
 import logging
-import os
 import re
+import shutil
 import sys
+import threading
+import time
+from datetime import datetime
 
-from typing import Any, List, Type
+from typing import Any, Callable, List, Type
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ValidationError
 
 from crewai import Agent, Crew, LLM, Process, Task
+from crewai.events.event_bus import crewai_event_bus
+
+from ui.dashboard import Dashboard, wait_for_input
 
 # ============================================================================
 # 0. 环境加载
@@ -204,6 +216,7 @@ def parse_and_validate_output(
     raw_output: str,
     model_class: Type[BaseModel],
     task_name: str = "",
+    log_fn: Callable[[str, str], None] | None = None,
 ) -> BaseModel | None:
     """从 LLM 原始输出中提取 JSON 并校验为 Pydantic 模型。
 
@@ -211,34 +224,42 @@ def parse_and_validate_output(
         raw_output: LLM 返回的原始字符串
         model_class: 目标 Pydantic 模型类
         task_name: 任务名称（用于日志定位）
+        log_fn: 可选日志回调 (message, level)；缺省时使用 print 输出。
 
     Returns:
         校验通过的 Pydantic 模型实例；解析/校验失败时返回 None（优雅降级，不中断流程）。
     """
+
+    def _warn(message: str) -> None:
+        if log_fn is not None:
+            log_fn(message, "warning")
+        else:
+            print(message)
+
     json_str = _extract_json(raw_output)
     if json_str is None:
-        print(f"[WARN] {task_name}: 未从输出中提取到 JSON 内容")
+        _warn(f"[WARN] {task_name}: 未从输出中提取到 JSON 内容")
         return None
 
     # 1) JSON 语法解析
     try:
         data = json.loads(json_str)
     except json.JSONDecodeError as exc:
-        print(f"[WARN] {task_name}: JSON 解析失败 - {exc}")
-        print(f"[DEBUG] {task_name} 原始输出前 200 字符: {raw_output[:200]}...")
+        _warn(f"[WARN] {task_name}: JSON 解析失败 - {exc}")
+        _warn(f"[DEBUG] {task_name} 原始输出前 200 字符: {raw_output[:200]}...")
         return None
 
     # 2) Pydantic 校验
     try:
         return model_class.model_validate(data)
     except ValidationError as exc:
-        print(f"[WARN] {task_name}: Pydantic 校验失败 - {exc}")
-        print(f"[DEBUG] {task_name} 解析到的 JSON: {json.dumps(data, ensure_ascii=False)[:200]}...")
+        _warn(f"[WARN] {task_name}: Pydantic 校验失败 - {exc}")
+        _warn(f"[DEBUG] {task_name} 解析到的 JSON: {json.dumps(data, ensure_ascii=False)[:200]}...")
         # 3) 优雅降级：跳过校验尽量保留数据（字段缺失/类型不符时不崩溃）
         try:
             return model_class.model_construct(**data)
         except Exception as inner_exc:  # noqa: BLE001
-            print(f"[WARN] {task_name}: 降级构造失败 - {inner_exc}")
+            _warn(f"[WARN] {task_name}: 降级构造失败 - {inner_exc}")
             return None
 
 
@@ -286,9 +307,25 @@ def build_output_requirement(model_class: Type[BaseModel]) -> str:
     )
 
 
-def write_parsed_output(task_name: str, parsed: BaseModel | None, raw_output: str) -> None:
+def write_parsed_output(
+    task_name: str,
+    parsed: BaseModel | None,
+    raw_output: str,
+    log_fn: Callable[[str, str], None] | None = None,
+) -> None:
     """将后处理校验结果写入 output/{task_name}_parsed.json。"""
-    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+
+    def _emit(message: str, level: str) -> None:
+        if log_fn is not None:
+            log_fn(message, level)
+        else:
+            print(message)
+
+    # 输出目录：优先使用 CREW_OUTPUT_DIR（Docker 挂载到宿主机 ./output），
+    # 否则默认写到脚本所在目录的 output/ 子目录
+    out_dir = os.getenv("CREW_OUTPUT_DIR") or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "output"
+    )
     try:
         os.makedirs(out_dir, exist_ok=True)
         path = os.path.join(out_dir, f"{task_name}_parsed.json")
@@ -298,9 +335,59 @@ def write_parsed_output(task_name: str, parsed: BaseModel | None, raw_output: st
             payload = parsed.model_dump(mode="json")
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, ensure_ascii=False, indent=2)
-        print(f"[OK] 校验结果已写入 {path}")
+        _emit(f"[OK] 校验结果已写入 {path}", "success")
     except (OSError, IOError) as exc:
-        print(f"[WARN] {task_name}: 写入解析文件失败 - {exc}")
+        _emit(f"[WARN] {task_name}: 写入解析文件失败 - {exc}", "warning")
+
+
+# ============================================================================
+# 1.8 暂存区：Reviewer 拒绝合入时保留代码
+# ============================================================================
+
+STAGING_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "staging")
+
+
+def ensure_staging_dir() -> None:
+    """确保暂存区目录存在。"""
+    os.makedirs(STAGING_DIR, exist_ok=True)
+
+
+def _save_to_staging(
+    requirement: str,
+    review: ReviewOutput,
+    coding_data: dict,
+) -> str:
+    """将审查不通过的代码保存到暂存区，返回会话目录路径。"""
+    ensure_staging_dir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_dir = os.path.join(STAGING_DIR, f"session_{timestamp}")
+    os.makedirs(session_dir, exist_ok=True)
+
+    # 保存需求
+    with open(
+        os.path.join(session_dir, "requirement.txt"), "w", encoding="utf-8"
+    ) as fh:
+        fh.write(requirement)
+
+    # 保存审查报告
+    with open(
+        os.path.join(session_dir, "review_report.json"), "w", encoding="utf-8"
+    ) as fh:
+        json.dump(review.model_dump(mode="json"), fh, indent=2, ensure_ascii=False)
+
+    # 保存代码文件
+    files = coding_data.get("files") if isinstance(coding_data, dict) else None
+    if files:
+        code_dir = os.path.join(session_dir, "code")
+        for file_info in files:
+            if not isinstance(file_info, dict):
+                continue
+            file_path = os.path.join(code_dir, file_info.get("path", "unknown"))
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as fh:
+                fh.write(file_info.get("code", ""))
+
+    return session_dir
 
 
 # ============================================================================
@@ -364,6 +451,7 @@ def build_llm(agent_id: str) -> LLM:
         api_key=api_key,
         base_url=base_url,
         temperature=cfg["temperature"],
+        timeout=60.0,  # 同步请求超时，避免异步客户端残留
     )
 
 
@@ -497,8 +585,11 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
     """构建四个 Task 并形成协作链。"""
 
     def _output_file(name: str) -> str | None:
-        """Task 级输出文件：写入 output/ 目录（create_directory 自动建目录）。"""
-        return f"output/{name}.json" if save_outputs else None
+        """Task 级输出文件：写入 CREW_OUTPUT_DIR 或默认 output/ 目录。"""
+        if not save_outputs:
+            return None
+        out_dir = os.getenv("CREW_OUTPUT_DIR") or "output"
+        return os.path.join(out_dir, f"{name}.json")
 
     # ---- Task 1：规划（Planner）----
     planning_task = Task(
@@ -633,11 +724,122 @@ def build_crew(
 
 
 # ============================================================================
+# 5.5 仪表盘事件钩子（基于 CrewAI 事件总线，保持 crew.kickoff() 原有语义）
+# ============================================================================
+
+# Task 名 -> Agent 面板显示名
+_TASK_AGENT_NAMES = {
+    "planning": "Planner",
+    "coding": "Coder",
+    "review": "Reviewer",
+    "documentation": "Document Admin",
+}
+
+# Agent ID -> Agent 面板显示名
+_AGENT_DISPLAY_NAMES = {
+    "planner": "Planner",
+    "coder": "Coder",
+    "reviewer": "Reviewer",
+    "document_admin": "Document Admin",
+}
+
+
+def _task_agent_name(task_name: str) -> str:
+    """将 Task 名映射为 Agent 面板显示名。"""
+    return _TASK_AGENT_NAMES.get(task_name, task_name or "Agent")
+
+
+def _install_dashboard_handlers(
+    dashboard: Dashboard,
+) -> tuple[list[tuple[type, Callable[..., None]]], set[str]]:
+    """注册 CrewAI 事件总线钩子，实时更新仪表盘。
+
+    Returns:
+        (handlers, completed_tasks): handlers 用于 finally 中注销；
+        completed_tasks 用于 kickoff 后兜底补齐状态。
+    """
+    from crewai.events import (
+        AgentReasoningCompletedEvent,
+        TaskCompletedEvent,
+        TaskFailedEvent,
+        TaskStartedEvent,
+    )
+    from crewai.events.event_bus import crewai_event_bus
+
+    lock = threading.Lock()
+    completed_tasks: set[str] = set()
+
+    def _on_task_started(source: Any, event: Any) -> None:
+        with lock:
+            task_name = getattr(event, "task_name", "") or ""
+            agent_name = _task_agent_name(task_name)
+            dashboard.output_panel.start_agent(agent_name, task_name)
+            dashboard.set_task(task_name)
+            dashboard.set_agent_status(agent_name, "running", task_name, "执行中...")
+            dashboard.log(f"▶ {agent_name} 开始: {task_name}", "info")
+
+    def _on_task_completed(source: Any, event: Any) -> None:
+        with lock:
+            output = getattr(event, "output", None)
+            task_name = (
+                getattr(output, "name", None)
+                or getattr(event, "task_name", "")
+                or ""
+            )
+            agent_name = _task_agent_name(task_name)
+            raw = getattr(output, "raw", None) or ""
+            dashboard.output_panel.finish_agent(raw[:2000], "done")
+            dashboard.set_agent_status(agent_name, "done", task_name, "✅ 完成")
+            dashboard.log(f"✅ {agent_name} 完成", "success")
+            if task_name:
+                completed_tasks.add(task_name)
+
+    def _on_task_failed(source: Any, event: Any) -> None:
+        with lock:
+            task_name = getattr(event, "task_name", "") or ""
+            agent_name = _task_agent_name(task_name)
+            error = getattr(event, "error", "") or ""
+            dashboard.output_panel.finish_agent("", "failed")
+            dashboard.set_agent_status(
+                agent_name, "failed", task_name, f"❌ {str(error)[:30]}"
+            )
+            dashboard.log(f"❌ {agent_name} 失败: {error}", "error")
+
+    def _on_agent_thought(source: Any, event: Any) -> None:
+        """捕获 Agent 推理/思考过程（CrewAI AgentReasoningCompletedEvent）。"""
+        with lock:
+            plan = getattr(event, "plan", "") or ""
+            if plan:
+                dashboard.output_panel.append_thought(plan)
+
+    handlers: list[tuple[type, Callable[..., None]]] = [
+        (TaskStartedEvent, _on_task_started),
+        (TaskCompletedEvent, _on_task_completed),
+        (TaskFailedEvent, _on_task_failed),
+        (AgentReasoningCompletedEvent, _on_agent_thought),
+    ]
+    for event_type, handler in handlers:
+        crewai_event_bus.register_handler(event_type, handler)
+
+    return handlers, completed_tasks
+
+
+def _uninstall_dashboard_handlers(
+    handlers: list[tuple[type, Callable[..., None]]],
+) -> None:
+    """注销仪表盘事件钩子。"""
+    from crewai.events.event_bus import crewai_event_bus
+
+    for event_type, handler in handlers:
+        crewai_event_bus.off(event_type, handler)
+
+
+# ============================================================================
 # 6. 调试与日志
 # ============================================================================
 
 
-def setup_logging(debug: bool) -> None:
+def setup_logging(debug: bool, quiet: bool = False) -> None:
     """读取 / 设置 LITELLM_LOG。--debug 时强制 DEBUG 级别。"""
     # Windows 控制台默认 GBK 编码无法打印 CrewAI 日志中的部分 emoji（如 MCP 连接 🔌），
     # 强制 UTF-8 输出（errors=replace 兜底），避免 "gbk codec can't encode" 噪音
@@ -655,26 +857,34 @@ def setup_logging(debug: bool) -> None:
         level=log_level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
-    print(f"[Debug] LITELLM_LOG = {os.environ['LITELLM_LOG']}")
+    if not quiet:
+        print(f"[Debug] LITELLM_LOG = {os.environ['LITELLM_LOG']}")
 
 
-def print_team_summary(agents: dict, tasks: list) -> None:
-    """打印团队配置摘要（API Key 脱敏，便于核对端点与模型）。"""
-    print("=" * 60)
-    print("REVACHOL Crew 配置摘要")
-    print("=" * 60)
+def print_team_summary(agents: dict, tasks: list, dashboard: Dashboard | None = None) -> None:
+    """打印/记录团队配置摘要（API Key 脱敏，便于核对端点与模型）。
+
+    dashboard 不为 None 时将摘要写入仪表盘日志，否则保持原有 print 输出。
+    """
+    lines = ["=" * 60, "REVACHOL Crew 配置摘要", "=" * 60]
     for agent_id in ["planner", "coder", "reviewer", "document_admin"]:
         llm = agents[agent_id].llm
         prefix = _AGENT_ENV[agent_id]["prefix"]
         key = os.getenv(f"{prefix}_API_KEY", "")
         masked = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "(未配置)"
-        print(
+        lines.append(
             f"  - {agent_id:<15} model={llm.model:<22} "
             f"base_url={llm.base_url:<42} key={masked}"
         )
-    print("-" * 60)
-    print(f"  Task 链路: {' → '.join(t.name for t in tasks)}")
-    print("=" * 60)
+    lines.append("-" * 60)
+    lines.append(f"  Task 链路: {' → '.join(t.name for t in tasks)}")
+    lines.append("=" * 60)
+
+    summary = "\n".join(lines)
+    if dashboard is not None:
+        dashboard.log(summary, "info")
+    else:
+        print(summary)
 
 
 def check_uvx_available() -> bool:
@@ -696,8 +906,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--requirement",
         type=str,
-        default="为贴纸系统新增旋转功能（数据驱动锚点架构 WIP 基础上）",
-        help="本次任务的需求描述（注入到规划 Task 的 {requirement}）",
+        default=None,
+        help=(
+            "本次任务的需求描述（注入到规划 Task 的 {requirement}）；"
+            "不传时进入仪表盘交互式输入（--dry-run 使用占位需求）"
+        ),
     )
     parser.add_argument(
         "--process",
@@ -730,6 +943,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="不将各 Task 结果写入 output/ 目录",
     )
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="只执行一个需求后退出（供后端 child_process.spawn 无头调用；需配合 --requirement）",
+    )
+    parser.add_argument(
+        "--json-logs",
+        action="store_true",
+        help="向 stdout 输出 NDJSON 结构化事件流（crew:* 事件），隐含 --once；供 Web Dashboard 实时推送",
+    )
     return parser.parse_args()
 
 
@@ -751,79 +974,382 @@ def build_embedder() -> dict | None:
     }
 
 
+def _run_crew(
+    dashboard: Dashboard,
+    args: argparse.Namespace,
+    requirement: str,
+) -> None:
+    """执行一轮 Crew 任务：构建 -> kickoff -> 后处理 -> 暂存检查。"""
+    dashboard.lock_input("⏳ 正在执行需求，请等待...")
+    dashboard.is_running = True
+    handlers: list[tuple[type, Callable[..., None]]] = []
+
+    try:
+        # Git MCP 服务器依赖 uvx（uv 已随项目安装；首次运行自动下载 mcp-server-git）
+        if not check_uvx_available():
+            dashboard.log(
+                "⚠️ uvx 未在 PATH 中找到。MCP Git 服务器将无法启动。\n"
+                "       请安装 uv (https://docs.astral.sh/uv/) 或更换 mcps 配置中的启动命令。",
+                "warning",
+            )
+
+        # 构建 Agent 与 Task
+        agents = build_agents()
+        tasks = build_tasks(
+            agents, requirement, save_outputs=not args.no_output_files
+        )
+
+        # 记忆配置（可选）
+        embedder = None
+        if args.memory:
+            embedder = build_embedder()
+
+        # 构建 Crew
+        crew = build_crew(agents, tasks, args.process, args.memory, args.planning)
+        if embedder:
+            crew.embedder = embedder
+
+        print_team_summary(agents, tasks, dashboard=dashboard)
+
+        # ===== 执行：注册事件钩子，保持 crew.kickoff() 原有语义 =====
+        handlers, completed_tasks = _install_dashboard_handlers(dashboard)
+        dashboard.log("▶ 开始执行 kickoff()", "info")
+        result = crew.kickoff()
+        crewai_event_bus.flush(timeout=10)  # 等待事件钩子完成，避免 stop 前丢更新
+
+        # ---- Token 消耗统计 ----
+        for agent_id, agent in agents.items():
+            try:
+                usage = agent.llm.get_token_usage_summary()
+                tokens = int(getattr(usage, "total_tokens", 0) or 0)
+                if tokens:
+                    display_name = _AGENT_DISPLAY_NAMES.get(agent_id, agent_id)
+                    dashboard.update_stats(display_name, tokens, 0.0)
+            except Exception:  # noqa: BLE001 - 统计失败不影响主流程
+                pass
+
+        # ---- 后处理：提取 / 校验 / 落盘（替代 output_pydantic）----
+        parsed_results: dict[str, BaseModel | None] = {}
+        for task_output in getattr(result, "tasks_output", []):
+            name = task_output.name or ""
+            model_class = _OUTPUT_MODELS.get(name)
+            if model_class is None:
+                continue
+
+            # --debug 模式：在仪表盘输出窗口展示完整原始 LLM 输出，便于排查
+            if args.debug:
+                dashboard.log(f"[DEBUG] ======== {name} 原始输出 START ========", "info")
+                dashboard.set_task(name)
+                dashboard.set_output(task_output.raw[:2000], is_json=True)
+                dashboard.log(f"[DEBUG] ======== {name} 原始输出 END ========", "info")
+
+            parsed = parse_and_validate_output(
+                task_output.raw,
+                model_class,
+                task_name=name,
+                log_fn=dashboard.log,
+            )
+            parsed_results[name] = parsed
+            if not args.no_output_files:
+                write_parsed_output(name, parsed, task_output.raw, log_fn=dashboard.log)
+
+            # 事件钩子缺失时的兜底：补齐 done 状态与输出
+            if name not in completed_tasks:
+                agent_name = _task_agent_name(name)
+                dashboard.set_agent_status(agent_name, "done", name, "✅ 完成")
+                dashboard.log(f"✅ {agent_name} 完成", "success")
+                if task_output.raw:
+                    dashboard.set_task(name)
+                    dashboard.set_output(task_output.raw[:2000], is_json=True)
+
+        # 最终结果展示（CrewOutput.raw 为 LLM 原始输出）
+        dashboard.set_task("final")
+        dashboard.set_output(
+            (getattr(result, "raw", None) or str(result))[:2000], is_json=True
+        )
+        dashboard.log("✅ 所有任务执行完成", "success")
+
+        # 后处理摘要（单条多行日志，保证在日志面板可见）
+        summary_lines = ["=" * 60, "结构化输出后处理摘要"]
+        for name, parsed in parsed_results.items():
+            if parsed is None:
+                summary_lines.append(
+                    f"  {name:<15} ❌ 解析/校验失败（见上方 WARN 日志，流程未中断）"
+                )
+            else:
+                fields = list(parsed.model_dump(mode="json").keys())
+                summary_lines.append(
+                    f"  {name:<15} ✅ 校验通过，字段: {', '.join(fields)}"
+                )
+        summary_lines.append("=" * 60)
+        dashboard.log("\n".join(summary_lines), "success")
+
+        # ---- Phase 5：审查未通过时保存代码到暂存区 ----
+        review_parsed = parsed_results.get("review")
+        coding_parsed = parsed_results.get("coding")
+        if (
+            review_parsed is not None
+            and getattr(review_parsed, "approved", True) is False
+        ):
+            dashboard.log("⚠️ 审查未通过，代码已保存到暂存区", "warning")
+            staging_dir = _save_to_staging(
+                requirement,
+                review_parsed,
+                coding_parsed.model_dump(mode="json")
+                if coding_parsed is not None
+                else {},
+            )
+            dashboard.log(f"📁 暂存区: {staging_dir}", "info")
+
+    finally:
+        dashboard.is_running = False
+        _uninstall_dashboard_handlers(handlers)
+        # 确保事件总线中的待处理回调（含异常路径）在 stop 前完成
+        try:
+            crewai_event_bus.flush(timeout=5)
+        except Exception:  # noqa: BLE001
+            pass
+        dashboard.unlock_input()
+
+
+# ============================================================================
+# 6.5 Web Dashboard 无头模式：NDJSON 结构化事件流
+# ============================================================================
+# 供 backend/routes/crew.cjs 通过 child_process.spawn 调用：
+#   python run_revachol_crew.py --once --json-logs --requirement "..."
+# 脚本不再启动 Rich/prompt_toolkit TUI，而是向 stdout 逐行输出 JSON 事件：
+#   {"type": "crew:log",         "payload": {"level": "info",    "message": "..."}}
+#   {"type": "crew:agent-status", "payload": {"agent": "Planner", "status": "running", "task": "...", "detail": "..."}}
+#   {"type": "crew:task",        "payload": {"task": "planning"}}
+#   {"type": "crew:output",      "payload": {"content": "...", "is_json": true}}
+#   {"type": "crew:stats",       "payload": {"agent": "Planner", "tokens": 123, "cost": 0.0}}
+#   {"type": "crew:started",     "payload": {"requirement": "...", "process": "sequential", ...}}
+#   {"type": "crew:finished",    "payload": {"success": true, "error": null}}
+# 后端负责将这些事件翻译为 WebSocket 广播的 CREW_* 事件。
+
+
+class _NoopOutputPanel:
+    """占位对象：兼容 _run_crew 中对 dashboard.output_panel 的调用。"""
+
+    def start_agent(self, agent_name: str, task_name: str) -> None:
+        pass
+
+    def finish_agent(self, final_output: str, status: str = "done") -> None:
+        pass
+
+    def append_thought(self, thought: str) -> None:
+        pass
+
+    def set_task(self, task_name: str) -> None:
+        pass
+
+    def append(self, content: str, is_json: bool = False) -> None:
+        pass
+
+    def show_agent_block(self, agent_name: str) -> None:
+        pass
+
+    def show_all_blocks(self) -> None:
+        pass
+
+
+class JsonLogEmitter:
+    """无 TUI 的 Dashboard 兼容实现：所有状态变更输出为 NDJSON 事件流。"""
+
+    def __init__(self, debug: bool = False):
+        self.is_running = False
+        self.debug_mode = debug
+        self.input_active = False
+        self.output_panel = _NoopOutputPanel()
+
+    def _emit(self, type_: str, **payload) -> None:
+        event = {
+            "type": type_,
+            "payload": payload,
+            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+        }
+        print(json.dumps(event, ensure_ascii=False), flush=True)
+
+    # ---- Dashboard 兼容接口 ----
+
+    def log(self, message: str, level: str = "info") -> None:
+        self._emit("crew:log", level=level, message=str(message))
+
+    def set_agent_status(
+        self, agent: str, status: str, task: str = "", detail: str = ""
+    ) -> None:
+        self._emit(
+            "crew:agent-status",
+            agent=agent,
+            status=status,
+            task=task,
+            detail=detail,
+        )
+
+    def set_task(self, task_name: str) -> None:
+        self._emit("crew:task", task=task_name or "")
+
+    def set_output(self, content: str, is_json: bool = False) -> None:
+        self._emit(
+            "crew:output",
+            content=(content or "")[:2000],
+            is_json=bool(is_json),
+        )
+
+    def update_stats(self, agent: str, tokens: int, cost: float = 0.0) -> None:
+        self._emit(
+            "crew:stats",
+            agent=agent,
+            tokens=int(tokens or 0),
+            cost=float(cost or 0.0),
+        )
+
+    def lock_input(self, status_message: str = "") -> None:
+        pass
+
+    def unlock_input(self) -> None:
+        pass
+
+    def reset_for_new_session(self) -> None:
+        pass
+
+
 def main() -> None:
     args = parse_args()
-    setup_logging(args.debug)
+    setup_logging(args.debug, quiet=args.json_logs)
     validate_env()
 
-    # Git MCP 服务器依赖 uvx（uv 已随项目安装；首次运行自动下载 mcp-server-git）
-    if not check_uvx_available():
-        print("[WARN] uvx 未在 PATH 中找到。MCP Git 服务器将无法启动。")
-        print("       请安装 uv (https://docs.astral.sh/uv/) 或更换 mcps 配置中的启动命令。")
+    # ===== Web Dashboard 无头模式：--json-logs 隐含 --once =====
+    if args.json_logs:
+        args.once = True
 
-    # 构建 Agent 与 Task
-    agents = build_agents()
-    tasks = build_tasks(agents, args.requirement, save_outputs=not args.no_output_files)
-
-    # 记忆配置（可选）
-    embedder = None
-    if args.memory:
-        embedder = build_embedder()
-
-    # 构建 Crew
-    crew = build_crew(agents, tasks, args.process, args.memory, args.planning)
-    if embedder:
-        crew.embedder = embedder
-
-    print_team_summary(agents, tasks)
-
-    if args.dry_run:
-        print("[Dry-run] 构建成功，未执行 kickoff。移除 --dry-run 后即可正式运行。")
+    if args.once:
+        if not args.requirement:
+            raise RuntimeError(
+                "[配置错误] --once/--json-logs 模式必须提供 --requirement"
+            )
+        emitter = JsonLogEmitter(debug=args.debug)
+        emitter.is_running = True
+        emitter._emit(
+            "crew:started",
+            requirement=args.requirement,
+            process=args.process,
+            memory=args.memory,
+            planning=args.planning,
+            debug=args.debug,
+        )
+        if not check_uvx_available():
+            emitter.log(
+                "⚠️ uvx 未在 PATH 中找到。MCP Git 服务器将无法启动。\n"
+                "       请安装 uv (https://docs.astral.sh/uv/) 或更换 mcps 配置中的启动命令。",
+                "warning",
+            )
+        try:
+            if args.dry_run:
+                # ---- Headless dry-run：只构建不执行，输出结构化事件后退出 ----
+                agents = build_agents()
+                tasks = build_tasks(
+                    agents, args.requirement, save_outputs=not args.no_output_files
+                )
+                embedder = None
+                if args.memory:
+                    embedder = build_embedder()
+                crew = build_crew(agents, tasks, args.process, args.memory, args.planning)
+                if embedder:
+                    crew.embedder = embedder
+                print_team_summary(agents, tasks, dashboard=emitter)
+                emitter.log("📋 Dry-run 模式，不执行实际任务", "warning")
+                emitter._emit("crew:finished", success=True, error=None)
+            else:
+                _run_crew(emitter, args, args.requirement)
+                emitter._emit("crew:finished", success=True, error=None)
+        except Exception as exc:  # noqa: BLE001
+            emitter.log(f"❌ 执行失败: {exc}", "error")
+            emitter._emit("crew:finished", success=False, error=str(exc))
+            raise
+        finally:
+            emitter.is_running = False
+            try:
+                crewai_event_bus.flush(timeout=5)
+            except Exception:  # noqa: BLE001
+                pass
         return
 
-    # ---- 执行 ----
-    print("\n[Crew] 开始执行 kickoff() ...\n")
-    result = crew.kickoff()
+    # ===== 初始化仪表盘（只启动一次，持续复用）=====
+    dashboard = Dashboard()
+    dashboard.debug_mode = args.debug  # --debug 时打印按键调试日志
 
-    # 打印最终结果（CrewOutput.raw 为 LLM 原始输出）
-    print("\n" + "=" * 60)
-    print("最终结果")
-    print("=" * 60)
-    print(getattr(result, "raw", None) or str(result))
+    # --dry-run 或首轮提供 --requirement 时不需要交互式输入面板
+    if args.dry_run or args.requirement:
+        dashboard.input_active = False
 
-    # ---- 后处理：提取 / 校验 / 落盘（替代 output_pydantic）----
-    print("\n" + "=" * 60)
-    print("结构化输出后处理")
-    print("=" * 60)
-    parsed_results: dict[str, BaseModel | None] = {}
-    for task_output in getattr(result, "tasks_output", []):
-        name = task_output.name or ""
-        model_class = _OUTPUT_MODELS.get(name)
-        if model_class is None:
-            continue
+    # 启动仪表盘 Live 渲染
+    dashboard.start()
 
-        # --debug 模式：打印完整原始 LLM 输出，便于排查 JSON 解析问题
-        if args.debug:
-            print(f"\n[DEBUG] ======== {name} 原始输出 START ========")
-            print(task_output.raw)
-            print(f"[DEBUG] ======== {name} 原始输出 END ========")
+    try:
+        if args.dry_run:
+            # ---- Dry-run：只构建不执行，不启动输入面板 ----
+            requirement = args.requirement or "dry-run 占位需求"
+            if not check_uvx_available():
+                dashboard.log(
+                    "⚠️ uvx 未在 PATH 中找到。MCP Git 服务器将无法启动。\n"
+                    "       请安装 uv (https://docs.astral.sh/uv/) 或更换 mcps 配置中的启动命令。",
+                    "warning",
+                )
+            agents = build_agents()
+            tasks = build_tasks(
+                agents, requirement, save_outputs=not args.no_output_files
+            )
+            embedder = None
+            if args.memory:
+                embedder = build_embedder()
+            crew = build_crew(agents, tasks, args.process, args.memory, args.planning)
+            if embedder:
+                crew.embedder = embedder
+            print_team_summary(agents, tasks, dashboard=dashboard)
+            dashboard.log("📋 Dry-run 模式，不执行实际任务", "warning")
+            return
 
-        parsed = parse_and_validate_output(
-            task_output.raw, model_class, task_name=name
-        )
-        parsed_results[name] = parsed
-        if not args.no_output_files:
-            write_parsed_output(name, parsed, task_output.raw)
+        # ---- 核心循环：执行完一个需求后回到输入界面 ----
+        while True:
+            dashboard.reset_for_new_session()
+            dashboard.log("🚀 REVACHOL 准备就绪", "info")
 
-    # 后处理摘要
-    print("\n" + "-" * 60)
-    for name, parsed in parsed_results.items():
-        if parsed is None:
-            print(f"  {name:<15} ❌ 解析/校验失败（见上方 WARN 日志，流程未中断）")
-        else:
-            fields = list(parsed.model_dump(mode="json").keys())
-            print(f"  {name:<15} ✅ 校验通过，字段: {', '.join(fields)}")
-    print("=" * 60)
+            # 需求获取：命令行参数仅第一轮使用，之后进入交互式输入
+            if args.requirement:
+                requirement = args.requirement
+                args.requirement = None
+                dashboard.log(f"使用命令行参数: {requirement}", "info")
+                dashboard.lock_input("⏳ 使用命令行参数，准备执行...")
+            else:
+                dashboard.log("请在输入框中输入需求...", "info")
+                requirement = wait_for_input(dashboard)
+                dashboard.log(f"收到需求: {requirement}", "info")
+
+            # 执行一轮
+            try:
+                _run_crew(dashboard, args, requirement)
+            except KeyboardInterrupt:
+                dashboard.log("⏹ 用户中断，回到输入界面", "warning")
+                continue
+            except Exception as exc:
+                dashboard.log(f"❌ 执行失败: {exc}", "error")
+                continue
+
+            dashboard.log("✅ 需求执行完成，准备接受下一个需求", "success")
+            time.sleep(2)  # 短暂停留让用户看到完成状态
+
+    except KeyboardInterrupt:
+        # 在输入界面按 Esc / Ctrl+C 时退出程序
+        dashboard.log("👋 再见", "info")
+        dashboard.cleanup_event_loop()
+    finally:
+        try:
+            crewai_event_bus.flush(timeout=5)
+        except Exception:  # noqa: BLE001
+            pass
+        dashboard.cleanup_event_loop()
+        dashboard.stop()
 
 
 if __name__ == "__main__":

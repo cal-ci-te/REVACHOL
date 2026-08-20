@@ -20,7 +20,7 @@ export var MarkdownUtils = {
     // 与编辑器 _isHtmlContent 对齐：匹配任意 HTML 标签，而非白名单限制。
     // 白名单（p|div|...）无法覆盖 contentEditable 可能产生的所有标签（如 <s>、<tr>、<td> 等），
     // 导致 WYSIWYG 编辑器保存的合法 HTML 被 escapeHtml 转义为纯文本。
-    var trimmed = text.trim();
+    const trimmed = text.trim();
     if (/^<\w+[^>]*>/.test(trimmed) && /<\/\w+>/.test(trimmed)) return true;
     // 兼容不以标签开头但包含 HTML 标签的内容（如内联 "Hello <strong>World</strong>"）
     if (/<\/?[a-zA-Z][a-zA-Z0-9]*\b[^>]*\/?\s*>/.test(text)) return true;
@@ -44,7 +44,7 @@ export var MarkdownUtils = {
 
     // 如果内容已包含 HTML 标签（WYSIWYG 编辑器输出），跳过 escapeHtml
     // 避免将 <p> 转为 &lt;p&gt; 导致渲染为文本
-    var isHtml = this._isLikelyHtml(text);
+    const isHtml = this._isLikelyHtml(text);
     console.log('[MarkdownUtils.toHTML] _isLikelyHtml:', isHtml,
                 '| len:', text ? text.length : 0,
                 '| head80:', JSON.stringify(text ? text.substring(0, 80) : ''));
@@ -56,10 +56,10 @@ export var MarkdownUtils = {
     }
 
     console.log('[MarkdownUtils.toHTML] Processing as Markdown, calling escapeHtml...');
-    var html = Utils.escapeHtml(text);
+    let html = Utils.escapeHtml(text);
 
     // 行内格式转换（用于段落/标题/列表/引用内的文本）
-    var inline = function (s) {
+    const inline = function (s) {
       return s
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -72,11 +72,11 @@ export var MarkdownUtils = {
     });
 
     // 按空行分割为块，逐块转换，避免块级元素被错误包裹进 <p>
-    var blocks = html.split(/\n{2,}/);
-    var outBlocks = [];
-    for (var i = 0; i < blocks.length; i++) {
-      var block = blocks[i];
-      var trimmed = block.trim();
+    const blocks = html.split(/\n{2,}/);
+    const outBlocks = [];
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+      const trimmed = block.trim();
       if (!trimmed) continue;
 
       // 代码块（已转换为 <pre>）
@@ -86,16 +86,16 @@ export var MarkdownUtils = {
       }
 
       // 标题 # / ## / ###
-      var hMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+      const hMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
       if (hMatch) {
-        var level = hMatch[1].length;
+        const level = hMatch[1].length;
         outBlocks.push('<h' + level + '>' + inline(hMatch[2]) + '</h' + level + '>');
         continue;
       }
 
       // 引用 > text（多行合并为 <br>）
       if (/^&gt;\s+/.test(trimmed)) {
-        var quote = block.split('\n').map(function (l) {
+        const quote = block.split('\n').map(function (l) {
           return l.replace(/^&gt;\s+/, '');
         }).join('<br>');
         outBlocks.push('<blockquote>' + inline(quote) + '</blockquote>');
@@ -104,7 +104,7 @@ export var MarkdownUtils = {
 
       // 无序列表 - item
       if (/^-\s+/.test(trimmed)) {
-        var items = block.split('\n').map(function (l) {
+        const items = block.split('\n').map(function (l) {
           return '<li>' + inline(l.replace(/^-\s+/, '')) + '</li>';
         }).join('');
         outBlocks.push('<ul>' + items + '</ul>');
@@ -112,7 +112,7 @@ export var MarkdownUtils = {
       }
 
       // 普通段落（多行用 <br>）
-      var p = block.replace(/\n/g, '<br>');
+      const p = block.replace(/\n/g, '<br>');
       outBlocks.push('<p>' + inline(p) + '</p>');
     }
 

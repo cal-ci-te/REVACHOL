@@ -5,3 +5,5 @@ report.md
 .venv/
 output/
 output_backup/
+staging/
+.input_history

@@ -22,9 +22,9 @@ export const ArticleEditorToolbar = {
    */
   create(cb) {
     this._callbacks = cb || {};
-    var self = this;
+    const self = this;
 
-    var panel = document.createElement('div');
+    const panel = document.createElement('div');
     panel.className = 'admin-panel open';
     panel.id = 'article-editor-toolbar-panel';
     panel.style.cssText = [
@@ -38,13 +38,13 @@ export const ArticleEditorToolbar = {
       'transition:width 0.2s',
     ].join(';');
 
-    var pos = this._loadPos();
+    const pos = this._loadPos();
     panel.style.right = (pos.right || 20) + 'px';
     panel.style.top = (pos.top || 20) + 'px';
     panel.style.bottom = 'auto';
     panel.style.left = 'auto';
 
-    var header = document.createElement('div');
+    const header = document.createElement('div');
     header.className = 'panel-header';
     header.style.cssText = 'cursor:grab;display:flex;justify-content:space-between;align-items:center;';
     header.innerHTML = [
@@ -55,7 +55,7 @@ export const ArticleEditorToolbar = {
     ].join('');
     panel.appendChild(header);
 
-    var content = document.createElement('div');
+    const content = document.createElement('div');
     content.className = 'panel-content';
     content.id = 'editor-toolbar-content';
     content.style.cssText = 'padding:12px;';
@@ -64,7 +64,7 @@ export const ArticleEditorToolbar = {
 
     this._bindDrag(panel, header);
 
-    var toggle = header.querySelector('#editorToolbarToggle');
+    const toggle = header.querySelector('#editorToolbarToggle');
     toggle.addEventListener('click', function (e) {
       e.stopPropagation();
       self._collapsed = !self._collapsed;
@@ -92,32 +92,32 @@ export const ArticleEditorToolbar = {
 
   /** 更新标题/分类显示 */
   updateInfo(title, category) {
-    var ti = document.getElementById('editorToolbarTitleInput');
-    var c = document.getElementById('editorToolbarCategory');
+    const ti = document.getElementById('editorToolbarTitleInput');
+    const c = document.getElementById('editorToolbarCategory');
     if (ti && ti.value !== title) ti.value = title || '';
     if (c) c.textContent = category || '未分类';
   },
 
   /** 获取当前输入框中的标题 */
   getTitleInput() {
-    var ti = document.getElementById('editorToolbarTitleInput');
+    const ti = document.getElementById('editorToolbarTitleInput');
     return ti ? ti.value.trim() : '';
   },
 
   /** 更新渲染模式按钮文案（'html' | 'text'） */
   updateRenderMode(mode) {
-    var btn = document.getElementById('editorBtnToggleRender');
+    const btn = document.getElementById('editorBtnToggleRender');
     if (btn) {
-      var label = (mode === 'text') ? (UI.editor.renderHtml || 'HTML 渲染') : (UI.editor.renderText || '纯文本');
+      const label = (mode === 'text') ? (UI.editor.renderHtml || 'HTML 渲染') : (UI.editor.renderText || '纯文本');
       btn.textContent = '🔀 ' + label;
       btn.title = (mode === 'text') ? '当前为纯文本模式，点击切换到 HTML 渲染' : '当前为 HTML 渲染模式，点击切换到纯文本';
     }
   },
 
   _bindButtons() {
-    var cb = this._callbacks || {};
-    var b = function (id, fn) {
-      var el = document.getElementById(id);
+    const cb = this._callbacks || {};
+    const b = function (id, fn) {
+      const el = document.getElementById(id);
       if (el && fn) el.addEventListener('click', function (e) { e.stopPropagation(); fn(); });
     };
 
@@ -129,8 +129,8 @@ export const ArticleEditorToolbar = {
     b('editorBtnExit',     cb.onExit);
 
     // 标题输入
-    var self = this;
-    var ti = document.getElementById('editorToolbarTitleInput');
+    const self = this;
+    const ti = document.getElementById('editorToolbarTitleInput');
     if (ti && cb.onTitleChange) {
       ti.addEventListener('input', function () {
         cb.onTitleChange(ti.value);
@@ -139,22 +139,22 @@ export const ArticleEditorToolbar = {
   },
 
   _bindDrag(panel, header) {
-    var self = this;
+    const self = this;
     header.addEventListener('mousedown', function (e) {
       if (e.target.closest('.toggle-icon') || e.target.closest('button') || e.target.closest('input')) return;
       e.preventDefault();
-      var rect = panel.getBoundingClientRect();
-      var offX = e.clientX - rect.left, offY = e.clientY - rect.top;
+      const rect = panel.getBoundingClientRect();
+      const offX = e.clientX - rect.left, offY = e.clientY - rect.top;
       panel.style.transition = 'none';
-      var onMove = function (ev) {
-        var r = window.innerWidth - (ev.clientX - offX + rect.width);
-        var t = ev.clientY - offY;
+      const onMove = function (ev) {
+        let r = window.innerWidth - (ev.clientX - offX + rect.width);
+        let t = ev.clientY - offY;
         r = Math.max(0, Math.min(r, window.innerWidth - 50));
         t = Math.max(0, Math.min(t, window.innerHeight - 50));
         panel.style.right = r + 'px'; panel.style.top = t + 'px';
         panel.style.left = 'auto'; panel.style.bottom = 'auto';
       };
-      var onUp = function () {
+      const onUp = function () {
         panel.style.transition = '';
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
@@ -166,7 +166,7 @@ export const ArticleEditorToolbar = {
   },
 
   _savePos(r, t) { try { localStorage.setItem(this._posKey, JSON.stringify({ right: r, top: t })); } catch (_) {} },
-  _loadPos() { try { var s = localStorage.getItem(this._posKey); return s ? JSON.parse(s) : { right: 20, top: 20 }; } catch (_) { return { right: 20, top: 20 }; } },
+  _loadPos() { try { const s = localStorage.getItem(this._posKey); return s ? JSON.parse(s) : { right: 20, top: 20 }; } catch (_) { return { right: 20, top: 20 }; } },
 
   isVisible() { return this._visible; },
 
@@ -208,8 +208,8 @@ function _buildHTML() {
 }
 
 function _b(id, label, type) {
-  var bg = 'background:var(--color-bg-primary);border:1px solid var(--color-border);';
-  var color = 'color:var(--color-text-accent);';
+  let bg = 'background:var(--color-bg-primary);border:1px solid var(--color-border);';
+  let color = 'color:var(--color-text-accent);';
   if (type === 'primary') { bg = 'background:var(--color-accent,#c47a44);border:1px solid var(--color-border-highlight);'; color = 'color:#fff;font-weight:bold;'; }
   else if (type === 'danger') { color = 'color:var(--color-danger,#e04040);'; }
   return '<button id="' + id + '" class="toolbar-btn" style="' +

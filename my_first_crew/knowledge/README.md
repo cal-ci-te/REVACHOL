@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.19.0 ⚠️ WIP（开发中）
+当前版本：v1.20.0 ⚠️ WIP（开发中）
 
 > 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
 > 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
@@ -104,6 +104,29 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.20.0-wip
+
+**Crew Dashboard Web UI + Docker 容器化（WIP）**
+
+> ⚠️ WIP：贴纸浮动渲染显示功能尚未修复，仍为 WIP 版本。
+
+**终端 TUI → Web Dashboard 迁移（新）：**
+- **Python 无头模式**（`run_revachol_crew.py --once --json-logs`）：单次执行后退出，向 stdout 输出 NDJSON 事件流（`crew:started` / `crew:log` / `crew:agent-status` / `crew:task` / `crew:output` / `crew:stats` / `crew:finished`），不再启动 Rich/prompt_toolkit TUI；`--dry-run` 组合支持安全验证
+- **后端 Crew 路由**（`backend/routes/crew.cjs`）：`child_process.spawn()` 调用 Python 脚本，解析 NDJSON 并翻译为 WebSocket 广播 `CREW_*` 事件；新增 `GET /api/crew/status`、`POST /api/crew/run`（管理员）、`POST /api/crew/stop`（管理员）；支持 `dryRun` / `memory` / `planning` / `debug` / `noOutputFiles` 等参数
+- **前端 Crew Dashboard**（`/crew-dashboard.html`）：四 Agent 状态卡片 + 实时日志流 + 执行回放 + Token 统计；复用 `AppState` + `EventBus` + `ComponentManager` 架构，新增 `js/services/crew-service.js`、`js/components/crew-dashboard-component.js`、`js/pages/crew-dashboard.js`
+- **事件扩展**：`EVENTS.CREW_*` 常量（`CREW_STARTED` / `CREW_AGENT_STATUS` / `CREW_LOG` / `CREW_OUTPUT` / `CREW_STATS` / `CREW_FINISHED` / `CREW_STOPPED` 等）；AppState 新增 `crew` 状态与 `SET_CREW_STATE`
+- **WebSocket 兼容性修复**：`perMessageDeflate: false`（Docker Desktop 端口转发握手兼容）；Vite `/websocket` 代理简化（移除 `changeOrigin/secure/timeout`）
+
+**Docker 容器化（新）：**
+- **`my_first_crew/requirements.txt`**：固定 CrewAI 依赖版本（`crewai[litellm,tools]==1.15.16`、`litellm==1.97.0`、`pydantic==2.12.5` 等）
+- **`Dockerfile` 重写**：`node:22-bookworm-slim`（Python 3.11，解决 Alpine musl 下 `lancedb==0.30.0` 无 wheel 问题）；镜像内创建 Linux `.venv` + 安装 `uv`/`uvx`（Git MCP）；`USER node` 非 root；注入 `CREW_PYTHON` / `CREW_DIR`
+- **`Dockerfile.frontend` 修复**：`better-sqlite3` 原生编译工具链（python3/make/g++）
+- **`docker-compose.yml`**：backend 增加 `CREWAI_DISABLE_ASYNC` / `PYTHONUNBUFFERED` / `CREW_PYTHON` / `CREW_DIR` / `CREW_OUTPUT_DIR`；卷挂载 `./my_first_crew` + 匿名卷 `.venv` + `./output`；健康检查改为 `/api/crew/status`
+- **`CREW_OUTPUT_DIR` 支持**：Python `write_parsed_output` 与 Task `output_file` 支持环境变量指定输出目录
+- **`.env.example`**：新增 `BIND_ADDR` / `ADMIN_PASSWORD` / `CREWAI_DISABLE_ASYNC` / `PYTHONUNBUFFERED` / `CREW_DIR` / `CREW_OUTPUT_DIR` 及模型 Key 占位
+
+**验证：** `docker compose build backend` 成功；`docker compose up -d --build backend frontend` 启动无报错；主站与 `/crew-dashboard.html` 可访问；dry-run 任务 + WebSocket `CREW_*` 事件实测通过；容器内非 root 运行；`output/` 宿主机可见。
 
 ### v1.19.0-wip
 

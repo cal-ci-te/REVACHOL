@@ -93,7 +93,7 @@ export const ArticleService = {
             const parentExists = this._categories.some(c => c.id === parentId);
             if (!parentExists) return false;
         }
-        var maxOrder = 0;
+        let maxOrder = 0;
         this._categories.forEach(function (c) {
             if (c.sort_order != null && c.sort_order >= maxOrder) maxOrder = c.sort_order + 1;
         });
@@ -114,7 +114,7 @@ export const ArticleService = {
             if (!parentExists) return false;
             const isAncestor = (id, targetId) => {
                 const children = this._categories.filter(c => c.parent === id);
-                for (let child of children) {
+                for (const child of children) {
                     if (child.id === targetId) return true;
                     if (isAncestor(child.id, targetId)) return true;
                 }
@@ -159,7 +159,7 @@ export const ArticleService = {
     setCategoriesOrder(orderedIds) {
         if (!Array.isArray(orderedIds)) return;
         orderedIds.forEach(function (id, index) {
-            var cat = this._categories.find(function (c) { return c.id === id; });
+            const cat = this._categories.find(function (c) { return c.id === id; });
             if (cat) cat.sort_order = index;
         }, this);
         this._saveCategories();
@@ -205,7 +205,7 @@ export const ArticleService = {
         this._saveCategories();
         EventBus.emit(EVENTS.ARTICLE_VISIBILITY_CHANGED, { categoryRenamed: { oldId: oldId, newId: newName } });
         // 同步更新文章的 category 字段
-        var self = this;
+        const self = this;
         self._data.forEach(function (a) {
             if (a.category === oldId) a.category = newName;
         });
