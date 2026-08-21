@@ -161,8 +161,9 @@ export const ThemeService = {
 
         setTimeout(() => {
             // 刷新目录树
-            if (window.__REVACHOL__.UIDirectory && typeof window.__REVACHOL__.UIDirectory.updateTree === 'function') {
-                window.__REVACHOL__.UIDirectory.updateTree(window.__REVACHOL__.UIDirectory.filterKeyword || null);
+            const uiDirectory = window.__REVACHOL__ && window.__REVACHOL__.UIDirectory;
+            if (uiDirectory && typeof uiDirectory.updateTree === 'function') {
+                uiDirectory.updateTree(uiDirectory.filterKeyword || null);
                 console.log('[ThemeService] 目录树已刷新');
             }
 

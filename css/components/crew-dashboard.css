@@ -425,6 +425,18 @@
   margin: 0;
 }
 
+.crew-dashboard-loading {
+  max-width: 600px;
+  margin: 80px auto;
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  border: 1px dashed var(--color-border-light);
+  border-radius: var(--radius-md);
+  animation: crewPulse 1.6s ease-in-out infinite;
+}
+
 .crew-dashboard-error {
   max-width: 600px;
   margin: 60px auto;

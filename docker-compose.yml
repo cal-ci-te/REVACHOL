@@ -45,10 +45,15 @@ services:
       - /app/node_modules
     environment:
       - VITE_BACKEND_URL=http://backend:9999
+      # 容器内无浏览器：关闭 Vite 自动打开浏览器（避免 xdg-open ENOENT 报错）
+      - VITE_OPEN_BROWSER=false
+      # 不设置 VITE_WS_URL：浏览器通过 Vite /websocket 代理同源连接，
+      # 避免把容器内服务名（backend）暴露给宿主机浏览器
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
-    # Vite 已配置 /api 代理（vite.config.js），/api/crew/* 自动转发到 backend:9999
+    # Vite 已配置 /api 与 /websocket 代理（vite.config.js），/api/crew/* 自动转发到 backend:9999
 
   # ============================================================
   # Playwright E2E 测试容器

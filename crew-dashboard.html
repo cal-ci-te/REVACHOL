@@ -31,16 +31,11 @@
   document.documentElement.setAttribute('data-theme',t);})();
 </script>
 
-<!-- Crew Dashboard 挂载点 -->
-<main id="crewDashboardRoot" class="crew-dashboard-root"></main>
+<!-- Crew Dashboard 挂载点（组件挂载前显示加载占位，避免白屏） -->
+<main id="crewDashboardRoot" class="crew-dashboard-root">
+    <div class="crew-dashboard-loading">⏳ Crew Dashboard 加载中...</div>
+</main>
 
-<script type="importmap">
-    {
-        "imports": {
-            "./js/": "./js/"
-        }
-    }
-</script>
 <script type="module" src="js/pages/crew-dashboard.js"></script>
 </body>
 </html>

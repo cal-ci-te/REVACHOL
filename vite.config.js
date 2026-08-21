@@ -30,11 +30,17 @@ export default defineConfig(({ mode }) => {
         // 根目录
         root: "./",
         
+        // 相对 base：构建产物（dist）可挂载到任意子路径（如 /dist/ 或子目录静态托管），
+        // 避免绝对路径 /js/*.js 在非根路径下被 SPA fallback 返回 HTML 导致白屏
+        base: "./",
+        
         // 开发服务器配置
         server: {
             port: 3000,
             host: '0.0.0.0', // 允许外部访问
-            open: true, // 自动打开浏览器
+            // 自动打开浏览器：本地开发默认开启；Docker 容器内无浏览器，
+            // 通过 VITE_OPEN_BROWSER=false 关闭（否则会报 xdg-open ENOENT）
+            open: env.VITE_OPEN_BROWSER !== 'false',
             strictPort: false, // 端口被占用时尝试下一个
             cors: true, // 启用 CORS
             
@@ -67,9 +73,12 @@ export default defineConfig(({ mode }) => {
                 },
                 
                 // WebSocket 代理
+                // 注意：changeOrigin 必须为 false（Docker 环境保持后端 Host 头），
+                // 且不要添加 secure/timeout 等选项 —— Vite 7 下会破坏 WS upgrade。
                 "/websocket": {
                     target: backendUrl,
                     ws: true,
+                    changeOrigin: false,
                 },
             },
             
@@ -85,8 +94,28 @@ export default defineConfig(({ mode }) => {
             watch: {
                 usePolling: true,
                 interval: 2000,
-                // 排除不需要监听的目录
-                ignored: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+                // 排除不需要监听的目录。
+                // 关键：宿主机 .:/app 绑定挂载会把 my_first_crew（含 .venv，2 万+文件）、
+                // backend、output 等大目录暴露进容器。轮询监听这些目录会耗尽事件循环，
+                // 导致 Vite 无法响应请求（表现为页面白屏、控制台空白、Network 挂起）。
+                ignored: [
+                    '**/node_modules/**',
+                    '**/dist/**',
+                    '**/.git/**',
+                    '**/my_first_crew/**',
+                    '**/backend/**',
+                    '**/output/**',
+                    '**/uploads/**',
+                    '**/videos/**',
+                    '**/coverage/**',
+                    '**/playwright-report/**',
+                    '**/test-results/**',
+                    '**/run-history/**',
+                    '**/knowledge/**',
+                    '**/legacy/**',
+                    '**/.langgraph_api/**',
+                    '**/.vscode/**',
+                ],
             },
         },
         
@@ -216,13 +245,13 @@ export default defineConfig(({ mode }) => {
         
         // 开发环境下，ESLint 错误显示在浏览器
         esbuild: {
-            // 保留 console.log（生产环境会移除）
-            drop: mode === 'production' ? ['console', 'debugger'] : [],
+            // 仅移除 debugger；保留 console 输出，避免生产环境控制台完全空白无法排障
+            drop: mode === 'production' ? ['debugger'] : [],
             // 在开发环境显示源码位置
             sourcemap: mode !== 'production',
         },
         
-        // 环境变量前缀
-        envPrefix: ['VITE_', 'REVACHOL_'],
+        // 环境变量前缀（CREW_ 用于 Crew Dashboard 的 CREW_WS_URL 覆盖）
+        envPrefix: ['VITE_', 'REVACHOL_', 'CREW_'],
     };
 });

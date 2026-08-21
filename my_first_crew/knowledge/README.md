@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.20.0 ⚠️ WIP（开发中）
+当前版本：v1.21.0 ⚠️ WIP（开发中）
 
 > 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
 > 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
@@ -104,6 +104,32 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.21.0-wip
+
+**Crew Dashboard 白屏修复 + Docker 稳定性 + 生产构建修复（WIP）**
+
+> ⚠️ WIP：贴纸浮动渲染显示功能尚未修复，仍为 WIP 版本。
+
+**白屏根因修复（关键）：**
+- **Vite 文件监听风暴**：`vite.config.js` 的 `server.watch.ignored` 从仅排除 `node_modules/dist/.git` 扩展为排除 `my_first_crew`（含 `.venv`，2 万+ 文件）、`backend`、`output`、`uploads`、`videos`、`coverage`、`playwright-report`、`test-results`、`run-history` 等大目录。此前 Docker 下 `usePolling: true` 每 2 秒轮询 stat 全部绑定挂载文件，拖垮事件循环，导致 Vite 无法响应请求（表现为页面白屏、Console 空白、Network 挂起），并伴随 `EIO: i/o error, stat '/app'` 崩溃
+- **容器内自动开浏览器**：`server.open` 改为 `env.VITE_OPEN_BROWSER !== 'false'`，compose 注入 `VITE_OPEN_BROWSER=false`，消除 `xdg-open ENOENT` 噪音
+
+**生产构建修复：**
+- **保留 console 输出**：`esbuild.drop` 由 `['console', 'debugger']` 改为仅 `['debugger']`，生产构建控制台不再完全空白，便于线上排障
+- **dark 主题链接修复**：`css/themes/dark.css` 移入 `public/css/themes/`，避免 Vite 多页构建将非 disabled 主题样式链接合并丢弃（`dist/*.html` 中 `id="theme-stylesheet-dark"` 恢复存在）
+- **移除无效 importmap**：`crew-dashboard.html`、`index.html` 删除 `{"./js/": "./js/"}` 自映射
+
+**Crew Dashboard 运行时修复：**
+- **ThemeService 判空**：`window.__REVACHOL__` 访问前判空，消除独立 `/crew-dashboard.html` 页面每次加载的未捕获 TypeError（`Cannot read properties of undefined (reading 'UIDirectory')`）
+- **WebSocket 稳定性**（沿用 WIP 增量）：后端 WS 限定 `/websocket/` 路径 + 心跳保活；前端 `CrewService` 支持 `VITE_WS_URL`/`CREW_WS_URL` 覆盖、握手超时、指数退避重连、超限后 HTTP 轮询降级
+- **加载占位**：挂载点组件渲染前显示 `⏳ Crew Dashboard 加载中...`，避免裸空容器
+
+**Docker/工程：**
+- `docker-compose.yml`：frontend 依赖 backend 健康检查后再启动、`VITE_OPEN_BROWSER=false`
+- `vite.config.js`：`base: "./"`、`/websocket` 代理 `changeOrigin: false`、`envPrefix` 增加 `CREW_`；`.env.example` 补充 `CREW_WS_URL`
+
+**验证：** Docker 下 `/crew-dashboard.html` 与全部 JS/CSS/API 均 200 且响应 < 0.5s；真实 Chrome 加载页面完整渲染、WebSocket 已连接、Console 日志完整、无 PAGEERROR；前端容器 CPU 从 ~32% 降至 ~4%；`npm run build` 通过且 `dist` 保留 dark 主题链接与 console 输出。
 
 ### v1.20.0-wip
 

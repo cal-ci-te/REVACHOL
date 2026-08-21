@@ -1,6 +1,6 @@
 # REVACHOL 路线图
 
-> 版本：v1.20.0-wip | 更新：2026-08-20
+> 版本：v1.21.0-wip | 更新：2026-08-21
 
 ---
 
@@ -31,10 +31,11 @@ REVACHOL 是一个面向个人创作者的、可扩展的创作存档与交互�
 
 ---
 
-## 已完成（v1.0 — v1.19）
+## 已完成（v1.0 — v1.21）
 
 | 版本 | 关键里程碑 |
 |------|----------|
+| v1.21.0-wip | Crew Dashboard 白屏修复（Vite 文件监听风暴：watch.ignored 排除 my_first_crew/backend 等大目录）；Docker 稳定性（VITE_OPEN_BROWSER=false、WS 心跳/重连/轮询降级）；生产构建修复（保留 console、dark 主题链接移入 public、移除无效 importmap、ThemeService 判空）。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.20.0-wip | Crew Dashboard Web UI（终端 TUI → Web Dashboard：四 Agent 状态卡片 + 实时日志流 + WebSocket CREW_* 事件）；Python 无头模式（--once --json-logs）；Docker 容器化打包（Debian slim + Python 3.11 + CrewAI venv + 非 root + output 挂载）；`.env.example` 环境变量统一。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.19.0-wip | 多 Agent 协作基础设施（CrewAI 四 Agent 流水线 + Git MCP + 单模型测试工具）；my_first_crew 合并为主仓库子目录；贴纸锚点 DOM 驱动重构；Markdown 渲染统一（P1-2 双实现收敛）；编辑器 html/text 双渲染模式；后端 auth.cjs 统一；LangGraph 方案归档；文档体系迁移（docs → knowledge/）。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.0 — v1.7 | 文章 CRUD、目录树、贴纸、三主题、草稿系统、移动端 |

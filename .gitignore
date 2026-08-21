@@ -38,6 +38,9 @@ Thumbs.db
 *.temp
 coverage/
 
+# Crew 运行输出（宿主机挂载 output/，不入库）
+output/
+
 # Playwright E2E
 playwright-report/
 test-results/
