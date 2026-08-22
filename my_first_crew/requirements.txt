@@ -1,11 +1,11 @@
 # REVACHOL CrewAI 运行依赖
-# 版本与 my_first_crew/.venv 当前环境一致（crewai 1.15.16 / litellm 1.97.0）
+# 版本与 my_first_crew/.venv 当前环境一致（crewai 1.15.17 / litellm 1.97.0）
 # 安装方式（Dockerfile.backend 或本地 venv）：
 #   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 # CrewAI 核心（litellm + tools extras）
-crewai[litellm,tools]==1.15.16
-crewai-tools==1.15.16
+crewai[litellm,tools]==1.15.17
+crewai-tools==1.15.17
 
 # LLM 网关与结构化输出
 litellm==1.97.0
