@@ -170,6 +170,78 @@
   background: #c47a44;
 }
 
+/* ===== 图标上传整合区（可折叠） ===== */
+.admin-icon-section {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.admin-icon-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--color-bg-tertiary);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-text-heading);
+  user-select: none;
+}
+
+.admin-icon-section-header:hover {
+  background: var(--color-hover);
+}
+
+.admin-icon-section-toggle {
+    /* === 固定尺寸（核心） === */
+    flex: 0 0 30px; 
+    width: 50px;
+    min-width: 50px;
+    max-width: 30px;
+    height: 30px;
+    min-height: 30px;
+    max-height: 30px;
+    
+    /* === 原有样式 === */
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.admin-icon-section-body {
+  padding: 8px 10px;
+}
+
+.admin-icon-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 6px auto 8px;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-secondary);
+  overflow: hidden;
+}
+
+.admin-icon-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admin-icon-preview-fallback {
+  font-size: 32px;
+  line-height: 1;
+}
+
 /* 颜色选择器 */
 .color-picker-row {
   display: flex;
@@ -418,6 +490,22 @@ input[type='color'] {
 }
 .side-toolbar.expanded .toolbar-toggle-icon::before {
   content: '◀';
+}
+
+/* 自定义工具栏图标：隐藏默认字符，仅显示上传图片 */
+.toolbar-toggle-icon.has-custom::before {
+  content: '';
+}
+
+/* 管理员控制台折叠按钮自定义图标 */
+#panelToggleIcon.has-custom {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  font-size: 0;
 }
 
 .toolbar-panel {

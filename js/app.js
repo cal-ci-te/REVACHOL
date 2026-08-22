@@ -14,6 +14,8 @@ import { injectUITexts } from './bootstrap/ui-injector.js';
 import { registerAllModules, AppInitializer } from './bootstrap/module-registry.js';
 import { setupBroadcastChannel } from './bootstrap/broadcast-setup.js';
 import { SiteIcon } from './services/site-icon.js';
+import { DirectoryIcon } from './services/directory-icon.js';
+import { UIIcon } from './services/ui-icon.js';
 
 import { Article } from './models/article-model.js';
 import { ArticleService } from './services/article-service.js';
@@ -300,6 +302,8 @@ window.__REVACHOL__ = {
   Utils,
   DOMRefs,
   UIDirectory,
+  DirectoryIcon,
+  UIIcon,
   ThemeService,
   Texture,
   HealthMonitor,
@@ -317,6 +321,8 @@ setTimeout(() => {
             const isCollapsed = toolbar.classList.contains('collapsed');
             toolbar.classList.toggle('collapsed', !isCollapsed);
             toolbar.classList.toggle('expanded', isCollapsed);
+            // 工具栏收起/展开后应用对应自定义图标
+            UIIcon.applyToolbarIcons();
         });
         const helpBtn = toolbar.querySelector('[data-tool="help"]');
         if (helpBtn) {
@@ -337,6 +343,12 @@ setTimeout(() => {
 // 自定义站点图标（通过 SiteIcon 服务初始化）
 SiteIcon.init();
 SiteIcon.playEntranceAnimation();
+
+// 侧边栏目录自定义图标单例：应用已保存图标（上传控件已整合到管理员面板）
+DirectoryIcon.init();
+
+// 顶部工具栏 / 管理员控制台折叠按钮自定义图标
+UIIcon.applyAll();
 
 // =========================================================================
 // 键盘快捷键：Ctrl+E → 编辑当前活跃文章

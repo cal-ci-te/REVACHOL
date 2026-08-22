@@ -39,6 +39,15 @@
   flex-shrink: 0;
 }
 
+/* 自定义目录图标（DirectoryIcon 单例渲染的 <img>） */
+.node-icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  margin-right: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
 .node-title {
   flex: 1;
   font-size: var(--font-size-md);

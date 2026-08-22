@@ -1,4 +1,5 @@
 import { Utils } from '../../../utils.js';
+import { DirectoryIcon } from '../../../services/directory-icon.js';
 
 /**
  * 处理文件夹折叠/展开切换
@@ -22,7 +23,7 @@ export function handleFolderToggle(e, container) {
     toggleIcon.textContent = isVisible ? '▶' : '▼';
 
     const folderIcon = nodeLi.querySelector('.node-icon');
-    if (folderIcon) folderIcon.textContent = isVisible ? '📁' : '📂';
+    if (folderIcon) DirectoryIcon.applyToElement(folderIcon, !isVisible);
 
     // 使用唯一路径持久化
     const nodePath = nodeLi.dataset.path;

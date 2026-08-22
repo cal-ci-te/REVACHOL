@@ -18,6 +18,7 @@
 @import url('components/watermark.css');
 @import url('components/mobile-controls.css');
 @import url('components/deco-resize.css');
+@import url('components/deco-ui.css');
 
 /* 3. 工具样式 */
 @import url('utilities/animations.css');

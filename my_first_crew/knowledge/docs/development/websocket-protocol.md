@@ -1,6 +1,6 @@
 # REVACHOL WebSocket 协议
 
-> 版本：v1.22.0-wip | 更新：2026-08-22
+> 版本：v1.23.0-wip | 更新：2026-08-22
 >
 > 本文档基于 `backend/websocket.cjs`、`backend/routes/crew.cjs`、`js/services/crew-service.js`、`js/core/event-constants.js` 的实际实现编写，不包含未实现内容。
 

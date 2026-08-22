@@ -1,0 +1,100 @@
+/* ========== 贴图库（DecoShelfUI）样式 ========== */
+
+/* 加载 / 空状态 */
+.deco-ui-loading,
+.deco-ui-empty {
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 20px;
+}
+
+.deco-ui-empty {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.deco-ui-empty-hint {
+  font-size: 10px;
+  color: #5a4a38;
+}
+
+/* 单个贴图条目 */
+.asset-item-wrapper {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--color-danger);
+}
+
+.asset-item-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.asset-preview-box {
+  width: 28px;
+  height: 28px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background-color: var(--color-bg-primary);
+}
+
+.asset-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--color-text-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'Courier New', monospace;
+}
+
+.asset-status {
+  font-size: 8px;
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.asset-status.is-placed {
+  color: #8ab47a;
+}
+
+/* 🔄 切换样式按钮 */
+.asset-style-btn {
+  background: none;
+  border: 1px solid var(--color-danger);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  width: 160px;
+  flex: 0 0 160px;
+}
+
+.asset-actions-row {
+  display: flex;
+  gap: 1px;
+}
+
+/* 操作按钮（📋✏️📐⬇️🗑️） */
+.asset-action-btn {
+  background: none;
+  border: 1px solid var(--color-danger);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.asset-action-btn.asset-delete-btn {
+  color: var(--color-error);
+}

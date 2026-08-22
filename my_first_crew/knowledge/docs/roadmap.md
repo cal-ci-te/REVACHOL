@@ -1,6 +1,6 @@
 # REVACHOL 路线图
 
-> 版本：v1.22.0-wip | 更新：2026-08-22
+> 版本：v1.23.0-wip | 更新：2026-08-22
 
 ---
 
@@ -31,10 +31,11 @@ REVACHOL 是一个面向个人创作者的、可扩展的创作存档与交互�
 
 ---
 
-## 已完成（v1.0 — v1.22）
+## 已完成（v1.0 — v1.23）
 
 | 版本 | 关键里程碑 |
 |------|----------|
+| v1.23.0-wip | 自定义图标体系（站点图标/目录图标/顶部工具栏收起展开/控制台折叠箭头均支持上传自定义图标）；管理员面板新增“自定义贴图”折叠整合区（纹理、箱盖/箱体、物品贴图）；贴图库样式内联→CSS 重构；UI 文案统一收敛至 ui-strings.js。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.22.0-wip | Token 消耗仪表盘（Python crew:stats 增加 model/provider → crew_usage 表 → /api/crew/usage/* → 前端图表/筛选/下钻）；CrewAI 升级至 1.15.17（1.16 待 PyPI 发布）；修复容器内 uvx PATH 导致 Git MCP 启动失败。⚠️ WIP：真实任务自动采集待 API 恢复后完成端到端实测 |
 | v1.21.0-wip | Crew Dashboard 白屏修复（Vite 文件监听风暴：watch.ignored 排除 my_first_crew/backend 等大目录）；Docker 稳定性（VITE_OPEN_BROWSER=false、WS 心跳/重连/轮询降级）；生产构建修复（保留 console、dark 主题链接移入 public、移除无效 importmap、ThemeService 判空）。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.20.0-wip | Crew Dashboard Web UI（终端 TUI → Web Dashboard：四 Agent 状态卡片 + 实时日志流 + WebSocket CREW_* 事件）；Python 无头模式（--once --json-logs）；Docker 容器化打包（Debian slim + Python 3.11 + CrewAI venv + 非 root + output 挂载）；`.env.example` 环境变量统一。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |

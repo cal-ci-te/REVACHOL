@@ -4,6 +4,7 @@ import { initLongPress } from '../../../utils/touch-context.js';
 import { UI } from '../../../utils/ui-strings.js';
 import { ArticleListStore } from '../../../stores/article-list-store.js';
 import { Utils } from '../../../utils.js';
+import { DirectoryIcon } from '../../../services/directory-icon.js';
 
 export function bindInteractions(container, contextMenuHandler, handleNodeClickFn, setActiveNodeFn) {
     if (!container) return;
@@ -50,7 +51,7 @@ export function bindInteractions(container, contextMenuHandler, handleNodeClickF
                     childrenDiv.style.display = isVisible ? 'none' : 'block';
                     toggleIcon.textContent = isVisible ? '▶' : '▼';
                     const folderIcon = nodeLi.querySelector('.node-icon');
-                    if (folderIcon) folderIcon.textContent = isVisible ? '📁' : '📂';
+                    if (folderIcon) DirectoryIcon.applyToElement(folderIcon, !isVisible);
                     // 获取文件夹名称
                     const folderName = toggleIcon.dataset.folder || nodeLi.dataset.name;
                     if (folderName) {

@@ -2,6 +2,7 @@ import { Utils } from '../../../utils.js';
 import { AppState } from '../../../core/app-state.js';
 import { Article } from '../../../models/article-model.js';
 import { UI } from '../../../utils/ui-strings.js';
+import { DirectoryIcon } from '../../../services/directory-icon.js';
 
 /**
  * 检查文章是否匹配关键字（标题或内容）
@@ -118,7 +119,10 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
         const isCollapsed = stored !== null ? stored : false;
         console.log(`[renderTree] ${nodePath} => isCollapsed=${isCollapsed} (stored=${stored})`);
 
-        const icon = isFolder ? (isCollapsed ? UI.directory.folderIconCollapsed : UI.directory.folderIconExpanded) : UI.directory.articleIcon;
+        // 文件夹节点支持自定义图标（DirectoryIcon 单例）；文章节点保持内置 emoji
+        const iconHtml = isFolder
+            ? DirectoryIcon.renderIconHtml(isCollapsed)
+            : `<span class="node-icon">${UI.directory.articleIcon}</span>`;
 
         // 可见性按钮（管理员）
         let visibilityBtn = '';
@@ -153,7 +157,7 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
             html += `<span class="toggle-icon"></span>`;
         }
 
-        html += `<span class="node-icon">${icon}</span>`;
+        html += iconHtml;
         html += `<span class="node-title">${Utils.escapeHtml(node.name)}</span>`;
 
         if (isAdmin && !isFolder && !visible) {

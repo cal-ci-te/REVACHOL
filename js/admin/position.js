@@ -2,6 +2,7 @@ import { DOMRefs } from '../core/dom-refs.js';
 import { AppState } from '../core/app-state.js';
 import { Utils } from '../utils.js';
 import { MUTATIONS } from '../core/state-mutations.js';
+import { UIIcon } from '../services/ui-icon.js';
 
 export const AdminPosition = {
   loadPosition: function () {
@@ -60,6 +61,8 @@ export const AdminPosition = {
       panel.classList.remove('collapsed');
       if (toggle) toggle.textContent = '▼';
     }
+    // 若设置了控制台折叠按钮自定义图标，覆盖默认箭头
+    UIIcon.applyAdminPanelIcon();
   },
 
   saveCollapsedState: function () {

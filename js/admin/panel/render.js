@@ -14,6 +14,9 @@ import { UI } from '../../utils/ui-strings.js';
 import { DecoShelf } from '../../services/deco.js';
 import { renderPuzzleEntry } from '../puzzle/PuzzleEntry.js';
 import { bindPuzzleFileUpload } from '../puzzle/PuzzleCustomizer.js';
+import { SiteIcon } from '../../services/site-icon.js';
+import { DirectoryIcon } from '../../services/directory-icon.js';
+import { UIIcon, UI_ICON_SLOTS } from '../../services/ui-icon.js';
 
 // 标志：是否已完成首次完整渲染
 AdminPanel._rendered = false;
@@ -38,6 +41,14 @@ AdminPanel.renderContent = function () {
     }
 
     const savedAvatar = AdminAvatar.getAvatarForUser() || 'images/default-avatar.png';
+    const siteIconDataUrl = SiteIcon.getIcon() || 'images/site-icon.png';
+    const dirIconDataUrl = DirectoryIcon.getIcon() || '';
+    const dirIconPreviewHtml = dirIconDataUrl
+        ? `<img id="directoryIconPreview" class="admin-icon-preview-img" src="${Utils.escapeHtml(dirIconDataUrl)}" alt="${UI.admin.directoryIconPreviewAlt}">`
+        : `<span id="directoryIconPreview" class="admin-icon-preview-fallback">📁</span>`;
+    const toolbarCollapsedPreviewHtml = `<div id="toolbarCollapsedPreview">${UIIcon.renderPreviewHtml(UI_ICON_SLOTS.toolbarCollapsed, '⚙')}</div>`;
+    const toolbarExpandedPreviewHtml = `<div id="toolbarExpandedPreview">${UIIcon.renderPreviewHtml(UI_ICON_SLOTS.toolbarExpanded, '◀')}</div>`;
+    const adminPanelPreviewHtml = `<div id="adminPanelPreview">${UIIcon.renderPreviewHtml(UI_ICON_SLOTS.adminPanel, '▶')}</div>`;
     const currentMaxOpacity = Utils.storage.get('video_max_opacity');
     const opacityValue =
         currentMaxOpacity !== null && typeof currentMaxOpacity === 'number'
@@ -52,31 +63,147 @@ AdminPanel.renderContent = function () {
     const gradFeather = Texture.gradientFeather !== undefined ? Texture.gradientFeather : 50;
 
     panel.innerHTML = `
-        <!-- 头像上传 -->
+        <!-- 头像上传（原位置） -->
         <div class="admin-control-group avatar-upload-area">
             <div><img class="admin-avatar" id="adminAvatarPreview" src="${savedAvatar}" alt="${UI.admin.avatarUploadLabel}"></div>
             <button id="uploadAvatarBtn" data-action="upload-avatar" class="avatar-upload-btn">${UI.admin.avatarUploadLabel}</button>
             <div class="admin-avatar-hint">${UI.admin.avatarHint}</div>
         </div>
 
-        <!-- 纹理上传 -->
-        <div class="admin-control-group">
-            <label>${UI.admin.textureUploadLabel}</label>
-            <input type="file" id="textureUpload" data-action="texture-upload" accept="image/png,image/jpeg,image/webp">
-            <div class="texture-preview" id="texturePreview"></div>
-            <div class="admin-button-group">
-                <button id="applyTextureBtn" data-action="apply-texture" style="margin:0;">${UI.admin.textureApplyButton}</button>
-                <button id="resetTextureBtn" data-action="reset-texture" style="margin:0; background:var(--color-danger);">${UI.admin.textureRemoveButton}</button>
+        <!-- ===== 自定义贴图（可折叠整合区） ===== -->
+        <div class="admin-icon-section">
+            <div class="admin-icon-section-header" id="iconUploadSectionHeader">
+                <span>${UI.admin.customTextureSectionLabel}</span>
+                <button type="button" class="admin-icon-section-toggle" id="iconUploadSectionToggle" title="${UI.admin.iconSectionToggleTitle}">▾</button>
             </div>
-        </div>
+            <div class="admin-icon-section-body" id="iconUploadSectionBody">
+                <!-- 站点图标 -->
+                <div class="admin-control-group">
+                    <label>${UI.admin.siteIconLabel}</label>
+                    <div class="admin-icon-preview">
+                        <img id="siteIconPreview" class="admin-icon-preview-img" src="${Utils.escapeHtml(siteIconDataUrl)}" alt="${UI.admin.siteIconPreviewAlt}">
+                    </div>
+                    <div class="admin-button-group">
+                        <button id="siteIconUploadBtn" data-action="upload-site-icon" class="avatar-upload-btn">${UI.admin.siteIconUploadButton}</button>
+                        <button id="siteIconResetBtn" data-action="reset-site-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
+                        <input type="file" id="siteIconFileInput" data-action="site-icon-file" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.siteIconHint}</div>
+                </div>
 
-        <!-- 纹理透明度 -->
-        <div class="admin-control-group">
-            <label>${UI.admin.textureOpacityLabel} <span id="textureOpacityValue">0.12</span></label>
-            <div class="admin-slider-container">
-                <span>0</span>
-                <input type="range" id="textureOpacitySlider" data-action="texture-opacity" min="0" max="0.5" step="0.01" value="0.12">
-                <span>0.5</span>
+                <!-- 目录图标 -->
+                <div class="admin-control-group" style="border-top:1px solid var(--color-border); padding-top:8px; margin-top:8px;">
+                    <label>${UI.admin.directoryIconLabel}</label>
+                    <div class="admin-icon-preview">${dirIconPreviewHtml}</div>
+                    <div class="admin-button-group">
+                        <button id="directoryIconUploadBtn" data-action="upload-directory-icon" class="avatar-upload-btn">${UI.admin.directoryIconUploadButton}</button>
+                        <button id="directoryIconResetBtn" data-action="reset-directory-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
+                        <input type="file" id="directoryIconFileInput" data-action="directory-icon-file" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.directoryIconHint}</div>
+                </div>
+
+                <!-- 顶部工具栏 — 收起图标 -->
+                <div class="admin-control-group" style="border-top:1px solid var(--color-border); padding-top:8px; margin-top:8px;">
+                    <label>${UI.admin.toolbarCollapsedIconLabel}</label>
+                    <div class="admin-icon-preview">${toolbarCollapsedPreviewHtml}</div>
+                    <div class="admin-button-group">
+                        <button id="toolbarCollapsedIconUploadBtn" data-action="upload-toolbar-collapsed-icon" class="avatar-upload-btn">${UI.admin.iconUploadButton}</button>
+                        <button id="toolbarCollapsedIconResetBtn" data-action="reset-toolbar-collapsed-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
+                        <input type="file" id="toolbarCollapsedIconFileInput" data-action="toolbar-collapsed-icon-file" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.toolbarCollapsedIconHint}</div>
+                </div>
+
+                <!-- 顶部工具栏 — 展开图标 -->
+                <div class="admin-control-group" style="border-top:1px solid var(--color-border); padding-top:8px; margin-top:8px;">
+                    <label>${UI.admin.toolbarExpandedIconLabel}</label>
+                    <div class="admin-icon-preview">${toolbarExpandedPreviewHtml}</div>
+                    <div class="admin-button-group">
+                        <button id="toolbarExpandedIconUploadBtn" data-action="upload-toolbar-expanded-icon" class="avatar-upload-btn">${UI.admin.iconUploadButton}</button>
+                        <button id="toolbarExpandedIconResetBtn" data-action="reset-toolbar-expanded-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
+                        <input type="file" id="toolbarExpandedIconFileInput" data-action="toolbar-expanded-icon-file" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.toolbarExpandedIconHint}</div>
+                </div>
+
+                <!-- 管理员控制台折叠箭头 -->
+                <div class="admin-control-group" style="border-top:1px solid var(--color-border); padding-top:8px; margin-top:8px;">
+                    <label>${UI.admin.adminPanelIconLabel}</label>
+                    <div class="admin-icon-preview">${adminPanelPreviewHtml}</div>
+                    <div class="admin-button-group">
+                        <button id="adminPanelIconUploadBtn" data-action="upload-admin-panel-icon" class="avatar-upload-btn">${UI.admin.iconUploadButton}</button>
+                        <button id="adminPanelIconResetBtn" data-action="reset-admin-panel-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
+                        <input type="file" id="adminPanelIconFileInput" data-action="admin-panel-icon-file" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.adminPanelIconHint}</div>
+                </div>
+
+                <!-- 纹理上传 -->
+                <div class="admin-control-group" style="border-top:1px solid var(--color-border); padding-top:8px; margin-top:8px;">
+                    <label>${UI.admin.textureUploadLabel}</label>
+                    <input type="file" id="textureUpload" data-action="texture-upload" accept="image/png,image/jpeg,image/webp">
+                    <div class="texture-preview" id="texturePreview"></div>
+                    <div class="admin-button-group">
+                        <button id="applyTextureBtn" data-action="apply-texture" style="margin:0;">${UI.admin.textureApplyButton}</button>
+                        <button id="resetTextureBtn" data-action="reset-texture" style="margin:0; background:var(--color-danger);">${UI.admin.textureRemoveButton}</button>
+                    </div>
+                </div>
+
+                <!-- 纹理透明度 -->
+                <div class="admin-control-group">
+                    <label>${UI.admin.textureOpacityLabel} <span id="textureOpacityValue">0.12</span></label>
+                    <div class="admin-slider-container">
+                        <span>0</span>
+                        <input type="range" id="textureOpacitySlider" data-action="texture-opacity" min="0" max="0.5" step="0.01" value="0.12">
+                        <span>0.5</span>
+                    </div>
+                </div>
+
+                <!-- 箱子外观自定义（箱盖 + 箱体双部件） -->
+                <div class="admin-control-group" style="border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 12px;">
+                    <label>${UI.admin.boxLidLabel}</label>
+                    <div class="admin-button-group" style="margin-top: 6px;">
+                        <button id="boxLidImageUploadBtn" data-action="upload-lid-image" style="background:var(--color-accent-dark);">${UI.admin.boxLidUploadButton}</button>
+                        <button id="boxLidImageRemoveBtn" data-action="remove-lid-image" style="background:var(--color-danger);">${UI.admin.restoreDefaultButton}</button>
+                        <input type="file" id="boxLidImageFileInput" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.boxLidHint}</div>
+                </div>
+
+                <div class="admin-control-group" style="margin-top: 4px;">
+                    <label>${UI.admin.boxBodyLabel}</label>
+                    <div class="admin-button-group" style="margin-top: 6px;">
+                        <button id="boxBodyImageUploadBtn" data-action="upload-body-image" style="background:var(--color-accent-dark);">${UI.admin.boxBodyUploadButton}</button>
+                        <button id="boxBodyImageRemoveBtn" data-action="remove-body-image" style="background:var(--color-danger);">${UI.admin.restoreDefaultButton}</button>
+                        <input type="file" id="boxBodyImageFileInput" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.boxBodyHint}</div>
+                </div>
+
+                <!-- 箱子物品贴图自定义 -->
+                <div class="admin-control-group" style="margin-top: 8px;">
+                    <label>${UI.admin.boxItemLabel}</label>
+                    <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
+                        <select id="boxItemSelect" style="flex:1; background:var(--color-bg-card); border:1px solid var(--color-border); color:var(--color-text-primary); padding:4px 8px; border-radius:4px; font-family:var(--font-family-base);">
+                            <option value="">${UI.admin.boxItemSelectPlaceholder}</option>
+                            <option value="feather">${UI.admin.boxItemOptions.feather}</option>
+                            <option value="coin">${UI.admin.boxItemOptions.coin}</option>
+                            <option value="key">${UI.admin.boxItemOptions.key}</option>
+                            <option value="note">${UI.admin.boxItemOptions.note}</option>
+                            <option value="sand">${UI.admin.boxItemOptions.sand}</option>
+                            <option value="thread">${UI.admin.boxItemOptions.thread}</option>
+                            <option value="mirror">${UI.admin.boxItemOptions.mirror}</option>
+                            <option value="void">${UI.admin.boxItemOptions.void}</option>
+                        </select>
+                    </div>
+                    <div class="admin-button-group" style="margin-top:6px;">
+                        <button id="boxItemImageUploadBtn" data-action="upload-item-image" style="background:var(--color-accent-dark);">${UI.admin.boxItemUploadButton}</button>
+                        <button id="boxItemImageRemoveBtn" data-action="remove-item-image" style="background:var(--color-danger);">${UI.admin.boxItemRestoreEmojiButton}</button>
+                        <input type="file" id="boxItemImageFileInput" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.boxItemHint}</div>
+                </div>
             </div>
         </div>
 
@@ -203,62 +330,17 @@ AdminPanel.renderContent = function () {
 
         <!-- 主题切换 -->
         <div class="admin-control-group" style="border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 12px;">
-            <label>🎨 主题切换</label>
+            <label>${UI.admin.themeSectionLabel}</label>
             <div id="themeSelector" class="admin-flex-row" style="margin-top:6px;">
                 <button data-action="theme-switch" data-theme="dark" class="theme-btn theme-btn-dark">${UI.theme.dark}</button>
                 <button data-action="theme-switch" data-theme="light" class="theme-btn theme-btn-light">${UI.theme.light}</button>
                 <button data-action="theme-switch" data-theme="lofi" class="theme-btn theme-btn-lofi">${UI.theme.lofi}</button>
             </div>
-            <div class="admin-avatar-hint">点击切换主题，偏好自动保存</div>
+            <div class="admin-avatar-hint">${UI.admin.themeHint}</div>
         </div>
 
         <!-- 拼图自定义 -->
         ${renderPuzzleEntry()}
-
-        <!-- 箱子外观自定义（箱盖 + 箱体双部件） -->
-        <div class="admin-control-group" style="border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 12px;">
-            <label>🧰 箱子外观 — 箱盖</label>
-            <div class="admin-button-group" style="margin-top: 6px;">
-                <button id="boxLidImageUploadBtn" data-action="upload-lid-image" style="background:var(--color-accent-dark);">📤 上传箱盖</button>
-                <button id="boxLidImageRemoveBtn" data-action="remove-lid-image" style="background:var(--color-danger);">🗑️ 恢复默认</button>
-                <input type="file" id="boxLidImageFileInput" accept="image/*" style="display:none;">
-            </div>
-            <div class="admin-avatar-hint">建议上传 120×22px 左右的图片。支持 PNG / JPEG / WebP</div>
-        </div>
-
-        <div class="admin-control-group" style="margin-top: 4px;">
-            <label>🧰 箱子外观 — 箱体</label>
-            <div class="admin-button-group" style="margin-top: 6px;">
-                <button id="boxBodyImageUploadBtn" data-action="upload-body-image" style="background:var(--color-accent-dark);">📤 上传箱体</button>
-                <button id="boxBodyImageRemoveBtn" data-action="remove-body-image" style="background:var(--color-danger);">🗑️ 恢复默认</button>
-                <input type="file" id="boxBodyImageFileInput" accept="image/*" style="display:none;">
-            </div>
-            <div class="admin-avatar-hint">建议上传 120×78px 左右的图片。支持 PNG / JPEG / WebP</div>
-        </div>
-
-        <!-- 箱子物品贴图自定义 -->
-        <div class="admin-control-group" style="margin-top: 8px;">
-            <label>🎁 物品贴图</label>
-            <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
-                <select id="boxItemSelect" style="flex:1; background:var(--color-bg-card); border:1px solid var(--color-border); color:var(--color-text-primary); padding:4px 8px; border-radius:4px; font-family:var(--font-family-base);">
-                    <option value="">— 选择物品 —</option>
-                    <option value="feather">🪶 一根白色羽毛</option>
-                    <option value="coin">🪙 一枚旧硬币</option>
-                    <option value="key">🗝️ 一把生锈的钥匙</option>
-                    <option value="note">📄 一张字条</option>
-                    <option value="sand">⏳ 一粒沙</option>
-                    <option value="thread">🧵 一颗纽扣</option>
-                    <option value="mirror">🪞 一面小镜子</option>
-                    <option value="void">🌫️ （什么都没有）</option>
-                </select>
-            </div>
-            <div class="admin-button-group" style="margin-top:6px;">
-                <button id="boxItemImageUploadBtn" data-action="upload-item-image" style="background:var(--color-accent-dark);">📤 上传贴图</button>
-                <button id="boxItemImageRemoveBtn" data-action="remove-item-image" style="background:var(--color-danger);">🗑️ 恢复 Emoji</button>
-                <input type="file" id="boxItemImageFileInput" accept="image/*" style="display:none;">
-            </div>
-            <div class="admin-avatar-hint">选择物品后上传自定义贴图，开箱时将显示贴图而非 Emoji</div>
-        </div>
 
         <!-- 退出登录 -->
         <button id="logoutBtn" data-action="logout" style="margin-top:12px;background:var(--color-danger);">${UI.admin.logoutButton}</button>
@@ -294,6 +376,10 @@ AdminPanel.renderContent = function () {
 
     // 绑定折叠按钮
     AdminPanel._bindToggleIconDirect();
+
+    // 绑定图标上传整合区（展开/收缩 + 预览刷新）
+    AdminPanel._bindIconSection();
+    AdminPanel.refreshIconPreviews();
 
     const uploadBtn = document.getElementById('assetUploadBtn');
     const assetFileInput = document.getElementById('assetFileInput');
@@ -406,12 +492,121 @@ AdminPanel._bindToggleIconDirect = function () {
     toggleIcon.addEventListener('click', AdminPanel._directToggleHandler);
 };
 
+// ===== 图标上传整合区：预览刷新 + 展开/收缩 =====
+
+AdminPanel.refreshIconPreviews = function () {
+    const sitePreview = document.getElementById('siteIconPreview');
+    if (sitePreview) {
+        sitePreview.src = SiteIcon.getIcon() || 'images/site-icon.png';
+    }
+    const siteReset = document.getElementById('siteIconResetBtn');
+    if (siteReset) siteReset.hidden = !SiteIcon.getIcon();
+
+    const dirPreview = document.getElementById('directoryIconPreview');
+    const dirDataUrl = DirectoryIcon.getIcon();
+    const dirReset = document.getElementById('directoryIconResetBtn');
+    if (dirReset) dirReset.hidden = !dirDataUrl;
+    if (dirPreview) {
+        const img = document.createElement('img');
+        img.id = 'directoryIconPreview';
+        img.className = 'admin-icon-preview-img';
+        img.src = dirDataUrl || '';
+        img.alt = UI.admin.directoryIconPreviewAlt;
+        const fallback = document.createElement('span');
+        fallback.id = 'directoryIconPreview';
+        fallback.className = 'admin-icon-preview-fallback';
+        fallback.textContent = '📁';
+        dirPreview.replaceWith(dirDataUrl ? img : fallback);
+    }
+
+    // 通用刷新：顶部工具栏收起/展开、控制台折叠箭头
+    const refreshSlot = function (slot, previewId, resetBtnId, fallbackText) {
+        const container = document.getElementById(previewId);
+        const resetBtn = document.getElementById(resetBtnId);
+        if (resetBtn) resetBtn.hidden = !UIIcon.hasIcon(slot);
+        if (!container) return;
+        const dataUrl = UIIcon.getIcon(slot);
+        const img = document.createElement('img');
+        img.className = 'admin-icon-preview-img';
+        img.src = dataUrl || '';
+        img.alt = UI.admin.iconPreviewAlt;
+        const fallback = document.createElement('span');
+        fallback.className = 'admin-icon-preview-fallback';
+        fallback.textContent = fallbackText;
+        container.replaceChildren(dataUrl ? img : fallback);
+    };
+
+    refreshSlot(UI_ICON_SLOTS.toolbarCollapsed, 'toolbarCollapsedPreview', 'toolbarCollapsedIconResetBtn', '⚙');
+    refreshSlot(UI_ICON_SLOTS.toolbarExpanded, 'toolbarExpandedPreview', 'toolbarExpandedIconResetBtn', '◀');
+    refreshSlot(UI_ICON_SLOTS.adminPanel, 'adminPanelPreview', 'adminPanelIconResetBtn', '▶');
+
+    // 同步应用到工具栏/控制台实际 DOM
+    UIIcon.applyAll();
+};
+
+AdminPanel.toggleIconSection = function () {
+    const body = document.getElementById('iconUploadSectionBody');
+    const toggleBtn = document.getElementById('iconUploadSectionToggle');
+    if (!body) return;
+    const collapsed = body.style.display === 'none';
+    body.style.display = collapsed ? 'block' : 'none';
+    if (toggleBtn) toggleBtn.textContent = collapsed ? '▾' : '▸';
+    Utils.storage.set('admin_icon_section_collapsed', !collapsed);
+};
+
+AdminPanel._bindIconSection = function () {
+    const header = document.getElementById('iconUploadSectionHeader');
+    const body = document.getElementById('iconUploadSectionBody');
+    const toggleBtn = document.getElementById('iconUploadSectionToggle');
+    if (!header || !body) return;
+
+    if (AdminPanel._iconSectionHeaderHandler) {
+        header.removeEventListener('click', AdminPanel._iconSectionHeaderHandler);
+    }
+    AdminPanel._iconSectionHeaderHandler = function (e) {
+        if (e.target.closest('button')) return;
+        AdminPanel.toggleIconSection();
+    };
+    header.addEventListener('click', AdminPanel._iconSectionHeaderHandler);
+
+    if (toggleBtn) {
+        if (AdminPanel._iconSectionToggleHandler) {
+            toggleBtn.removeEventListener('click', AdminPanel._iconSectionToggleHandler);
+        }
+        AdminPanel._iconSectionToggleHandler = function (e) {
+            e.stopPropagation();
+            AdminPanel.toggleIconSection();
+        };
+        toggleBtn.addEventListener('click', AdminPanel._iconSectionToggleHandler);
+    }
+
+    // 恢复上次折叠状态（默认展开）
+    const collapsed = Utils.storage.get('admin_icon_section_collapsed');
+    if (collapsed === true) {
+        body.style.display = 'none';
+        if (toggleBtn) toggleBtn.textContent = '▸';
+    } else {
+        body.style.display = 'block';
+        if (toggleBtn) toggleBtn.textContent = '▾';
+    }
+};
+
 const originalUnbind = AdminPanel.unbindEvents;
 AdminPanel.unbindEvents = function () {
     const toggleIcon = document.getElementById('panelToggleIcon');
     if (toggleIcon && AdminPanel._directToggleHandler) {
         toggleIcon.removeEventListener('click', AdminPanel._directToggleHandler);
         delete AdminPanel._directToggleHandler;
+    }
+    const iconHeader = document.getElementById('iconUploadSectionHeader');
+    const iconToggle = document.getElementById('iconUploadSectionToggle');
+    if (iconHeader && AdminPanel._iconSectionHeaderHandler) {
+        iconHeader.removeEventListener('click', AdminPanel._iconSectionHeaderHandler);
+        delete AdminPanel._iconSectionHeaderHandler;
+    }
+    if (iconToggle && AdminPanel._iconSectionToggleHandler) {
+        iconToggle.removeEventListener('click', AdminPanel._iconSectionToggleHandler);
+        delete AdminPanel._iconSectionToggleHandler;
     }
     const uploadBtn = document.getElementById('assetUploadBtn');
     const assetFileInput = document.getElementById('assetFileInput');

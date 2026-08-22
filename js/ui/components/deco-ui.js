@@ -49,7 +49,7 @@ export const DecoShelfUI = {
 
     if (typeof DecoShelf.getAll !== 'function') {
       this._container.innerHTML =
-        `<div style="color:var(--color-text-muted);text-align:center;padding:20px;">${UI.common.loading}</div>`;
+        `<div class="deco-ui-loading">${UI.common.loading}</div>`;
       return;
     }
 
@@ -58,9 +58,9 @@ export const DecoShelfUI = {
 
     if (!items || items.length === 0) {
       this._container.innerHTML = `
-                <div style="color:var(--color-text-muted);text-align:center;padding:20px;font-family:'Courier New',monospace;font-size:12px;">
+                <div class="deco-ui-empty">
                     ${UI.admin.decoEmpty}<br>
-                    <span style="font-size:10px;color:#5a4a38;">${UI.admin.decoEmptyHint}</span>
+                    <span class="deco-ui-empty-hint">${UI.admin.decoEmptyHint}</span>
                 </div>
             `;
       return;
@@ -75,25 +75,31 @@ export const DecoShelfUI = {
       const escapedId = Utils.escapeHtml(item.id);
 
       html += `
-                <div class="asset-item" data-id="${escapedId}" style="padding:5px 8px;border-bottom:1px solid var(--color-danger);">
-                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
-                        <div style="width:28px;height:28px;background-image:${preview};background-size:contain;background-repeat:no-repeat;background-position:center;flex-shrink:0;border:1px solid var(--color-border);border-radius:3px;background-color:var(--color-bg-primary);"></div>
-                        <span style="flex:1;min-width:0;font-size:11px;color:var(--color-text-accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace;" title="${escapedName}">${escapedName}</span>
-                        <span style="font-size:8px;color:${isPlaced ? '#8ab47a' : 'var(--color-text-muted)'};font-family:'Courier New',monospace;flex-shrink:0;">${isPlaced ? '●已放置' : '○未放置'}</span>
-                        <button class="asset-style-btn" data-id="${escapedId}" style="background:none;border:1px solid var(--color-danger);color:var(--color-text-secondary);cursor:pointer;font-size:10px;padding:1px 4px;border-radius:2px;flex-shrink:0;" title="切换样式（${styleLabel}）">🔄</button>
+                <div class="asset-item asset-item-wrapper" data-id="${escapedId}">
+                    <div class="asset-item-row">
+                        <div class="asset-preview-box" data-preview="${preview}"></div>
+                        <span class="asset-name" title="${escapedName}">${escapedName}</span>
+                        <span class="asset-status ${isPlaced ? 'is-placed' : ''}">${isPlaced ? '●已放置' : '○未放置'}</span>
+                        <button class="asset-style-btn" data-id="${escapedId}" title="切换样式（${styleLabel}）">🔄</button>
                     </div>
-                    <div style="display:flex;gap:1px;">
-                        <button class="asset-duplicate-btn" data-id="${escapedId}" style="background:none;border:1px solid var(--color-danger);color:var(--color-text-secondary);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:2px;" title="${UI.admin.decoDuplicate}">📋</button>
-                        <button class="asset-rename-btn" data-id="${escapedId}" style="background:none;border:1px solid var(--color-danger);color:var(--color-text-secondary);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:2px;" title="${UI.admin.decoRename}">✏️</button>
-                        <button class="asset-deco-edit-btn" data-id="${escapedId}" style="background:none;border:1px solid var(--color-danger);color:var(--color-text-secondary);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:2px;" title="${UI.decoEdit.menuLabel}">📐</button>
-                        <button class="asset-download-btn" data-id="${escapedId}" style="background:none;border:1px solid var(--color-danger);color:var(--color-text-secondary);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:2px;" title="${UI.admin.decoDownload}">⬇️</button>
-                        <button class="asset-delete-btn" data-id="${escapedId}" style="background:none;border:1px solid var(--color-danger);color:var(--color-error);cursor:pointer;font-size:10px;padding:1px 5px;border-radius:2px;" title="${UI.admin.decoDelete}">🗑️</button>
+                    <div class="asset-actions-row">
+                        <button class="asset-duplicate-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDuplicate}">📋</button>
+                        <button class="asset-rename-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoRename}">✏️</button>
+                        <button class="asset-deco-edit-btn asset-action-btn" data-id="${escapedId}" title="${UI.decoEdit.menuLabel}">📐</button>
+                        <button class="asset-download-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDownload}">⬇️</button>
+                        <button class="asset-delete-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDelete}">🗑️</button>
                     </div>
                 </div>
             `;
     });
 
     this._container.innerHTML = html;
+
+    // 动态预览图：模板中不再写内联 style，渲染后从 data-preview 应用背景图
+    this._container.querySelectorAll('.asset-preview-box[data-preview]').forEach((el) => {
+      el.style.backgroundImage = el.dataset.preview;
+    });
+
     console.log('[DecoShelfUI] 列表渲染完成，共', items.length, '项');
     this._bindEvents();
   },
