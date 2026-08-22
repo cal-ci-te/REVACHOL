@@ -1,0 +1,277 @@
+/* ========== CrewAI Token 消耗仪表盘 ========== */
+
+.crew-usage-section {
+  margin-top: 24px;
+}
+
+.crew-usage-dashboard {
+  padding: 16px;
+  background: var(--color-bg-secondary, #1e1e2e);
+  border: 1px solid var(--color-border, #333);
+  border-radius: 8px;
+}
+
+.usage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.usage-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.usage-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.usage-controls select,
+.usage-controls button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border, #444);
+  background: var(--color-bg, #2d2d44);
+  color: var(--color-text, #fff);
+  font-size: 13px;
+}
+
+.usage-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  padding: 12px;
+  background: var(--color-bg, #2d2d44);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-dim, #888);
+}
+
+.stat-value {
+  display: block;
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--color-text, #fff);
+}
+
+.usage-chart-container {
+  height: 250px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+/* ---- 降级 CSS 柱状图 ---- */
+.simple-chart {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chart-labels {
+  display: flex;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--color-text-dim, #888);
+  text-align: center;
+}
+
+.chart-labels span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 1;
+}
+
+.chart-row-label {
+  width: 70px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-text-dim, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 16px;
+}
+
+.chart-bar-wrap {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.chart-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  transition: opacity 0.2s;
+}
+
+.chart-bar-wrap:hover .chart-bar {
+  opacity: 0.7;
+}
+
+/* ---- 下钻 ---- */
+.usage-drilldown {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  background: var(--color-bg, #2d2d44);
+  border-radius: 6px;
+}
+
+.usage-drill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.usage-drill-header button {
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border, #444);
+  background: transparent;
+  color: var(--color-text, #fff);
+  cursor: pointer;
+}
+
+.usage-drilldown ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.usage-drilldown li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.usage-drill-empty {
+  color: var(--color-text-dim, #888);
+  font-size: 13px;
+}
+
+/* ---- 排行 ---- */
+.usage-rankings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.usage-rankings h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.usage-rankings ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.usage-rankings li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.rank-name {
+  min-width: 80px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-provider {
+  color: var(--color-text-dim, #888);
+  font-size: 12px;
+}
+
+.rank-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--color-accent, #4CAF50);
+  border-radius: 3px;
+  min-width: 2px;
+}
+
+.rank-value {
+  min-width: 60px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-loading,
+.usage-error {
+  padding: 20px;
+  text-align: center;
+  color: var(--color-text-dim, #888);
+}
+
+.usage-error {
+  color: #e74c3c;
+}
+
+/* Crew 主组件统计区新增 model/provider 展示 */
+.crew-stat-model,
+.crew-stat-provider {
+  font-size: 12px;
+  color: var(--color-text-dim, #888);
+  margin-right: 6px;
+}
+
+@media (max-width: 768px) {
+  .usage-rankings {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .usage-controls,
+  .filter-group {
+    flex-wrap: wrap;
+  }
+}

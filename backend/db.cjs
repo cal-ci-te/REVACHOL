@@ -67,6 +67,25 @@ async function initDb() {
             created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
         )`);
 
+        // Token 消耗仪表盘数据表
+        db.run(`CREATE TABLE IF NOT EXISTS crew_usage (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id             TEXT    NOT NULL,
+            agent              TEXT    NOT NULL,
+            model              TEXT    NOT NULL DEFAULT 'unknown',
+            provider           TEXT    NOT NULL DEFAULT 'unknown',
+            prompt_tokens      INTEGER DEFAULT 0,
+            completion_tokens  INTEGER DEFAULT 0,
+            total_tokens       INTEGER DEFAULT 0,
+            cost               REAL    DEFAULT 0.0,
+            created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run('CREATE INDEX IF NOT EXISTS idx_crew_usage_run_id ON crew_usage(run_id)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_crew_usage_agent ON crew_usage(agent)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_crew_usage_model ON crew_usage(model)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_crew_usage_provider ON crew_usage(provider)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_crew_usage_created_at ON crew_usage(created_at)');
+
         try {
             db.run(`ALTER TABLE decos ADD COLUMN image_path TEXT`);
             console.log('✅ 已添加 image_path 列');

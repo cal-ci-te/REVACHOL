@@ -186,6 +186,8 @@ function createComponent() {
     const rows = entries.map(([agent, value]) => `
       <div class="crew-stat-row">
         <span class="crew-stat-agent">${Utils.escapeHtml(agent)}</span>
+        ${value.model ? `<span class="crew-stat-model">${Utils.escapeHtml(value.model)}</span>` : ''}
+        ${value.provider ? `<span class="crew-stat-provider">${Utils.escapeHtml(value.provider)}</span>` : ''}
         <span class="crew-stat-tokens">${Number(value.tokens) || 0} tokens</span>
       </div>
     `).join('');
@@ -481,6 +483,8 @@ function createComponent() {
           </div>
 
           <section class="crew-stats" id="crewStats"></section>
+
+          <section class="crew-usage-section" id="crewUsageContainer"></section>
         </div>
       `;
 

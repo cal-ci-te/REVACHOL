@@ -419,6 +419,26 @@ _AGENT_ENV = {
     },
 }
 
+# Agent id → Provider 兜底映射（model 字符串无法识别时使用）
+_AGENT_PROVIDER_FALLBACK = {
+    "planner": "deepseek",
+    "coder": "deepseek",
+    "reviewer": "moonshot",
+    "document_admin": "xiaomimo",
+}
+
+
+def _infer_provider(model: str, agent_id: str = "") -> str:
+    """从模型名推导 Provider；无法识别时回退到 Agent 配置。"""
+    model_lower = str(model or "").lower()
+    if "deepseek" in model_lower:
+        return "deepseek"
+    if "kimi" in model_lower or "moonshot" in model_lower:
+        return "moonshot"
+    if "mimo" in model_lower or "xiaomimo" in model_lower:
+        return "xiaomimo"
+    return _AGENT_PROVIDER_FALLBACK.get(agent_id, "unknown")
+
 
 def build_llm(agent_id: str) -> LLM:
     """根据 Agent ID 构建独立 LLM 实例。
@@ -1022,9 +1042,18 @@ def _run_crew(
             try:
                 usage = agent.llm.get_token_usage_summary()
                 tokens = int(getattr(usage, "total_tokens", 0) or 0)
+                cost = float(getattr(usage, "cost", 0.0) or 0.0)
                 if tokens:
                     display_name = _AGENT_DISPLAY_NAMES.get(agent_id, agent_id)
-                    dashboard.update_stats(display_name, tokens, 0.0)
+                    model = getattr(agent.llm, "model", "unknown")
+                    provider = _infer_provider(model, agent_id)
+                    dashboard.update_stats(
+                        display_name,
+                        tokens,
+                        cost,
+                        model=model,
+                        provider=provider,
+                    )
             except Exception:  # noqa: BLE001 - 统计失败不影响主流程
                 pass
 
@@ -1196,10 +1225,19 @@ class JsonLogEmitter:
             is_json=bool(is_json),
         )
 
-    def update_stats(self, agent: str, tokens: int, cost: float = 0.0) -> None:
+    def update_stats(
+        self,
+        agent: str,
+        tokens: int,
+        cost: float = 0.0,
+        model: str = "unknown",
+        provider: str = "unknown",
+    ) -> None:
         self._emit(
             "crew:stats",
             agent=agent,
+            model=model,
+            provider=provider,
             tokens=int(tokens or 0),
             cost=float(cost or 0.0),
         )

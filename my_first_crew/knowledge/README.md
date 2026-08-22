@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.21.0 ⚠️ WIP（开发中）
+当前版本：v1.22.0 ⚠️ WIP（开发中）
 
 > 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
 > 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
@@ -104,6 +104,25 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.22.0-wip
+
+**Token 消耗仪表盘 + CrewAI 升级至 1.15.17（WIP）**
+
+> ⚠️ WIP：真实任务自动采集因 DeepSeek API 限流未完成端到端实测；仪表盘当前展示种子数据，API 恢复后由真实 `crew:stats` 自动写入。
+
+**Token 消耗仪表盘：**
+- Python `crew:stats` 事件新增 `model` / `provider` 字段（`_infer_provider()` 从模型名推导 Provider）
+- 后端新增 `crew_usage` 表与索引，`crew:stats` 先落库再广播，`CREW_STATS` 携带 model/provider
+- 新增 `/api/crew/usage/{overview,timeline,agents,models,filters}` 5 个只读 API
+- 前端新增 `crew-usage` 组件：概览卡片、Agent/Model/Provider/时间区间筛选、柱状图（Chart.js + CSS 降级）、点击下钻、Agent/Model 排行
+- Crew Dashboard 页面挂载 Token 消耗仪表盘，监听 `CREW_STATS` 实时刷新
+
+**CrewAI 升级：**
+- `crewai` / `crewai-tools` 1.15.16 → 1.15.17（1.16.x 尚未在 PyPI 发布）
+
+**工程修复：**
+- 后端子进程 PATH 补充 venv bin，修复容器内 `uvx` 找不到导致 Git MCP 启动失败的问题
 
 ### v1.21.0-wip
 

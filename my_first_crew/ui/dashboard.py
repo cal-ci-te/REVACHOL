@@ -421,8 +421,8 @@ class Dashboard:
         self.log_panel.log(message, level)
         self.update()
 
-    def update_stats(self, agent: str, tokens: int, cost: float = 0.0):
-        """更新统计"""
+    def update_stats(self, agent: str, tokens: int, cost: float = 0.0, model: str = "unknown", provider: str = "unknown"):
+        """更新统计（model/provider 供 Web 端使用，TUI 暂不展示）"""
         self.stats_panel.update_tokens(agent, tokens, cost)
         self.update()
 

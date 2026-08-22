@@ -18,6 +18,7 @@ const fs = require('fs');
 const { send, sendError, json } = require('../enhance.cjs');
 const { broadcast } = require('../websocket.cjs');
 const { requireAuth } = require('../auth.cjs');
+const dbModule = require('../db.cjs');
 
 // Crew 目录定位：
 // 本地开发时 backend/routes → ../../my_first_crew 正确；
@@ -128,16 +129,20 @@ function updateAgentStatus(agentName, status, task = '', detail = '') {
   });
 }
 
-function updateStats(agentName, tokens, cost) {
+function updateStats(agentName, tokens, cost, model = 'unknown', provider = 'unknown') {
   runState.stats[agentName] = {
     tokens: Number(tokens) || 0,
     cost: Number(cost) || 0,
+    model: model || 'unknown',
+    provider: provider || 'unknown',
   };
   broadcast({
     type: 'CREW_STATS',
     payload: {
       runId: runState.runId,
       agent: agentName,
+      model: model || 'unknown',
+      provider: provider || 'unknown',
       tokens: Number(tokens) || 0,
       cost: Number(cost) || 0,
     },
@@ -213,7 +218,34 @@ function handleCrewEvent(line) {
       pushOutput(payload.task || '', payload.content || '', payload.isJson);
       break;
     case 'crew:stats':
-      updateStats(payload.agent || '', payload.tokens || 0, payload.cost || 0);
+      // 先写入 Token 消耗仪表盘数据库，再广播，避免前端刷新时读不到最新数据
+      try {
+        dbModule.run(
+          `INSERT INTO crew_usage (
+            run_id, agent, model, provider,
+            prompt_tokens, completion_tokens, total_tokens, cost
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            runState.runId || '',
+            payload.agent || '',
+            payload.model || 'unknown',
+            payload.provider || 'unknown',
+            Number(payload.prompt_tokens) || 0,
+            Number(payload.completion_tokens) || 0,
+            Number(payload.tokens) || 0,
+            Number(payload.cost) || 0,
+          ]
+        );
+      } catch (err) {
+        console.warn('[crew:stats] 写入数据库失败:', err.message);
+      }
+      updateStats(
+        payload.agent || '',
+        payload.tokens || 0,
+        payload.cost || 0,
+        payload.model || 'unknown',
+        payload.provider || 'unknown'
+      );
       break;
     case 'crew:finished': {
       const success = payload.success !== false;
@@ -285,12 +317,19 @@ function startCrewRun({ requirement, process: crewProcess = 'sequential', memory
   const pythonBin = resolvePython();
   console.log(`[Crew] 启动子进程: ${pythonBin} ${args.join(' ')}`);
 
+  // MCP 服务器（uvx mcp-server-git）依赖 venv 内的 uvx；容器 PATH 默认不含 venv bin，
+  // 这里显式把 venv bin 前置到子进程 PATH，确保 MCP 子进程能找到 uvx。
+  const venvBinDir = process.platform === 'win32'
+    ? path.join(CREW_DIR, '.venv', 'Scripts')
+    : path.join(CREW_DIR, '.venv', 'bin');
+
   let child;
   try {
     child = spawn(pythonBin, args, {
       cwd: CREW_DIR,
       env: {
         ...process.env,
+        PATH: [venvBinDir, process.env.PATH].filter(Boolean).join(path.delimiter),
         PYTHONIOENCODING: 'utf-8',
         PYTHONUNBUFFERED: '1',
         CREWAI_DISABLE_ASYNC: '1',
@@ -454,4 +493,4 @@ function registerCrewRoutes(GET, POST) {
   }));
 }
 
-module.exports = { registerCrewRoutes, runState, snapshotState, stopCrewRun };
+module.exports = { registerCrewRoutes, runState, snapshotState, stopCrewRun, handleCrewEvent };

@@ -9,6 +9,7 @@ import { ComponentManager } from '../core/component-manager.js';
 import { ApiClient } from '../services/api-client.js';
 import { ThemeService } from '../services/theme-service.js';
 import { crewDashboardComponent } from '../components/crew-dashboard-component.js';
+import { crewUsageComponent } from '../components/crew-usage-component.js';
 
 console.log('🚀 [crew-dashboard] 页面入口已加载');
 
@@ -45,6 +46,7 @@ ThemeService.init();
 
 ComponentManager
   .register(crewDashboardComponent)
+  .register(crewUsageComponent)
   .initComponent('crew-dashboard')
   .then((ok) => {
     if (!ok) throw new Error('crew-dashboard 组件初始化失败');
@@ -53,6 +55,15 @@ ComponentManager
   .then((ok) => {
     if (!ok) throw new Error('crew-dashboard 组件挂载失败');
     console.log('[crew-dashboard] 组件已就绪');
+    return ComponentManager.initComponent('crew-usage');
+  })
+  .then((ok) => {
+    if (!ok) throw new Error('crew-usage 组件初始化失败');
+    return ComponentManager.mountComponent('crew-usage');
+  })
+  .then((ok) => {
+    if (!ok) throw new Error('crew-usage 组件挂载失败');
+    console.log('[crew-usage] Token 消耗仪表盘已就绪');
   })
   .catch((err) => {
     console.error('[crew-dashboard] 启动失败:', err);
@@ -63,5 +74,8 @@ ComponentManager
   });
 
 window.addEventListener('beforeunload', () => {
-  ComponentManager.unmountComponent('crew-dashboard').catch(() => {});
+  Promise.all([
+    ComponentManager.unmountComponent('crew-dashboard'),
+    ComponentManager.unmountComponent('crew-usage'),
+  ]).catch(() => {});
 });

@@ -28,12 +28,14 @@ const { registerDecoRoutes } = require('./routes/decos.cjs');
 const { registerSettingsRoutes } = require('./routes/settings.cjs');
 const { registerDraftsRoutes } = require('./routes/drafts.cjs');
 const { registerCrewRoutes } = require('./routes/crew.cjs');
+const { registerCrewUsageRoutes } = require('./routes/crew-usage.cjs');
 
 registerArticleRoutes(GET, POST, PUT, DELETE);
 registerDecoRoutes(GET, PUT, DELETE);
 registerSettingsRoutes(GET, PUT);
 registerDraftsRoutes(GET, POST, PUT, DELETE);
 registerCrewRoutes(GET, POST);
+registerCrewUsageRoutes(GET);
 
 // [MONITOR] [MODIFIED] 健康检查端点 — 供 Docker/K8s 容器编排探活使用
 // 数据库：执行 SELECT 1 验证 SQLite 可用，记录延迟
