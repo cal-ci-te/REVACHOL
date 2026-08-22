@@ -6,9 +6,10 @@ const path = require('path');
 const { LOCAL_CONFIG } = require('../config.cjs');
 
 class LocalAdapter {
-    constructor() {
-        this.uploadDir = LOCAL_CONFIG.uploadDir;
-        this.baseUrl = LOCAL_CONFIG.baseUrl;
+    constructor(options = {}) {
+        this.uploadDir = options.uploadDir || LOCAL_CONFIG.uploadDir;
+        this.baseUrl = options.baseUrl || LOCAL_CONFIG.baseUrl;
+        this.idPrefix = options.idPrefix || 'deco_';
         // 确保目录存在
         if (!fs.existsSync(this.uploadDir)) {
             fs.mkdirSync(this.uploadDir, { recursive: true });
@@ -19,7 +20,7 @@ class LocalAdapter {
      * 上传文件
      */
     async upload(buffer, originalName, contentType) {
-        const id = 'deco_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        const id = this.idPrefix + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
         const ext = path.extname(originalName) || '.webp';
         const filename = id + ext;
         const filepath = path.join(this.uploadDir, filename);

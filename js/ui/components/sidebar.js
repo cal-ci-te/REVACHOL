@@ -1,4 +1,5 @@
 import { Utils } from '../../utils.js';
+import { DirectoryIcon } from '../../services/directory-icon.js';
 
 export const Sidebar = {
   sidebar: null,
@@ -88,7 +89,9 @@ export const Sidebar = {
 
     if (this.sidebarCollapsed) {
       this.sidebar.classList.add('collapsed');
-      if (toggleBtn) toggleBtn.textContent = '◀';
+      if (toggleBtn) {
+        toggleBtn.innerHTML = '<span class="icon-pack-arrow arrow-r180">◀</span>';
+      }
       if (titleEl) {
         titleEl.textContent = '📜';
         titleEl.style.fontSize = '20px';
@@ -105,7 +108,9 @@ export const Sidebar = {
       }
     } else {
       this.sidebar.classList.remove('collapsed');
-      if (toggleBtn) toggleBtn.textContent = '▶';
+      if (toggleBtn) {
+        toggleBtn.innerHTML = '<span class="icon-pack-arrow arrow-r0">▶</span>';
+      }
       if (titleEl) {
         titleEl.textContent = '📜 目录';
         titleEl.style.fontSize = '';
@@ -127,6 +132,9 @@ export const Sidebar = {
     if (header) {
       header.style.cursor = 'grab';
     }
+
+    // 应用自定义目录本身图标（默认 📜 / 📜 目录）
+    DirectoryIcon.applyHeaderIcon();
   },
 
   toggleCollapse: function () {

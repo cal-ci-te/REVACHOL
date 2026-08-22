@@ -20,7 +20,15 @@ export function handleFolderToggle(e, container) {
     const isVisible = childrenDiv.style.display !== 'none';
     const newDisplay = isVisible ? 'none' : 'block';
     childrenDiv.style.display = newDisplay;
-    toggleIcon.textContent = isVisible ? '▶' : '▼';
+    const arrowEl = toggleIcon.querySelector('.icon-pack-arrow');
+    if (arrowEl) {
+      // 当前展开 → 点击后收起（r0 ▶）；当前收起 → 点击后展开（r90 ▼）
+      arrowEl.textContent = isVisible ? '▶' : '▼';
+      arrowEl.classList.toggle('arrow-r0', isVisible);
+      arrowEl.classList.toggle('arrow-r90', !isVisible);
+    } else {
+      toggleIcon.textContent = isVisible ? '▶' : '▼';
+    }
 
     const folderIcon = nodeLi.querySelector('.node-icon');
     if (folderIcon) DirectoryIcon.applyToElement(folderIcon, !isVisible);

@@ -80,14 +80,14 @@ export const DecoShelfUI = {
                         <div class="asset-preview-box" data-preview="${preview}"></div>
                         <span class="asset-name" title="${escapedName}">${escapedName}</span>
                         <span class="asset-status ${isPlaced ? 'is-placed' : ''}">${isPlaced ? '●已放置' : '○未放置'}</span>
-                        <button class="asset-style-btn" data-id="${escapedId}" title="切换样式（${styleLabel}）">🔄</button>
+                        <button class="asset-style-btn" data-id="${escapedId}" title="切换样式（${styleLabel}）"><span class="asset-btn-emoji">🔄</span></button>
                     </div>
                     <div class="asset-actions-row">
-                        <button class="asset-duplicate-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDuplicate}">📋</button>
-                        <button class="asset-rename-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoRename}">✏️</button>
-                        <button class="asset-deco-edit-btn asset-action-btn" data-id="${escapedId}" title="${UI.decoEdit.menuLabel}">📐</button>
-                        <button class="asset-download-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDownload}">⬇️</button>
-                        <button class="asset-delete-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDelete}">🗑️</button>
+                        <button class="asset-duplicate-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDuplicate}"><span class="asset-btn-emoji">📋</span></button>
+                        <button class="asset-rename-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoRename}"><span class="asset-btn-emoji">✏️</span></button>
+                        <button class="asset-deco-edit-btn asset-action-btn" data-id="${escapedId}" title="${UI.decoEdit.menuLabel}"><span class="asset-btn-emoji">📐</span></button>
+                        <button class="asset-download-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDownload}"><span class="asset-btn-emoji">⬇️</span></button>
+                        <button class="asset-delete-btn asset-action-btn" data-id="${escapedId}" title="${UI.admin.decoDelete}"><span class="asset-btn-emoji">🗑️</span></button>
                     </div>
                 </div>
             `;

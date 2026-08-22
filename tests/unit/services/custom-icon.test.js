@@ -3,6 +3,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CustomIconManager } from '../../../js/services/custom-icon.js';
 
+vi.mock('../../../js/core/event-bus.js', () => ({
+  EventBus: { emit: vi.fn(), on: vi.fn(), off: vi.fn(), once: vi.fn(), clear: vi.fn() },
+}));
+
+import { EventBus } from '../../../js/core/event-bus.js';
+
 function createManager(overrides = {}) {
   return new CustomIconManager({
     storageKey: 'test_icon',
@@ -23,11 +29,11 @@ describe('CustomIconManager', () => {
         <span id="icon-fallback">🎭</span>
       </div>
     `;
-    global.EventBus = { emit: vi.fn() };
+    EventBus.emit.mockClear();
   });
 
   afterEach(() => {
-    delete global.EventBus;
+    vi.clearAllMocks();
   });
 
   describe('getIcon / setIcon / removeIcon', () => {
@@ -47,7 +53,7 @@ describe('CustomIconManager', () => {
     it('should emit event on setIcon', () => {
       const m = createManager();
       m.setIcon('data:x');
-      expect(global.EventBus.emit).toHaveBeenCalledWith('test:icon-changed', {
+      expect(EventBus.emit).toHaveBeenCalledWith('test:icon-changed', {
         dataUrl: 'data:x',
       });
     });
@@ -55,7 +61,7 @@ describe('CustomIconManager', () => {
     it('should not emit event when eventName is null', () => {
       const m = createManager({ eventName: null });
       m.setIcon('data:x');
-      expect(global.EventBus.emit).not.toHaveBeenCalled();
+      expect(EventBus.emit).not.toHaveBeenCalled();
     });
   });
 

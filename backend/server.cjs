@@ -29,6 +29,7 @@ const { registerSettingsRoutes } = require('./routes/settings.cjs');
 const { registerDraftsRoutes } = require('./routes/drafts.cjs');
 const { registerCrewRoutes } = require('./routes/crew.cjs');
 const { registerCrewUsageRoutes } = require('./routes/crew-usage.cjs');
+const { registerIconPackRoutes } = require('./routes/icon-packs.cjs');
 
 registerArticleRoutes(GET, POST, PUT, DELETE);
 registerDecoRoutes(GET, PUT, DELETE);
@@ -36,6 +37,7 @@ registerSettingsRoutes(GET, PUT);
 registerDraftsRoutes(GET, POST, PUT, DELETE);
 registerCrewRoutes(GET, POST);
 registerCrewUsageRoutes(GET);
+registerIconPackRoutes(GET, POST, PUT, DELETE);
 
 // [MONITOR] [MODIFIED] 健康检查端点 — 供 Docker/K8s 容器编排探活使用
 // 数据库：执行 SELECT 1 验证 SQLite 可用，记录延迟
@@ -200,7 +202,7 @@ initWebSocket(server);
 
 server.on('error', (err) => { console.error('❌ 服务器错误:', err); });
 
-const PORT = 9999;
+const PORT = parseInt(process.env.PORT) || 9999;
 dbModule.initDb().then(() => {
     const host = process.env.HOST || '127.0.0.1';
     server.listen(PORT, host, () => {

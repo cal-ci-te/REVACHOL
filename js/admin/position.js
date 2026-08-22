@@ -56,12 +56,18 @@ export const AdminPosition = {
     const toggle = DOMRefs.get(DOMRefs.admin.toggleIcon);
     if (isCollapsed) {
       panel.classList.add('collapsed');
-      if (toggle) toggle.textContent = '▶';
+      if (toggle) {
+        toggle.classList.add('arrow-r0');
+        toggle.classList.remove('arrow-r90');
+      }
     } else {
       panel.classList.remove('collapsed');
-      if (toggle) toggle.textContent = '▼';
+      if (toggle) {
+        toggle.classList.add('arrow-r90');
+        toggle.classList.remove('arrow-r0');
+      }
     }
-    // 若设置了控制台折叠按钮自定义图标，覆盖默认箭头
+    // 若设置了控制台折叠按钮自定义图标（含图标包 arrow 外部覆盖），覆盖默认箭头
     UIIcon.applyAdminPanelIcon();
   },
 

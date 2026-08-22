@@ -13,7 +13,12 @@ export async function handleVisibilityToggle(e, onSuccess) {
     const success = await ArticleListStore.setVisibility(id, newVisible);
     if (success) {
         btn.dataset.visible = newVisible;
-        btn.textContent = newVisible ? '👁️' : '🚫';
+        const visEl = btn.querySelector('.icon-pack-visibility');
+        if (visEl) {
+            visEl.textContent = newVisible ? '👁️' : '🚫';
+        } else {
+            btn.textContent = newVisible ? '👁️' : '🚫';
+        }
         btn.style.color = newVisible ? 'var(--color-success)' : 'var(--color-border)';
         const parentContent = btn.closest('.tree-node-content');
         const titleSpan = parentContent.querySelector('.node-title');

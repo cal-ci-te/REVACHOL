@@ -23,8 +23,16 @@ const LOCAL_CONFIG = {
     baseUrl: '/uploads/decos',
 };
 
+// 图标包独立存储目录/前缀（与贴纸 decos 互不干扰）
+const ICON_PACK_LOCAL_CONFIG = {
+    uploadDir: path.join(__dirname, '..', 'uploads', 'icon-packs'),
+    baseUrl: '/uploads/icon-packs',
+    idPrefix: 'iconpack_',
+};
+
 module.exports = {
     STORAGE_TYPE,
     RUSTFS_CONFIG,
     LOCAL_CONFIG,
+    ICON_PACK_LOCAL_CONFIG,
 };

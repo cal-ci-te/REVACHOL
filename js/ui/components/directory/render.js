@@ -131,7 +131,7 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
             const article = articleMap[node.articleId];
             visible = article ? !!article.visible : true;
             if (isAdmin) {
-                visibilityBtn = `<button class="visibility-toggle" data-id="${node.articleId}" data-visible="${visible}" style="background:none;border:none;color:${visible ? 'var(--color-success)' : 'var(--color-border)'};cursor:pointer;font-size:14px;margin-left:8px;" title="${UI.common.toggleVisible}">${visible ? '👁️' : '🚫'}</button>`;
+                visibilityBtn = `<button class="visibility-toggle" data-id="${node.articleId}" data-visible="${visible}" style="background:none;border:none;color:${visible ? 'var(--color-success)' : 'var(--color-border)'};cursor:pointer;font-size:14px;margin-left:8px;" title="${UI.common.toggleVisible}"><span class="icon-pack-visibility">${visible ? '👁️' : '🚫'}</span></button>`;
             }
         }
 
@@ -149,7 +149,9 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
 
         // ★★★ 为文件夹的 toggle-icon 添加 data-folder 属性 ★★★
         if (isFolder && hasChildren) {
-            const toggleIconHTML = isCollapsed ? '▶' : '▼';
+            const toggleIconHTML = isCollapsed
+                ? '<span class="icon-pack-arrow arrow-r0">▶</span>'
+                : '<span class="icon-pack-arrow arrow-r90">▼</span>';
             html += `<span class="toggle-icon" data-toggle="toggle" data-folder="${node.name}" style="cursor:pointer;">${toggleIconHTML}</span>`;
         } else if (isFolder && !hasChildren) {
             html += `<span class="toggle-icon" style="opacity:0.3;">📭</span>`;

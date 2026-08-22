@@ -258,6 +258,31 @@ export class BoxManager {
   setItemImage(itemId, dataUrl) { this._state.setItemImage(itemId, dataUrl); }
   getState() { return this._state.exportState(); }
 
+  // ======================
+  //  图标包外部覆盖（不持久化）
+  // ======================
+
+  setExternalLidImage(url) {
+    if (!this._state) return;
+    this._state.setExternalLidImage(url);
+    if (this._renderer) this._renderer.applyCustomImages();
+  }
+
+  setExternalBodyImage(url) {
+    if (!this._state) return;
+    this._state.setExternalBodyImage(url);
+    if (this._renderer) this._renderer.applyCustomImages();
+  }
+
+  setExternalItemImage(itemId, url) {
+    if (!this._state) return;
+    this._state.setExternalItemImage(itemId, url);
+    // 物品图仅在开箱动画中显示；若当前正在展示，尝试即时刷新
+    if (this._renderer && typeof this._renderer.refreshItemImage === 'function') {
+      this._renderer.refreshItemImage(itemId);
+    }
+  }
+
   resetCount() {
     this._state.resetCount();
     this._renderer.refreshCount();

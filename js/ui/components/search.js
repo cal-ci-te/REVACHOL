@@ -159,7 +159,16 @@ export const UISearch = {
             if (childrenDiv) {
                 childrenDiv.style.display = 'block';
                 const toggleIcon = folder.querySelector('.toggle-icon[data-toggle="toggle"]');
-                if (toggleIcon) toggleIcon.textContent = '▼';
+                if (toggleIcon) {
+                    const arrowEl = toggleIcon.querySelector('.icon-pack-arrow');
+                    if (arrowEl) {
+                        arrowEl.textContent = '▼';
+                        arrowEl.classList.add('arrow-r90');
+                        arrowEl.classList.remove('arrow-r0');
+                    } else {
+                        toggleIcon.textContent = '▼';
+                    }
+                }
             }
         });
     },

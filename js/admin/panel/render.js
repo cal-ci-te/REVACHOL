@@ -15,11 +15,20 @@ import { DecoShelf } from '../../services/deco.js';
 import { renderPuzzleEntry } from '../puzzle/PuzzleEntry.js';
 import { bindPuzzleFileUpload } from '../puzzle/PuzzleCustomizer.js';
 import { SiteIcon } from '../../services/site-icon.js';
-import { DirectoryIcon } from '../../services/directory-icon.js';
+import { DirectoryIcon, DIRECTORY_ICON_SLOTS } from '../../services/directory-icon.js';
 import { UIIcon, UI_ICON_SLOTS } from '../../services/ui-icon.js';
+import { IconPackService } from '../../services/icon-pack-service.js';
+import { ICON_PACK_THEME_IDS } from '../../services/icon-pack-keys.js';
 
 // 标志：是否已完成首次完整渲染
 AdminPanel._rendered = false;
+
+/** 将 "emoji 文本" 拆分为 emoji 与文本，便于图标包替换前置 emoji */
+function splitEmojiLabel(label) {
+  const idx = String(label || '').indexOf(' ');
+  if (idx === -1) return { emoji: String(label || ''), text: '' };
+  return { emoji: label.slice(0, idx), text: label.slice(idx + 1) };
+}
 
 AdminPanel.renderContent = function () {
     const panel = DOMRefs.get(DOMRefs.admin.content);
@@ -37,15 +46,18 @@ AdminPanel.renderContent = function () {
         if (typeof AdminPanel.renderPalettes === 'function') {
             AdminPanel.renderPalettes();
         }
+        if (typeof AdminPanel.renderIconPackList === 'function') {
+            IconPackService.loadPacks().then(AdminPanel.renderIconPackList).catch(() => {});
+        }
+        IconPackService.refreshCurrent();
         return;
     }
 
     const savedAvatar = AdminAvatar.getAvatarForUser() || 'images/default-avatar.png';
     const siteIconDataUrl = SiteIcon.getIcon() || 'images/site-icon.png';
-    const dirIconDataUrl = DirectoryIcon.getIcon() || '';
-    const dirIconPreviewHtml = dirIconDataUrl
-        ? `<img id="directoryIconPreview" class="admin-icon-preview-img" src="${Utils.escapeHtml(dirIconDataUrl)}" alt="${UI.admin.directoryIconPreviewAlt}">`
-        : `<span id="directoryIconPreview" class="admin-icon-preview-fallback">📁</span>`;
+    const directoryCollapsedPreviewHtml = `<div id="directoryCollapsedPreview">${DirectoryIcon.renderPreviewHtml(DIRECTORY_ICON_SLOTS.folderCollapsed, '📂')}</div>`;
+    const directoryExpandedPreviewHtml = `<div id="directoryExpandedPreview">${DirectoryIcon.renderPreviewHtml(DIRECTORY_ICON_SLOTS.folderExpanded, '📁')}</div>`;
+    const directoryHeaderPreviewHtml = `<div id="directoryHeaderPreview">${DirectoryIcon.renderPreviewHtml(DIRECTORY_ICON_SLOTS.header, '📜')}</div>`;
     const toolbarCollapsedPreviewHtml = `<div id="toolbarCollapsedPreview">${UIIcon.renderPreviewHtml(UI_ICON_SLOTS.toolbarCollapsed, '⚙')}</div>`;
     const toolbarExpandedPreviewHtml = `<div id="toolbarExpandedPreview">${UIIcon.renderPreviewHtml(UI_ICON_SLOTS.toolbarExpanded, '◀')}</div>`;
     const adminPanelPreviewHtml = `<div id="adminPanelPreview">${UIIcon.renderPreviewHtml(UI_ICON_SLOTS.adminPanel, '▶')}</div>`;
@@ -66,15 +78,15 @@ AdminPanel.renderContent = function () {
         <!-- 头像上传（原位置） -->
         <div class="admin-control-group avatar-upload-area">
             <div><img class="admin-avatar" id="adminAvatarPreview" src="${savedAvatar}" alt="${UI.admin.avatarUploadLabel}"></div>
-            <button id="uploadAvatarBtn" data-action="upload-avatar" class="avatar-upload-btn">${UI.admin.avatarUploadLabel}</button>
+            <button id="uploadAvatarBtn" data-action="upload-avatar" class="avatar-upload-btn"><span class="admin-label-emoji">📷</span> ${splitEmojiLabel(UI.admin.avatarUploadLabel).text}</button>
             <div class="admin-avatar-hint">${UI.admin.avatarHint}</div>
         </div>
 
         <!-- ===== 自定义贴图（可折叠整合区） ===== -->
         <div class="admin-icon-section">
             <div class="admin-icon-section-header" id="iconUploadSectionHeader">
-                <span>${UI.admin.customTextureSectionLabel}</span>
-                <button type="button" class="admin-icon-section-toggle" id="iconUploadSectionToggle" title="${UI.admin.iconSectionToggleTitle}">▾</button>
+                <span><span class="admin-label-emoji">🎨</span> ${splitEmojiLabel(UI.admin.customTextureSectionLabel).text}</span>
+                <button type="button" class="admin-icon-section-toggle" id="iconUploadSectionToggle" title="${UI.admin.iconSectionToggleTitle}"><span class="icon-pack-arrow arrow-r90">▾</span></button>
             </div>
             <div class="admin-icon-section-body" id="iconUploadSectionBody">
                 <!-- 站点图标 -->
@@ -91,16 +103,40 @@ AdminPanel.renderContent = function () {
                     <div class="admin-avatar-hint">${UI.admin.siteIconHint}</div>
                 </div>
 
-                <!-- 目录图标 -->
+                <!-- 目录收起图标 -->
                 <div class="admin-control-group" style="border-top:1px solid var(--color-border); padding-top:8px; margin-top:8px;">
-                    <label>${UI.admin.directoryIconLabel}</label>
-                    <div class="admin-icon-preview">${dirIconPreviewHtml}</div>
+                    <label>${UI.admin.directoryCollapsedIconLabel}</label>
+                    <div class="admin-icon-preview">${directoryCollapsedPreviewHtml}</div>
                     <div class="admin-button-group">
-                        <button id="directoryIconUploadBtn" data-action="upload-directory-icon" class="avatar-upload-btn">${UI.admin.directoryIconUploadButton}</button>
-                        <button id="directoryIconResetBtn" data-action="reset-directory-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
-                        <input type="file" id="directoryIconFileInput" data-action="directory-icon-file" accept="image/*" style="display:none;">
+                        <button id="directoryCollapsedIconUploadBtn" data-action="upload-directory-collapsed-icon" class="avatar-upload-btn">${UI.admin.iconUploadButton}</button>
+                        <button id="directoryCollapsedIconResetBtn" data-action="reset-directory-collapsed-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
+                        <input type="file" id="directoryCollapsedIconFileInput" data-action="directory-collapsed-icon-file" accept="image/*" style="display:none;">
                     </div>
-                    <div class="admin-avatar-hint">${UI.admin.directoryIconHint}</div>
+                    <div class="admin-avatar-hint">${UI.admin.directoryCollapsedIconHint}</div>
+                </div>
+
+                <!-- 目录展开图标 -->
+                <div class="admin-control-group" style="border-top:1px solid var(--color-border); padding-top:8px; margin-top:8px;">
+                    <label>${UI.admin.directoryExpandedIconLabel}</label>
+                    <div class="admin-icon-preview">${directoryExpandedPreviewHtml}</div>
+                    <div class="admin-button-group">
+                        <button id="directoryExpandedIconUploadBtn" data-action="upload-directory-expanded-icon" class="avatar-upload-btn">${UI.admin.iconUploadButton}</button>
+                        <button id="directoryExpandedIconResetBtn" data-action="reset-directory-expanded-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
+                        <input type="file" id="directoryExpandedIconFileInput" data-action="directory-expanded-icon-file" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.directoryExpandedIconHint}</div>
+                </div>
+
+                <!-- 目录本身图标 -->
+                <div class="admin-control-group" style="border-top:1px solid var(--color-border); padding-top:8px; margin-top:8px;">
+                    <label>${UI.admin.directoryHeaderIconLabel}</label>
+                    <div class="admin-icon-preview">${directoryHeaderPreviewHtml}</div>
+                    <div class="admin-button-group">
+                        <button id="directoryHeaderIconUploadBtn" data-action="upload-directory-header-icon" class="avatar-upload-btn">${UI.admin.iconUploadButton}</button>
+                        <button id="directoryHeaderIconResetBtn" data-action="reset-directory-header-icon" style="margin:0; background:var(--color-danger);" hidden>${UI.admin.iconRestoreDefaultButton}</button>
+                        <input type="file" id="directoryHeaderIconFileInput" data-action="directory-header-icon-file" accept="image/*" style="display:none;">
+                    </div>
+                    <div class="admin-avatar-hint">${UI.admin.directoryHeaderIconHint}</div>
                 </div>
 
                 <!-- 顶部工具栏 — 收起图标 -->
@@ -310,6 +346,25 @@ AdminPanel.renderContent = function () {
             </div>
         </div>
 
+        <!-- 图标包管理 -->
+        <div class="admin-control-group" style="border-top:1px solid var(--color-border);padding-top:12px;margin-top:12px;">
+            <label>${UI.iconPack.sectionLabel}</label>
+            <input type="text" id="iconPackNameInput" placeholder="${UI.iconPack.packNamePlaceholder}" style="width:100%; margin-top:6px;">
+            <div style="margin-top:6px; font-size:11px; color:var(--color-text-secondary);">${UI.iconPack.themeLabel}</div>
+            <div id="iconPackThemeCheckboxes" style="display:flex; gap:10px; margin:4px 0; flex-wrap:wrap;">
+                <label style="font-size:12px;"><input type="checkbox" value="dark"> ${UI.iconPack.docTabDark}</label>
+                <label style="font-size:12px;"><input type="checkbox" value="light"> ${UI.iconPack.docTabLight}</label>
+                <label style="font-size:12px;"><input type="checkbox" value="lofi"> ${UI.iconPack.docTabLofi}</label>
+                <label style="font-size:12px;"><input type="checkbox" id="iconPackThemeSelectAll" data-action="icon-pack-theme-select-all"> ${UI.iconPack.selectAll}</label>
+            </div>
+            <div class="admin-button-group" style="margin:6px 0;">
+                <button data-action="upload-icon-pack" style="background:var(--color-success);">${UI.iconPack.uploadButton}</button>
+                <input type="file" id="iconPackFileInput" data-action="icon-pack-file" accept=".zip" style="display:none;">
+            </div>
+            <div class="admin-avatar-hint" style="margin-bottom:6px;">${UI.iconPack.hint}</div>
+            <div id="iconPackList"></div>
+        </div>
+
         <!-- 文章管理 -->
         <div class="admin-control-group" style="border-top:1px solid var(--color-border);padding-top:12px;margin-top:12px;">
             <label>${UI.admin.articleEditorLabel}</label>
@@ -332,9 +387,9 @@ AdminPanel.renderContent = function () {
         <div class="admin-control-group" style="border-top: 1px solid var(--color-border); padding-top: 12px; margin-top: 12px;">
             <label>${UI.admin.themeSectionLabel}</label>
             <div id="themeSelector" class="admin-flex-row" style="margin-top:6px;">
-                <button data-action="theme-switch" data-theme="dark" class="theme-btn theme-btn-dark">${UI.theme.dark}</button>
-                <button data-action="theme-switch" data-theme="light" class="theme-btn theme-btn-light">${UI.theme.light}</button>
-                <button data-action="theme-switch" data-theme="lofi" class="theme-btn theme-btn-lofi">${UI.theme.lofi}</button>
+                <button data-action="theme-switch" data-theme="dark" class="theme-btn theme-btn-dark"><span class="theme-btn-emoji">🌙</span> ${splitEmojiLabel(UI.theme.dark).text}</button>
+                <button data-action="theme-switch" data-theme="light" class="theme-btn theme-btn-light"><span class="theme-btn-emoji">☀️</span> ${splitEmojiLabel(UI.theme.light).text}</button>
+                <button data-action="theme-switch" data-theme="lofi" class="theme-btn theme-btn-lofi"><span class="theme-btn-emoji">📼</span> ${splitEmojiLabel(UI.theme.lofi).text}</button>
             </div>
             <div class="admin-avatar-hint">${UI.admin.themeHint}</div>
         </div>
@@ -354,6 +409,10 @@ AdminPanel.renderContent = function () {
         DecoShelfUI.init(container);
         DecoShelfUI.render();
     }
+
+    // 初始化图标包列表
+    IconPackService.loadPacks().then(AdminPanel.renderIconPackList).catch(() => {});
+    IconPackService.refreshCurrent();
 
     // 渲染色卡
     if (typeof AdminPanel.renderPalettes === 'function') {
@@ -502,30 +561,13 @@ AdminPanel.refreshIconPreviews = function () {
     const siteReset = document.getElementById('siteIconResetBtn');
     if (siteReset) siteReset.hidden = !SiteIcon.getIcon();
 
-    const dirPreview = document.getElementById('directoryIconPreview');
-    const dirDataUrl = DirectoryIcon.getIcon();
-    const dirReset = document.getElementById('directoryIconResetBtn');
-    if (dirReset) dirReset.hidden = !dirDataUrl;
-    if (dirPreview) {
-        const img = document.createElement('img');
-        img.id = 'directoryIconPreview';
-        img.className = 'admin-icon-preview-img';
-        img.src = dirDataUrl || '';
-        img.alt = UI.admin.directoryIconPreviewAlt;
-        const fallback = document.createElement('span');
-        fallback.id = 'directoryIconPreview';
-        fallback.className = 'admin-icon-preview-fallback';
-        fallback.textContent = '📁';
-        dirPreview.replaceWith(dirDataUrl ? img : fallback);
-    }
-
-    // 通用刷新：顶部工具栏收起/展开、控制台折叠箭头
-    const refreshSlot = function (slot, previewId, resetBtnId, fallbackText) {
+    // 通用刷新：目录图标（收起/展开/目录本身）+ 顶部工具栏 + 控制台折叠箭头
+    const refreshSlot = function (slot, previewId, resetBtnId, fallbackText, getIconFn) {
         const container = document.getElementById(previewId);
         const resetBtn = document.getElementById(resetBtnId);
-        if (resetBtn) resetBtn.hidden = !UIIcon.hasIcon(slot);
+        if (resetBtn) resetBtn.hidden = !getIconFn(slot);
         if (!container) return;
-        const dataUrl = UIIcon.getIcon(slot);
+        const dataUrl = getIconFn(slot);
         const img = document.createElement('img');
         img.className = 'admin-icon-preview-img';
         img.src = dataUrl || '';
@@ -536,12 +578,43 @@ AdminPanel.refreshIconPreviews = function () {
         container.replaceChildren(dataUrl ? img : fallback);
     };
 
-    refreshSlot(UI_ICON_SLOTS.toolbarCollapsed, 'toolbarCollapsedPreview', 'toolbarCollapsedIconResetBtn', '⚙');
-    refreshSlot(UI_ICON_SLOTS.toolbarExpanded, 'toolbarExpandedPreview', 'toolbarExpandedIconResetBtn', '◀');
-    refreshSlot(UI_ICON_SLOTS.adminPanel, 'adminPanelPreview', 'adminPanelIconResetBtn', '▶');
+    refreshSlot(DIRECTORY_ICON_SLOTS.folderCollapsed, 'directoryCollapsedPreview', 'directoryCollapsedIconResetBtn', '📂', (s) => DirectoryIcon.getIcon(s));
+    refreshSlot(DIRECTORY_ICON_SLOTS.folderExpanded, 'directoryExpandedPreview', 'directoryExpandedIconResetBtn', '📁', (s) => DirectoryIcon.getIcon(s));
+    refreshSlot(DIRECTORY_ICON_SLOTS.header, 'directoryHeaderPreview', 'directoryHeaderIconResetBtn', '📜', (s) => DirectoryIcon.getIcon(s));
+    refreshSlot(UI_ICON_SLOTS.toolbarCollapsed, 'toolbarCollapsedPreview', 'toolbarCollapsedIconResetBtn', '⚙', (s) => UIIcon.getIcon(s));
+    refreshSlot(UI_ICON_SLOTS.toolbarExpanded, 'toolbarExpandedPreview', 'toolbarExpandedIconResetBtn', '◀', (s) => UIIcon.getIcon(s));
+    refreshSlot(UI_ICON_SLOTS.adminPanel, 'adminPanelPreview', 'adminPanelIconResetBtn', '▶', (s) => UIIcon.getIcon(s));
 
-    // 同步应用到工具栏/控制台实际 DOM
+    // 同步应用到工具栏/控制台/目录树实际 DOM
     UIIcon.applyAll();
+    DirectoryIcon.applyAll();
+};
+
+AdminPanel.renderIconPackList = function (packs) {
+    const container = document.getElementById('iconPackList');
+    if (!container) return;
+
+    if (!packs || packs.length === 0) {
+        container.innerHTML = `<div style="color:var(--color-text-muted);text-align:center;padding:8px;">${UI.iconPack.emptyList}</div>`;
+        return;
+    }
+
+    container.innerHTML = packs.map((pack) => {
+        const themes = Array.isArray(pack.themes) ? pack.themes : [];
+        const themeCheckboxes = ICON_PACK_THEME_IDS.map((themeId) => {
+            const label = themeId === 'dark' ? UI.iconPack.docTabDark : themeId === 'light' ? UI.iconPack.docTabLight : UI.iconPack.docTabLofi;
+            return `<label style="font-size:11px;"><input type="checkbox" data-id="${Utils.escapeHtml(pack.id)}" data-theme="${themeId}" data-action="icon-pack-theme-change" ${themes.includes(themeId) ? 'checked' : ''}> ${label}</label>`;
+        }).join('');
+        return `
+            <div class="icon-pack-row" style="border-top:1px solid var(--color-border); padding:6px 0; margin-top:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                    <span style="font-size:12px; color:var(--color-text-accent);">${Utils.escapeHtml(pack.name)}</span>
+                    <button data-action="icon-pack-delete" data-id="${Utils.escapeHtml(pack.id)}" style="background:var(--color-danger); font-size:11px; padding:2px 6px;">${UI.iconPack.deleteButton}</button>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">${themeCheckboxes}</div>
+            </div>
+        `;
+    }).join('');
 };
 
 AdminPanel.toggleIconSection = function () {
@@ -550,7 +623,9 @@ AdminPanel.toggleIconSection = function () {
     if (!body) return;
     const collapsed = body.style.display === 'none';
     body.style.display = collapsed ? 'block' : 'none';
-    if (toggleBtn) toggleBtn.textContent = collapsed ? '▾' : '▸';
+    if (toggleBtn) {
+        toggleBtn.innerHTML = `<span class="icon-pack-arrow ${collapsed ? 'arrow-r90' : 'arrow-r0'}">${collapsed ? '▾' : '▸'}</span>`;
+    }
     Utils.storage.set('admin_icon_section_collapsed', !collapsed);
 };
 
@@ -584,10 +659,10 @@ AdminPanel._bindIconSection = function () {
     const collapsed = Utils.storage.get('admin_icon_section_collapsed');
     if (collapsed === true) {
         body.style.display = 'none';
-        if (toggleBtn) toggleBtn.textContent = '▸';
+        if (toggleBtn) toggleBtn.innerHTML = '<span class="icon-pack-arrow arrow-r0">▸</span>';
     } else {
         body.style.display = 'block';
-        if (toggleBtn) toggleBtn.textContent = '▾';
+        if (toggleBtn) toggleBtn.innerHTML = '<span class="icon-pack-arrow arrow-r90">▾</span>';
     }
 };
 

@@ -1,6 +1,7 @@
 // 通用自定义图标管理器 — 为任意 UI 元素提供"自定义图标 + 回退"能力
 // 复用站点图标的 CSS 模式：容器 overflow:visible + img/回退切换 + .has-custom 控制
 import { Utils } from '../utils.js';
+import { EventBus } from '../core/event-bus.js';
 
 export class CustomIconManager {
   /**
@@ -28,6 +29,8 @@ export class CustomIconManager {
     this.fallback = null;
     /** @type {boolean} */
     this._initialised = false;
+    /** 外部覆盖（图标包等临时 URL，不写 localStorage）；优先于 localStorage */
+    this._external = null;
   }
 
   /** 缓存 DOM 引用 */
@@ -41,23 +44,30 @@ export class CustomIconManager {
     }
   }
 
-  /** 从 localStorage 读取图标 dataUrl */
+  /** 读取当前生效图标：外部覆盖 > localStorage；无自定义时返回 null */
   getIcon() {
+    if (this._external) return this._external;
     return Utils.storage.get(this._storageKey);
   }
 
-  /** 存储图标 dataUrl 并触发更新 */
+  /** 设置外部覆盖（图标包）；url 为空时清除覆盖并回退旧图标/默认 */
+  setExternalIcon(url) {
+    this._external = url || null;
+    this.applyIcon(this.getIcon() || this._defaultSrc || null);
+  }
+
+  /** 存储图标 dataUrl 并触发更新（外部覆盖存在时仍以外部覆盖优先显示） */
   setIcon(dataUrl) {
     if (!dataUrl) { this.removeIcon(); return; }
     Utils.storage.set(this._storageKey, dataUrl);
-    this.applyIcon(dataUrl);
+    this.applyIcon(this.getIcon() || this._defaultSrc || null);
     this._emitEvent(dataUrl);
   }
 
-  /** 移除图标，恢复默认 */
+  /** 移除图标，恢复外部覆盖/默认（有 defaultSrc 时回退默认图片） */
   removeIcon() {
     Utils.storage.remove(this._storageKey);
-    this.applyIcon(null);
+    this.applyIcon(this.getIcon() || this._defaultSrc || null);
     this._emitEvent(null);
   }
 
@@ -126,8 +136,7 @@ export class CustomIconManager {
   /** 触发事件通知 */
   _emitEvent(dataUrl) {
     if (!this._eventName) return;
-    // [REVIEW] 使用全局 EventBus（需确保已加载）
-    if (typeof EventBus !== 'undefined' && EventBus.emit) {
+    if (EventBus && typeof EventBus.emit === 'function') {
       EventBus.emit(this._eventName, { dataUrl: dataUrl });
     }
   }

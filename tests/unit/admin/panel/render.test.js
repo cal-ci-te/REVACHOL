@@ -50,7 +50,7 @@ vi.mock('../../../../js/core/dom-refs.js', () => ({
   },
 }));
 vi.mock('../../../../js/utils.js', () => ({
-  Utils: { storage: { get: vi.fn(() => null) }, showToast: vi.fn() },
+  Utils: { storage: { get: vi.fn(() => null) }, showToast: vi.fn(), escapeHtml: (s) => s },
 }));
 vi.mock('../../../../js/services/texture.js', () => ({
   Texture: {

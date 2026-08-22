@@ -7,9 +7,9 @@ const LocalAdapter = require('./adapters/local.cjs');
 const RustFSAdapter = require('./adapters/rustfs.cjs');
 
 class StorageService {
-    constructor() {
+    constructor(options = {}) {
         this.type = STORAGE_TYPE;
-        this.adapter = this.type === 'rustfs' ? new RustFSAdapter() : new LocalAdapter();
+        this.adapter = this.type === 'rustfs' ? new RustFSAdapter(options) : new LocalAdapter(options);
         console.log('[StorageService] 使用存储后端:', this.type);
     }
 
@@ -25,3 +25,4 @@ class StorageService {
 
 const storage = new StorageService();
 module.exports = storage;
+module.exports.StorageService = StorageService;

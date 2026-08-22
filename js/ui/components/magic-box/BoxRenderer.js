@@ -287,7 +287,6 @@ export class BoxRenderer {
 
   /** 应用箱盖和箱体的自定义贴图：有贴图则显示贴图层并隐藏对应 CSS 装饰，无则恢复 */
   _applyCustomImages() {
-    // 箱盖贴图
     const lidImg = this._state.getCustomLidImage();
     if (lidImg && this._customLidImgEl) {
       this._customLidImgEl.style.backgroundImage = 'url(' + lidImg + ')';
@@ -311,6 +310,28 @@ export class BoxRenderer {
       this._customBodyImgEl.style.backgroundImage = '';
       this._customBodyImgEl.style.display = 'none';
       if (this._lockEl) this._lockEl.style.opacity = '';
+    }
+  }
+
+  /** 公共包装：刷新箱盖/箱体自定义贴图（供 BoxManager 外部覆盖调用） */
+  applyCustomImages() {
+    this._applyCustomImages();
+  }
+
+  /** 若物品当前正在展示，则即时更新其图片源（供图标包外部覆盖调用） */
+  refreshItemImage(itemId) {
+    if (!this._itemImgEl || !this._itemEl || !itemId) return;
+    // 仅在动画进行中（popping/showing/retracting）才更新 DOM，避免无谓开销
+    if (!this._boxEl || !(this._boxEl.classList.contains('opening') || this._boxEl.classList.contains('closing'))) return;
+    const img = this._state.getItemImage(itemId);
+    if (img) {
+      this._itemImgEl.src = img;
+      this._itemImgEl.style.display = '';
+      this._itemEmojiEl.style.display = 'none';
+    } else {
+      this._itemImgEl.src = '';
+      this._itemImgEl.style.display = 'none';
+      this._itemEmojiEl.style.display = '';
     }
   }
 

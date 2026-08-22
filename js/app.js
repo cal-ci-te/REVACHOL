@@ -28,6 +28,8 @@ import { UIDirectory } from './ui/components/directory/index.js';
 import { ContextMenu } from './admin/events/context-menu.js';
 import { ThemeService } from './services/theme-service.js';
 import { Texture } from './services/texture.js';
+import { IconPackService } from './services/icon-pack-service.js';
+import { IconPackDoc } from './ui/components/icon-pack-doc.js';
 import { initPuzzle } from './puzzle/Puzzle.js';
 import { initMagicBox } from './ui/components/magic-box/index.js';
 import { StickerShape } from './editor/sticker-shape.js';
@@ -109,6 +111,9 @@ if (Texture && typeof Texture.setThemeMode === 'function') {
     Texture.setThemeMode(true);
 }
 ThemeService.init();
+
+// 图标包服务：订阅主题/包变更并应用当前主题的生效包
+IconPackService.init();
 
 // 贴纸右键菜单需要 DecoShelf 加载完成后才能获取贴纸数据，延迟 200ms 确保 DecoShelf.loadLibrary 完成
 setTimeout(() => {
@@ -305,6 +310,7 @@ window.__REVACHOL__ = {
   DirectoryIcon,
   UIIcon,
   ThemeService,
+  IconPackService,
   Texture,
   HealthMonitor,
   ComponentManager,
@@ -325,6 +331,8 @@ setTimeout(() => {
             UIIcon.applyToolbarIcons();
         });
         const helpBtn = toolbar.querySelector('[data-tool="help"]');
+        const iconPackBtn = toolbar.querySelector('[data-tool="icon-pack"]');
+
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
                 const helpArticle = {
@@ -335,6 +343,18 @@ setTimeout(() => {
                 if (UIController && UIController.detail) {
                     UIController.detail.createTab(helpArticle);
                 }
+            });
+        }
+
+        if (iconPackBtn) {
+            iconPackBtn.addEventListener('click', () => {
+                if (!UIController || !UIController.detail) return;
+                // 与帮助一样：以详情标签页阅读模式打开图标包键名文档
+                const article = { id: -2, title: UI.iconPack.docTitle, content: '' };
+                UIController.detail.createTab(article);
+                const pane = document.querySelector('#detailPanes .detail-pane[data-id="-2"]');
+                const body = pane && pane.querySelector('.detail-body');
+                if (body) IconPackDoc.render(body);
             });
         }
     }

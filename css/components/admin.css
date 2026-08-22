@@ -76,6 +76,7 @@
 }
 
 .admin-panel .panel-header .toggle-icon {
+  display: inline-block;
   font-size: 12px;
   transition: transform 0.2s;
   cursor: pointer;
@@ -558,3 +559,114 @@ input[type='color'] {
 }
 .toolbar-content strong { color: #e8c88a; }
 .toolbar-content p { margin-bottom: 6px; }
+
+/* ===== 图标包：统一箭头（单键 + CSS 旋转） ===== */
+.icon-pack-arrow {
+  display: inline-block;
+  font-style: normal;
+  line-height: 1;
+  transition: transform 0.15s ease;
+  transform-origin: center center;
+}
+.arrow-r0   { transform: rotate(0deg); }
+.arrow-r90  { transform: rotate(90deg); }
+.arrow-r180 { transform: rotate(180deg); }
+.arrow-r270 { transform: rotate(270deg); }
+
+/* ===== 图标包：标签/主题图标替换 ===== */
+.theme-btn-emoji,
+.theme-btn-icon,
+.admin-label-emoji,
+.search-icon,
+.icon-pack-visibility,
+.asset-btn-emoji,
+.ctx-item-emoji {
+  display: inline-block;
+  width: 1.2em;
+  height: 1.2em;
+  object-fit: contain;
+  vertical-align: middle;
+  text-align: center;
+  line-height: 1.2em;
+}
+.ctx-item-emoji { margin-right: 2px; }
+.asset-btn-emoji { width: 1.1em; height: 1.1em; }
+.search-icon {
+  margin-right: 4px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.admin-label-emoji { margin-right: 2px; }
+.theme-btn-emoji { margin-right: 4px; }
+
+/* 侧边栏搜索区：图标 + 输入框同行布局 */
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar-search .search-icon { flex-shrink: 0; margin-right: 0; }
+.sidebar-search .sidebar-search-box { flex: 1; width: auto; }
+
+/* ===== 图标包键名文档（详情页阅读模式） ===== */
+.icon-pack-doc { max-width: 720px; }
+.icon-pack-doc-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0;
+}
+.icon-pack-doc-tab {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 11px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.icon-pack-doc-tab.active {
+  background: rgba(196, 122, 68, 0.2);
+  border-color: var(--color-border-highlight);
+  color: #e8c88a;
+}
+.icon-pack-doc-legend {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+.icon-pack-doc-group-title {
+  font-size: 11px;
+  color: #e8c88a;
+  margin: 8px 0 4px;
+  font-family: 'Courier New', monospace;
+}
+.icon-pack-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 2px 0;
+}
+.icon-pack-key code {
+  color: var(--color-text-accent);
+  background: var(--color-bg-secondary);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.icon-pack-key-label {
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.icon-pack-key .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.icon-pack-key .dot.default { background: var(--color-text-muted); }
+.icon-pack-key .dot.custom  { background: var(--color-success); }

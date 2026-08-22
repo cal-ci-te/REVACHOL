@@ -18,6 +18,8 @@ export class BoxState {
   constructor() {
     this._data = { ...DEFAULTS };
     this._loaded = false;
+    // 图标包外部覆盖：不参与 _save()，保证旧自定义图不被覆盖
+    this._external = { lid: null, body: null, items: {} };
   }
 
   // ---- 持久化 ----
@@ -115,8 +117,18 @@ export class BoxState {
 
   // ---- 箱盖/箱体自定义贴图 ----
 
-  getCustomLidImage()  { return this._data.customLidImage; }
-  getCustomBodyImage() { return this._data.customBodyImage; }
+  getCustomLidImage()  { return this._external.lid || this._data.customLidImage; }
+  getCustomBodyImage() { return this._external.body || this._data.customBodyImage; }
+
+  /** 图标包外部覆盖：不写 localStorage，url 为空时回退旧自定义图 */
+  setExternalLidImage(url) {
+    this._external.lid = url || null;
+  }
+
+  /** 图标包外部覆盖：不写 localStorage，url 为空时回退旧自定义图 */
+  setExternalBodyImage(url) {
+    this._external.body = url || null;
+  }
 
   setCustomLidImage(dataUrl) {
     this._data.customLidImage = dataUrl || null;
@@ -138,16 +150,25 @@ export class BoxState {
     this._save();
   }
 
-  /** 是否有任何自定义箱体外观 */
+  /** 是否有任何自定义箱体外观（含图标包外部覆盖） */
   hasCustomAppearance() {
-    return !!(this._data.customLidImage || this._data.customBodyImage);
+    return !!(this._external.lid || this._external.body || this._data.customLidImage || this._data.customBodyImage);
   }
 
   // ---- 物品自定义贴图 ----
 
-  /** 获取指定物品的自定义贴图，无则返回 null */
+  /** 获取指定物品的自定义贴图（图标包外部覆盖优先），无则返回 null */
   getItemImage(itemId) {
-    return this._data.itemImages[itemId] || null;
+    return this._external.items[itemId] || this._data.itemImages[itemId] || null;
+  }
+
+  /** 图标包外部覆盖：不写 localStorage，url 为空时回退旧自定义图 */
+  setExternalItemImage(itemId, url) {
+    if (url) {
+      this._external.items[itemId] = url;
+    } else {
+      delete this._external.items[itemId];
+    }
   }
 
   /** 设置指定物品的自定义贴图 */

@@ -1,9 +1,9 @@
 # REVACHOL 模块索引
 
-> 版本：v1.23.0-wip | 更新：2026-08-22
+> 版本：v1.24.0-wip | 更新：2026-08-22
 >
 > 本文档基于代码现状扫描生成，用于降低单人维护的认知负荷。模块增减时应同步更新本索引。
-> 文件数与实际目录一致（前端 `js/` 130 个文件、后端 `backend/` 26 个文件、CrewAI `my_first_crew/` 53 个文件）。
+> 文件数与实际目录一致（前端 `js/` 134 个文件、后端 `backend/` 27 个文件、CrewAI `my_first_crew/` 53 个文件）。
 
 ---
 
@@ -23,7 +23,7 @@
 
 依赖方向：`core/` 内部基本独立，被 `services/`、`ui/`、`admin/`、`editor/`、`components/` 广泛依赖。
 
-### 1.2 `services/` — 业务服务层（17 个文件）
+### 1.2 `services/` — 业务服务层（20 个文件）
 
 | 文件 | 职责 | 关键依赖 | 被依赖方 |
 |---|---|---|---|
@@ -44,8 +44,11 @@
 | `storage-adapter.js` | localStorage 适配（`rv_` 前缀 + JSON 序列化） | — | 全局 |
 | `visibility-service.js` | 页面可见性管理 | — | `health-monitor.js` 等 |
 | `websocket-service.js` | 通用 WebSocket 封装（主站广播） | EventBus | 主站广播消费方 |
+| `icon-pack-keys.js` | 图标包 33 键注册表（键名/中文名/槽位/尺寸/限制常量） | — | `icon-pack-processor.js`、`icon-pack-service.js`、`icon-pack-doc.js` |
+| `icon-pack-processor.js` | 图标包 zip 处理：安全校验、尺寸检测、PNG 压缩、规范化 zip | JSZip、icon-pack-keys | `icon-pack-service.js`、`admin/panel/events/` |
+| `icon-pack-service.js` | 图标包服务：状态/上传/删除/改主题、按槽位应用到全站图标、external 覆盖 | ApiClient、EventBus、ThemeService、SiteIcon、DirectoryIcon、UIIcon、MagicBox | `app.js`、`admin/panel/`、`icon-pack-doc.js` |
 
-### 1.3 `ui/components/` — UI 组件（24 个文件）
+### 1.3 `ui/components/` — UI 组件（25 个文件）
 
 | 文件 | 职责 | 关键依赖 |
 |---|---|---|
@@ -57,6 +60,7 @@
 | `helpers.js` | UI 通用工具 | — |
 | `deco-ui.js` | 贴纸库与贴纸 UI | DecoService |
 | `magic-box/`（5 个文件） | 魔法箱子组件（开箱动画/物品池/拖拽） | EventBus、ComponentManager |
+| `icon-pack-doc.js` | 图标包键名文档（详情页阅读模式，三主题 tab + 灰/绿状态） | IconPackService、icon-pack-keys、EventBus |
 
 依赖方向：`ui/components/` 依赖 `services/` 与 `core/`，不反向依赖 `admin/` 或 `editor/`。
 
@@ -130,7 +134,7 @@
 
 ## 二、后端模块（`backend/`）
 
-### 2.1 `routes/` — 路由层（5 个文件）
+### 2.1 `routes/` — 路由层（6 个文件）
 
 | 文件 | 职责 | 关键依赖 |
 |---|---|---|
@@ -139,6 +143,7 @@
 | `drafts.cjs` | 草稿路由 | db、auth、cleanup-drafts |
 | `settings.cjs` | 站点设置路由 | db、auth |
 | `crew.cjs` | Crew Dashboard 路由：spawn Python 子进程、解析 NDJSON、翻译为 `CREW_*` WS 广播、内存状态快照 | child_process、websocket.broadcast、auth、enhance |
+| `icon-packs.cjs` | 图标包路由：上传（安全校验）、列表、状态、图标二进制、主题绑定修改、删除 | JSZip、StorageService、db、auth、websocket.broadcast |
 
 > 注：`/api/auth/login|logout|me` 认证路由直接在 `server.cjs` 中注册，`routes/` 下没有独立的 `auth.cjs` 路由文件。
 

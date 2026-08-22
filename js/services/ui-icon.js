@@ -20,9 +20,25 @@ const STORAGE_KEYS = {
 };
 
 class UIIconManager {
-  /** 读取指定槽位的图标 dataUrl */
+  constructor() {
+    // 图标包外部覆盖（不写 localStorage；包删除/切主题后自动回退旧数据）
+    this._external = {};
+  }
+
+  /** 读取指定槽位的图标 dataUrl（外部包覆盖优先，其次 localStorage） */
   getIcon(slot) {
+    if (this._external && this._external[slot]) return this._external[slot];
     return Utils.storage.get(STORAGE_KEYS[slot]);
+  }
+
+  /** 设置外部 URL 覆盖（图标包）；url 为空时清除覆盖并回退旧逻辑 */
+  setExternalIcon(slot, url) {
+    if (url) {
+      this._external[slot] = url;
+    } else {
+      delete this._external[slot];
+    }
+    this.applyAll();
   }
 
   /** 是否已设置自定义图标 */
@@ -93,7 +109,8 @@ class UIIconManager {
       toggle.style.backgroundImage = `url("${dataUrl}")`;
       toggle.classList.add('has-custom');
     } else {
-      toggle.textContent = toggle.textContent || '▶';
+      // 无自定义图标时按 arrow-r0/arrow-r90 旋转类显示 emoji（默认向右 ▶ / 向下 ▼）
+      toggle.textContent = toggle.classList.contains('arrow-r90') ? '▼' : '▶';
       toggle.style.backgroundImage = '';
       toggle.classList.remove('has-custom');
     }

@@ -4,8 +4,10 @@ import { DecoShelf } from '../../../services/deco.js';
 import { Utils } from '../../../utils.js';
 import { UI } from '../../../utils/ui-strings.js';
 import { SiteIcon } from '../../../services/site-icon.js';
-import { DirectoryIcon } from '../../../services/directory-icon.js';
+import { DirectoryIcon, DIRECTORY_ICON_SLOTS } from '../../../services/directory-icon.js';
 import { UIIcon, UI_ICON_SLOTS } from '../../../services/ui-icon.js';
+import { IconPackService } from '../../../services/icon-pack-service.js';
+import { inspectZipFile } from '../../../services/icon-pack-processor.js';
 
 // 导入所有处理器
 import * as authHandlers from '../handlers/auth.js';
@@ -17,6 +19,18 @@ import * as textureHandlers from '../handlers/texture.js';
 import * as videoHandlers from '../handlers/video.js';
 import * as watermarkHandlers from '../handlers/watermark.js';
 import * as themeHandlers from '../handlers/theme.js';
+
+/** 读取上传区勾选的主题 */
+function getSelectedUploadThemes() {
+  return Array.from(document.querySelectorAll('#iconPackThemeCheckboxes input[type="checkbox"]:not(#iconPackThemeSelectAll)'))
+    .filter((cb) => cb.checked)
+    .map((cb) => cb.value);
+}
+
+/** 刷新图标包列表 */
+function refreshIconPackList() {
+  IconPackService.loadPacks().then(AdminPanel.renderIconPackList).catch(() => {});
+}
 
 // 构建 action → handler 映射表
 const handlerMap = {
@@ -56,19 +70,49 @@ const handlerMap = {
     SiteIcon.removeIcon();
     if (AdminPanel.refreshIconPreviews) AdminPanel.refreshIconPreviews();
   },
-  'upload-directory-icon': function () {
-    const input = document.getElementById('directoryIconFileInput');
+  'upload-directory-collapsed-icon': function () {
+    const input = document.getElementById('directoryCollapsedIconFileInput');
     if (input) input.click();
   },
-  'directory-icon-file': function (event) {
+  'directory-collapsed-icon-file': function (event) {
     const file = event.target.files && event.target.files[0];
     event.target.value = '';
     if (!file) return;
-    DirectoryIcon.createUploadHandler()(file);
+    DirectoryIcon.createUploadHandler(DIRECTORY_ICON_SLOTS.folderCollapsed)(file);
     if (AdminPanel.refreshIconPreviews) AdminPanel.refreshIconPreviews();
   },
-  'reset-directory-icon': function () {
-    DirectoryIcon.removeIcon();
+  'reset-directory-collapsed-icon': function () {
+    DirectoryIcon.removeIcon(DIRECTORY_ICON_SLOTS.folderCollapsed);
+    if (AdminPanel.refreshIconPreviews) AdminPanel.refreshIconPreviews();
+  },
+  'upload-directory-expanded-icon': function () {
+    const input = document.getElementById('directoryExpandedIconFileInput');
+    if (input) input.click();
+  },
+  'directory-expanded-icon-file': function (event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    DirectoryIcon.createUploadHandler(DIRECTORY_ICON_SLOTS.folderExpanded)(file);
+    if (AdminPanel.refreshIconPreviews) AdminPanel.refreshIconPreviews();
+  },
+  'reset-directory-expanded-icon': function () {
+    DirectoryIcon.removeIcon(DIRECTORY_ICON_SLOTS.folderExpanded);
+    if (AdminPanel.refreshIconPreviews) AdminPanel.refreshIconPreviews();
+  },
+  'upload-directory-header-icon': function () {
+    const input = document.getElementById('directoryHeaderIconFileInput');
+    if (input) input.click();
+  },
+  'directory-header-icon-file': function (event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    DirectoryIcon.createUploadHandler(DIRECTORY_ICON_SLOTS.header)(file);
+    if (AdminPanel.refreshIconPreviews) AdminPanel.refreshIconPreviews();
+  },
+  'reset-directory-header-icon': function () {
+    DirectoryIcon.removeIcon(DIRECTORY_ICON_SLOTS.header);
     if (AdminPanel.refreshIconPreviews) AdminPanel.refreshIconPreviews();
   },
 
@@ -117,6 +161,101 @@ const handlerMap = {
   'reset-admin-panel-icon': function () {
     UIIcon.removeIcon(UI_ICON_SLOTS.adminPanel);
     if (AdminPanel.refreshIconPreviews) AdminPanel.refreshIconPreviews();
+  },
+
+  // ===== 图标包管理 =====
+  'upload-icon-pack': function () {
+    const name = (document.getElementById('iconPackNameInput') || {}).value?.trim() || '';
+    if (!name) {
+      Utils.showToast(UI.iconPack.nameRequired, true);
+      return;
+    }
+    if (getSelectedUploadThemes().length === 0) {
+      Utils.showToast(UI.iconPack.themeRequired, true);
+      return;
+    }
+    const input = document.getElementById('iconPackFileInput');
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  },
+
+  'icon-pack-file': async function (event) {
+    const fileInput = event.target;
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+
+    const name = (document.getElementById('iconPackNameInput') || {}).value?.trim() || '';
+    const themeIds = getSelectedUploadThemes();
+    if (!name) {
+      Utils.showToast(UI.iconPack.nameRequired, true);
+      return;
+    }
+    if (themeIds.length === 0) {
+      Utils.showToast(UI.iconPack.themeRequired, true);
+      return;
+    }
+
+    try {
+      const report = await inspectZipFile(file);
+      if (report.errors.length > 0) {
+        Utils.showToast(UI.iconPack.validationErrorsTitle + ':\n' + report.errors.join('\n'), true);
+        return;
+      }
+      if (report.warnings.length > 0) {
+        const message = UI.iconPack.validationWarningsTitle + ':\n' + report.warnings.join('\n') +
+          '\n\n' + UI.iconPack.confirmUpload + '？';
+        if (!confirm(message)) return;
+      }
+      await IconPackService.uploadPack(file, name, themeIds);
+      Utils.showToast(UI.iconPack.uploadSuccess, false);
+      refreshIconPackList();
+      IconPackService.refreshCurrent();
+    } catch (err) {
+      Utils.showToast(UI.iconPack.uploadFailed + ': ' + (err.message || '未知错误'), true);
+    }
+  },
+
+  'icon-pack-theme-change': async function (event) {
+    const cb = event.target;
+    const packId = cb.dataset.id;
+    if (!packId) return;
+    const checkboxes = document.querySelectorAll(`#iconPackList input[data-action="icon-pack-theme-change"][data-id="${packId}"]`);
+    const themeIds = Array.from(checkboxes).filter((c) => c.checked).map((c) => c.dataset.theme);
+    if (themeIds.length === 0) {
+      cb.checked = true;
+      Utils.showToast(UI.iconPack.themeRequired, true);
+      return;
+    }
+    try {
+      await IconPackService.updatePackThemes(packId, themeIds);
+      refreshIconPackList();
+    } catch (err) {
+      cb.checked = !cb.checked;
+      Utils.showToast(err.message || UI.iconPack.uploadFailed, true);
+    }
+  },
+
+  'icon-pack-delete': async function (event) {
+    const packId = event.target.dataset.id;
+    if (!packId) return;
+    if (!confirm(UI.iconPack.deleteButton + '？')) return;
+    try {
+      await IconPackService.deletePack(packId);
+      Utils.showToast(UI.iconPack.deleteSuccess, false);
+      refreshIconPackList();
+    } catch (err) {
+      Utils.showToast(err.message || UI.iconPack.uploadFailed, true);
+    }
+  },
+
+  'icon-pack-theme-select-all': function (event) {
+    const selectAll = event.target;
+    document.querySelectorAll('#iconPackThemeCheckboxes input[type="checkbox"]:not(#iconPackThemeSelectAll)').forEach((cb) => {
+      cb.checked = selectAll.checked;
+    });
   },
 
   // 拼图自定义

@@ -83,11 +83,16 @@ export const ApiClient = {
     const headers = { 'Content-Type': 'application/json', ...finalOptions.headers };
     if (finalOptions.body instanceof FormData) delete headers['Content-Type'];
 
+    // 支持可选超时：options.timeout（毫秒），默认保持 10s；从传给 fetch 的选项中剔除
+    const timeout = typeof finalOptions.timeout === 'number' ? finalOptions.timeout : 10000;
+    const fetchOptions = { ...finalOptions };
+    delete fetchOptions.timeout;
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const response = await fetch(url, { credentials: 'include', ...finalOptions, headers, signal: controller.signal });
+      const response = await fetch(url, { credentials: 'include', ...fetchOptions, headers, signal: controller.signal });
       clearTimeout(timeoutId);
       let data = (response.headers.get('content-type') || '').includes('application/json')
         ? await response.json() : await response.text();
@@ -100,8 +105,9 @@ export const ApiClient = {
         if (interceptor.onFulfilled) data = await interceptor.onFulfilled(data, response);
       }
       return data;
-    } catch (error) {
+    } catch (caughtError) {
       clearTimeout(timeoutId);
+      let error = caughtError;
       if (error.name === 'AbortError') {
         error = new ApiError(408, '请求超时，请检查网络连接');
       }

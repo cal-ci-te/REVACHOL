@@ -75,6 +75,7 @@ export const EVENTS = {
   THEME_CHANGED: 'theme:changed',
   EDITOR_OPENED: 'editor:opened',
   EDITOR_CLOSED: 'editor:closed',
+  ICON_PACKS_CHANGED: 'icon-packs:changed',
 
   // 文章贴纸编辑
   STICKER_EDITOR_OPENED: 'sticker-editor:opened',

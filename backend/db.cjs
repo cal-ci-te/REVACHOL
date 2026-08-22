@@ -86,6 +86,23 @@ async function initDb() {
         db.run('CREATE INDEX IF NOT EXISTS idx_crew_usage_provider ON crew_usage(provider)');
         db.run('CREATE INDEX IF NOT EXISTS idx_crew_usage_created_at ON crew_usage(created_at)');
 
+        // 图标包数据表（icon_pack_icons 存储图标文件 key 与 MIME；文件本体在存储适配器）
+        db.run(`CREATE TABLE IF NOT EXISTS icon_packs (
+            id TEXT PRIMARY KEY,                -- iconpack_{ts}_{rand}
+            name TEXT NOT NULL,
+            themes TEXT NOT NULL DEFAULT '[]',  -- JSON 数组
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`);
+        db.run(`CREATE TABLE IF NOT EXISTS icon_pack_icons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pack_id TEXT NOT NULL,
+            icon_key TEXT NOT NULL,
+            file_key TEXT NOT NULL,             -- 存储适配器中的文件名/key
+            mime TEXT NOT NULL,                 -- image/png | image/svg+xml
+            UNIQUE(pack_id, icon_key)
+        )`);
+        db.run('CREATE INDEX IF NOT EXISTS idx_icon_pack_icons_pack ON icon_pack_icons(pack_id)');
+
         try {
             db.run(`ALTER TABLE decos ADD COLUMN image_path TEXT`);
             console.log('✅ 已添加 image_path 列');

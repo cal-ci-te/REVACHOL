@@ -69,6 +69,7 @@
     <div class="toolbar-panel" id="toolbarPanel">
         <div class="toolbar-tools">
             <button class="tool-item active" data-tool="help" title="使用说明">?</button>
+            <button class="tool-item" data-tool="icon-pack" title="图标包键名文档">🎨</button>
         </div>
         <div class="toolbar-content" id="toolbarContent"></div>
     </div>
@@ -164,7 +165,7 @@
 <div class="admin-panel open collapsed" id="adminPanel" style="right:20px;bottom:20px;">
     <div class="panel-header" id="panelHeader">
         <h4 id="adminPanelTitle"></h4>
-        <span class="toggle-icon" id="panelToggleIcon">▶</span>
+        <span class="toggle-icon arrow-r0" id="panelToggleIcon">▶</span>
     </div>
     <div class="panel-content" id="panelContent"></div>
 </div>
@@ -181,11 +182,12 @@
         </div>
         <div class="sidebar-body">
             <div class="sidebar-search">
+                <span class="search-icon">🔍</span>
                 <input type="text" id="sidebarSearchInput" class="sidebar-search-box" placeholder="" autocomplete="off">
             </div>
             <div id="positionModeControls" style="display:none; padding: 8px 12px; border-bottom:1px solid #3a2a1a;">
                 <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                    <button id="enterPositionModeBtn" class="pos-mode-btn pos-mode-enter">📌 进入位置管理</button>
+                    <button id="enterPositionModeBtn" class="pos-mode-btn pos-mode-enter"><span class="admin-label-emoji">📌</span> 进入位置管理</button>
                     <button id="savePositionChangesBtn" class="pos-mode-btn pos-mode-save" style="display:none;">💾 保存更改</button>
                     <button id="cancelPositionChangesBtn" class="pos-mode-btn pos-mode-cancel" style="display:none;">❌ 取消</button>
                 </div>

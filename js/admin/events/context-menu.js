@@ -11,6 +11,13 @@ export const ContextMenu = {
   _visible: false,
   _targetDecoId: null,
 
+  /** 将 "emoji 文本" 渲染为 <span class="ctx-item-emoji">emoji</span> 文本（供图标包替换） */
+  _emojiItemLabel(label) {
+    const idx = String(label || '').indexOf(' ');
+    if (idx === -1) return `<span class="ctx-item-emoji">${label}</span>`;
+    return `<span class="ctx-item-emoji">${label.slice(0, idx)}</span>${label.slice(idx)}`;
+  },
+
   init: function () {
     if (this._menu) return;
 
@@ -19,13 +26,13 @@ export const ContextMenu = {
     menu.style.cssText =
       'position:fixed;display:none;background:var(--color-bg-tertiary);border:1px solid var(--color-border);border-radius:4px;padding:4px 0;z-index:99999;min-width:150px;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
     menu.innerHTML = `
-            <div class="ctx-item" data-action="duplicate">${UI.deco.menuDuplicate}</div>
+            <div class="ctx-item" data-action="duplicate">${this._emojiItemLabel(UI.deco.menuDuplicate)}</div>
             <div class="ctx-item" data-action="paste">${UI.deco.menuPaste}</div>
-            <div class="ctx-item" data-action="rename">${UI.deco.menuRename}</div>
-            <div class="ctx-item" data-action="deco-edit">${UI.deco.menuEdit}</div>
-            <div class="ctx-item" data-action="toggle-style">${UI.deco.menuToggleStyle}</div>
+            <div class="ctx-item" data-action="rename">${this._emojiItemLabel(UI.deco.menuRename)}</div>
+            <div class="ctx-item" data-action="deco-edit">${this._emojiItemLabel(UI.deco.menuEdit)}</div>
+            <div class="ctx-item" data-action="toggle-style">${this._emojiItemLabel(UI.deco.menuToggleStyle)}</div>
             <div class="ctx-item" data-action="remove-page">${UI.deco.menuRemovePage}</div>
-            <div class="ctx-item" data-action="delete-lib" style="color:var(--color-error);">${UI.deco.menuDeleteLib}</div>
+            <div class="ctx-item" data-action="delete-lib" style="color:var(--color-error);">${this._emojiItemLabel(UI.deco.menuDeleteLib)}</div>
         `;
     document.body.appendChild(menu);
     this._menu = menu;
@@ -72,7 +79,7 @@ export const ContextMenu = {
 
     const toggleItem = menu.querySelector('[data-action="toggle-style"]');
     if (toggleItem) {
-      toggleItem.textContent = UI.deco.toggleStyleLabel(item.style);
+      toggleItem.innerHTML = this._emojiItemLabel(UI.deco.toggleStyleLabel(item.style));
     }
 
     const pasteItem = menu.querySelector('[data-action="paste"]');

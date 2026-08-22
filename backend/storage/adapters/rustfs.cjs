@@ -13,7 +13,8 @@ const {
 const { RUSTFS_CONFIG } = require('../config.cjs');
 
 class RustFSAdapter {
-    constructor() {
+    constructor(options = {}) {
+        this.keyPrefix = options.keyPrefix || 'deco_';
         this.client = new S3Client({
             endpoint: RUSTFS_CONFIG.endpoint,
             region: RUSTFS_CONFIG.region,
@@ -51,7 +52,7 @@ class RustFSAdapter {
     try {
         const id = 'deco_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
         const ext = originalName.includes('.') ? originalName.split('.').pop() : 'webp';
-        const key = id + '.' + ext;
+        const key = this.keyPrefix + Date.now() + '_' + Math.random().toString(36).substr(2, 6) + '.' + ext;
 
         console.log('[RustFS] 准备上传:', {
             bucket: this.bucket,
