@@ -28,7 +28,7 @@ export const UI = {
         docTabLight: '☀️ 亮色',
         docTabLofi: '📼 低保真',
         docLegendDefault: '● 灰色 = 使用默认图标',
-        docLegendCustom: '● 绿色 = 已有自定义图标',
+        docLegendCustom: '<span style="color: #4CAF50;">●</span> 绿色 = 已有自定义图标',
         docGroupBase: '基础 UI 图标',
         docGroupBox: '超现实箱子图标',
         uploadSuccess: '图标包已上传',

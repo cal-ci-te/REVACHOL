@@ -1,7 +1,7 @@
 # CrewAI 多 Agent 协作 — 完整说明
 
 > 面向需要深入理解或扩展多 Agent 系统的开发者。快速启动见 [quickstart.md](quickstart.md)。
-> 项目版本：crewai 1.15.16 | 更新：2026-08-19
+> 项目版本：crewai 1.15.17 | 更新：2026-08-24
 
 ---
 
@@ -14,6 +14,7 @@
 5. [当前团队的协作流程](#5-当前团队的协作流程)
 6. [与 LangGraph 的对比说明](#6-与-langgraph-的对比说明)
 7. [扩展指南](#7-扩展指南)
+8. [Flow 状态机（RFC-001）](#8-flow-状态机rfc-001)
 
 ---
 
@@ -466,6 +467,57 @@ def read_package_json(path: str) -> str:
 - 已创建 `skills/SKILL.md` 模板与 `.gitkeep`
 - Skill 是"可复用的能力包"（提示词 + 工具 + 指令），未来可把"贴纸系统审计"“编辑器开发规范”等沉淀为 Skill
 - 启用方式：在 Agent 配置中声明对应 Skill 引用（具体配置随 CrewAI 版本演进，参考官方文档）
+
+---
+
+---
+
+## 8. Flow 状态机（RFC-001）
+
+RFC-001（`docs/rfcs/rfc-001-crewai-workflow-with-document-writer-and-review-loop.md`）在既有 Crew 之上新增 **Flow 状态机入口**，实现“文本处理员先行撰写文档 + 审查修改循环”：
+
+### 8.1 双入口
+
+| 入口 | 文件 | 说明 |
+|---|---|---|
+| Crew 顺序执行 | `run_revachol_crew.py` | 既有四 Agent sequential 流程，行为不变 |
+| Flow 状态机 | `run_revachol_flow.py` | 新增：Planner → TextProcessor → Coder → Reviewer ↺ → Merging / Staging |
+
+后端 `POST /api/crew/run` 新增 `engine` 参数（`crew` / `flow`，默认由 `CREW_ENGINE` 环境变量控制），选择调用哪个 Python 入口；`flow:*` NDJSON 事件会被翻译为 `CREW_*` WebSocket 事件（兼容现有 Crew Dashboard），另新增 `FLOW_STAGED` 事件。
+
+> **Crew Dashboard（`/crew-dashboard.html`）已固定使用 Flow 引擎**：前端 `crew-dashboard-component.js` 提交任务时始终携带 `engine: "flow"`，因此页面上的 dry-run 勾选与正常运行都会走 `run_revachol_flow.py`；`process / memory / planning` 选项已从页面移除（Flow 不适用）。如需在后端 API 层使用旧 Crew，可显式传 `engine: "crew"`。
+
+### 8.2 状态机要点
+
+- **D1**：TextProcessor 仅首次撰写初稿（`revision_count == 0`）；修改循环由 Coder 直接修改。
+- **D2**：总计最多 3 次审查（初始 1 次 + 修改循环最多 2 轮）。
+- **D3/D4**：3 次审查仍不通过 → `output/staging/<task_id>/` 暂存（保留 30 天，自动清理）并广播 `FLOW_STAGED` 通知人工。
+- **D7**：每个状态转换后写 `output/flow_state/<task_id>.json` 快照，支持 `--resume <task_id>` 断点续跑。
+
+### 8.3 常用命令
+
+```bash
+# Flow 无头模式
+python run_revachol_flow.py --once --json-logs --requirement "需求"
+
+# 安全验证
+python run_revachol_flow.py --once --json-logs --dry-run --requirement "需求"
+
+# 断点续跑
+python run_revachol_flow.py --once --json-logs --resume <task_id>
+
+# 清理过期暂存
+python run_revachol_flow.py --cleanup-staging --days 30
+```
+
+### 8.4 测试
+
+```bash
+uv pip install -r requirements-dev.txt
+python -m pytest tests -q
+```
+
+覆盖：`route_after_review` 的 0/1/2/3 分支、完整状态机执行（通过/修订/暂存）、断点续跑、暂存区清理。
 
 ---
 

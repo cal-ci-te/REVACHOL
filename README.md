@@ -2,7 +2,7 @@
 
 > 原创角色档案馆 —— 一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-> 当前版本：`v1.24.0` ⚠️ WIP（开发中）
+> 当前版本：`v1.25.0` ⚠️ WIP（开发中）
 
 ## ✨ 预览
 <!-- ===== 预览 ===== -->
@@ -57,8 +57,8 @@
 - **详情页**：标签页模式、全屏、最小化
 - **管理面板**：登录、头像、背景、纹理、水印、色卡
 - **滑动拼图**：可配置交互组件（尺寸/图片/位置可自定义）
-- **多 Agent 协作**：CrewAI 四角色流水线（规划 → 编码 → 审查 → 文档），Git MCP 集成
-- **Crew Dashboard**：Web 端四 Agent 状态卡片 + 实时日志流（`/crew-dashboard.html`），替代终端 TUI
+- **多 Agent 协作**：CrewAI 多 Agent（顺序 Crew + RFC-001 Flow 状态机），Git MCP 集成
+- **Crew Dashboard**：Web 端 Flow 引擎（五 Agent 状态卡片 + 实时日志流 + FLOW_STAGED 通知，`/crew-dashboard.html`），替代终端 TUI
 
 ## 🚀 快速开始
 
@@ -102,9 +102,9 @@ docker compose up -d --build
 
 1. 打开 `/crew-dashboard.html`，使用管理员账号登录（默认 `admin` / `ADMIN_PASSWORD`，可在根 `.env` 配置）
 2. 在需求输入框填写任务描述（如“为贴纸系统新增旋转功能”）
-3. 勾选 **dry-run** 先验证 Agent/Task 配置；确认无误后取消勾选真实执行
-4. 页面通过 WebSocket 实时展示四 Agent 状态卡片、日志流、执行回放与 Token 统计
-5. 执行完成后结构化输出写入宿主机 `./output/`（`*_parsed.json`）
+3. 勾选 **dry-run** 先验证 Flow 状态机配置；确认无误后取消勾选真实执行（两者均走 RFC-001 Flow 引擎）
+4. 页面通过 WebSocket 实时展示 Flow 五 Agent 状态卡片、日志流、执行回放与 Token 统计，进入暂存区时自动弹出 `FLOW_STAGED` 通知
+5. 执行完成后结构化输出写入宿主机 `./output/`（Flow 状态快照见 `output/flow_state/`，暂存区见 `output/staging/`）
 
 验证命令：
 

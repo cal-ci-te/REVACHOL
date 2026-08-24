@@ -243,6 +243,10 @@ export const CrewService = {
       case 'CREW_STOPPED':
         EventBus.emit(EVENTS.CREW_STOPPED, payload);
         break;
+      case 'FLOW_STAGED':
+        // RFC-001 D4：Flow 任务进入暂存区，自动通知人工
+        EventBus.emit(EVENTS.CREW_FLOW_STAGED, payload);
+        break;
       default:
         // 其它广播（welcome / article_* 等）与本页面无关，忽略
         break;

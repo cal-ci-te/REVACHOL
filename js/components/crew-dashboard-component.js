@@ -55,6 +55,11 @@ function createComponent() {
       pill.textContent = state.running ? '运行中' : '空闲';
       pill.className = `crew-status-pill ${state.running ? 'running' : 'idle'}`;
     }
+    const enginePill = root.querySelector('#crewEnginePill');
+    if (enginePill) {
+      enginePill.textContent = `引擎: ${state.engine === 'crew' ? 'Crew' : 'Flow'}`;
+      enginePill.className = `crew-engine-pill ${state.engine === 'crew' ? 'crew' : 'flow'}`;
+    }
     const wsPill = root.querySelector('#crewWsPill');
     if (wsPill) {
       wsPill.textContent = CrewService.isConnected ? 'WebSocket 已连接' : 'WebSocket 未连接';
@@ -109,6 +114,7 @@ function createComponent() {
       ? state.agents
       : [
           { id: 'planner', name: 'Planner', status: 'idle', task: '', detail: '' },
+          { id: 'text_processor', name: 'Text Processor', status: 'idle', task: '', detail: '' },
           { id: 'coder', name: 'Coder', status: 'idle', task: '', detail: '' },
           { id: 'reviewer', name: 'Reviewer', status: 'idle', task: '', detail: '' },
           { id: 'document_admin', name: 'Document Admin', status: 'idle', task: '', detail: '' },
@@ -253,6 +259,8 @@ function createComponent() {
       const noOutputFilesCheckbox = root.querySelector('input[name="noOutputFiles"]');
 
       const payload = {
+        // RFC-001：Dashboard 固定使用 Flow 引擎（dry-run 与正常运行一致）
+        engine: 'flow',
         requirement,
         process: processCheckbox && processCheckbox.checked ? 'hierarchical' : 'sequential',
         memory: !!(memoryCheckbox && memoryCheckbox.checked),
@@ -295,6 +303,7 @@ function createComponent() {
         if (payload.runId) state.runId = payload.runId;
         if (payload.requirement) state.requirement = payload.requirement;
         if (payload.process) state.process = payload.process;
+        if (payload.engine) state.engine = payload.engine;
         state.dryRun = !!payload.dryRun;
         state.startedAt = payload.startedAt || state.startedAt;
         state.finishedAt = null;
@@ -388,6 +397,22 @@ function createComponent() {
       render();
     });
 
+    on(EVENTS.CREW_FLOW_STAGED, (payload) => {
+      // RFC-001 D4：Flow 任务进入暂存区，自动通知人工
+      patchCrew((state) => {
+        if (!Array.isArray(state.logs)) state.logs = [];
+        state.logs.push({
+          timestamp: new Date().toISOString(),
+          level: 'warning',
+          message: `[FLOW_STAGED] 任务 ${payload.taskId || ''} 已进入暂存区（${payload.stagingArea || ''}），等待人工处理`,
+        });
+        if (state.logs.length > 500) state.logs = state.logs.slice(-500);
+        return state;
+      });
+      render();
+      showError('⚠️ Flow 任务已进入暂存区，等待人工处理');
+    });
+
     on(EVENTS.CREW_ERROR, (payload) => {
       showError(payload.message || 'Crew 服务错误');
     });
@@ -427,9 +452,10 @@ function createComponent() {
           <header class="crew-header">
             <div class="crew-header-titles">
               <h1>REVACHOL Crew Dashboard</h1>
-              <p>Planner → Coder → Reviewer → Document Admin · Git MCP 已保留</p>
+              <p>Flow: Planner → TextProcessor → Coder → Reviewer ↺ → Merging / Staging · RFC-001</p>
             </div>
             <div class="crew-header-status">
+              <span class="crew-engine-pill flow" id="crewEnginePill">引擎: Flow</span>
               <span class="crew-status-pill idle" id="crewStatusPill">空闲</span>
               <span class="crew-ws-pill disconnected" id="crewWsPill">WebSocket 未连接</span>
             </div>
@@ -454,9 +480,7 @@ function createComponent() {
             <form id="crewRunForm">
               <textarea id="crewRequirement" rows="3" required placeholder="请输入需求描述，例如：为贴纸系统新增旋转功能"></textarea>
               <div class="crew-options">
-                <label><input type="checkbox" name="process" value="hierarchical"> hierarchical</label>
-                <label><input type="checkbox" name="memory"> memory</label>
-                <label><input type="checkbox" name="planning"> planning</label>
+                <span class="crew-options-note">Flow 引擎：process / memory / planning 不适用</span>
                 <label><input type="checkbox" name="debug"> debug</label>
                 <label><input type="checkbox" name="dryRun"> dry-run</label>
                 <label><input type="checkbox" name="noOutputFiles"> 不写 output/</label>

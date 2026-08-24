@@ -1,9 +1,9 @@
 # REVACHOL 模块索引
 
-> 版本：v1.24.0-wip | 更新：2026-08-22
+> 版本：v1.25.0-wip | 更新：2026-08-24
 >
 > 本文档基于代码现状扫描生成，用于降低单人维护的认知负荷。模块增减时应同步更新本索引。
-> 文件数与实际目录一致（前端 `js/` 134 个文件、后端 `backend/` 27 个文件、CrewAI `my_first_crew/` 53 个文件）。
+> 文件数与实际目录一致（前端 `js/` 134 个文件、后端 `backend/` 27 个文件、CrewAI `my_first_crew/` 66 个文件）。
 
 ---
 
@@ -177,7 +177,25 @@
 
 ---
 
-## 三、依赖关系速查
+## 三、CrewAI Flow 模块（`my_first_crew/`，RFC-001）
+
+| 文件 | 职责 | 关键依赖 |
+|---|---|---|
+| `run_revachol_crew.py` | 既有 Crew 顺序执行入口（四 Agent + Git MCP）；提供 LLM 工厂 / 结构化输出后处理 / NDJSON 事件流 | crewai、ui.dashboard |
+| `run_revachol_flow.py` | RFC-001 Flow 入口（双入口）：`--once --json-logs --dry-run --resume --cleanup-staging` | flows、run_revachol_crew |
+| `flows/state.py` | `FlowStatus` 枚举 + `ReviewLoopState`（Pydantic 状态模型，D2/D3/D4 字段） | pydantic |
+| `flows/document_review_flow.py` | `DocumentReviewFlow` 状态机：Planning → Drafting → Coding → Reviewing ↺ → Merging/Staging → FailureReport | crewai.flow、flows.persistence/staging |
+| `flows/persistence.py` | D7 断点续跑：`output/flow_state/<task_id>.json` 保存/加载/列表 | flows.state |
+| `flows/staging.py` | D3/D4 暂存区：快照写入、通知人工（`flow:staged`）、30 天清理 | flows.state |
+| `agents/_text_processor.jsonc` | RFC-001 新增文本处理员（TextProcessor，deepseek-v4-flash，仅首次撰写） | — |
+| `tests/` | Flow 路由/执行/断点/暂存 pytest 测试（27 用例） | pytest |
+| `requirements-dev.txt` | 开发/测试依赖（pytest），不进入 Docker 运行时 | — |
+
+> Flow 通过 `run_revachol_crew.build_agents()` + `build_text_processor_agent()` 复用既有四 Agent，并额外注入 TextProcessor；旧 Crew 入口保持不变。
+
+---
+
+## 四、依赖关系速查
 
 ### 3.1 前端依赖链
 
@@ -214,14 +232,14 @@ server.cjs
   ├─► routes/drafts.cjs  ─► db.cjs
   ├─► routes/settings.cjs─► db.cjs
   ├─► routes/crew.cjs    ─► websocket.cjs(broadcast)
-  │                        └─► child_process → my_first_crew/run_revachol_crew.py
+  │                        └─► child_process → my_first_crew/run_revachol_crew.py / run_revachol_flow.py
   ├─► auth.cjs           （requireAuth）
   └─► enhance.cjs        （send/sendError/json）
 ```
 
 ---
 
-## 四、相关文档
+## 五、相关文档
 
 - [WebSocket 协议](./websocket-protocol.md) — `CREW_*` 实时通信协议
 - [组件管理器](./component-manager.md) — 组件生命周期

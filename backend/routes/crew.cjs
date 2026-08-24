@@ -26,17 +26,22 @@ const dbModule = require('../db.cjs');
 // 会解析到 /my_first_crew（错误），必须通过 CREW_DIR 显式指定 /app/my_first_crew。
 const CREW_DIR = process.env.CREW_DIR || path.resolve(__dirname, '../../my_first_crew');
 const CREW_SCRIPT = path.join(CREW_DIR, 'run_revachol_crew.py');
+const FLOW_SCRIPT = path.join(CREW_DIR, 'run_revachol_flow.py');
+
+// 默认引擎：CREW_ENGINE 环境变量（crew | flow），缺省 crew（RFC-001 灰度迁移第 3 步）
+const DEFAULT_ENGINE = process.env.CREW_ENGINE === 'flow' ? 'flow' : 'crew';
 
 const MAX_LOGS = 500;
 const MAX_OUTPUTS = 100;
 
-// 与 ui/agent_panel.py 对齐的四 Agent 显示名
-const AGENT_IDS = ['planner', 'coder', 'reviewer', 'document_admin'];
+// 与 ui/agent_panel.py 对齐的 Agent 显示名（Flow 模式额外含 TextProcessor）
+const AGENT_IDS = ['planner', 'coder', 'reviewer', 'document_admin', 'text_processor'];
 const AGENT_DISPLAY_NAMES = {
   planner: 'Planner',
   coder: 'Coder',
   reviewer: 'Reviewer',
   document_admin: 'Document Admin',
+  text_processor: 'Text Processor',
 };
 
 function createInitialAgents() {
@@ -52,11 +57,12 @@ function createInitialAgents() {
   }, {});
 }
 
-// 单例运行状态：后端只允许一个 Crew 子进程同时运行
+// 单例运行状态：后端只允许一个 Crew/Flow 子进程同时运行
 const runState = {
   running: false,
   runId: null,
   requirement: '',
+  engine: DEFAULT_ENGINE,
   process: 'sequential',
   memory: false,
   planning: false,
@@ -77,6 +83,7 @@ function snapshotState() {
     running: runState.running,
     runId: runState.runId,
     requirement: runState.requirement,
+    engine: runState.engine,
     process: runState.process,
     memory: runState.memory,
     planning: runState.planning,
@@ -165,7 +172,8 @@ function pushOutput(task, content, isJson) {
 
 /**
  * 解析 Python --json-logs 模式输出的一行事件。
- * 返回 false 表示该行不是有效的 crew:* JSON 事件。
+ * 兼容 crew:*（run_revachol_crew.py）与 flow:*（run_revachol_flow.py）事件流。
+ * 返回 false 表示该行不是有效的 JSON 事件。
  */
 function handleCrewEvent(line) {
   let data;
@@ -177,18 +185,26 @@ function handleCrewEvent(line) {
 
   const type = data && data.type;
   const payload = (data && data.payload) || {};
-  if (!type || !String(type).startsWith('crew:')) return false;
+  if (!type) return false;
+  const typeStr = String(type);
+  const isFlow = typeStr.startsWith('flow:');
+  const isCrew = typeStr.startsWith('crew:');
+  if (!isFlow && !isCrew) return false;
 
-  switch (type) {
-    case 'crew:started':
+  const base = isFlow ? typeStr.slice('flow:'.length) : typeStr.slice('crew:'.length);
+
+  switch (base) {
+    case 'started':
       runState.requirement = payload.requirement || runState.requirement;
       runState.process = payload.process || runState.process;
       runState.memory = !!payload.memory;
       runState.planning = !!payload.planning;
+      runState.engine = isFlow ? 'flow' : 'crew';
       broadcast({
         type: 'CREW_STARTED',
         payload: {
           runId: runState.runId,
+          engine: runState.engine,
           requirement: runState.requirement,
           process: runState.process,
           memory: runState.memory,
@@ -197,10 +213,10 @@ function handleCrewEvent(line) {
         },
       });
       break;
-    case 'crew:log':
+    case 'log':
       pushLog(payload.level || 'info', payload.message || '');
       break;
-    case 'crew:agent-status':
+    case 'agent-status':
       updateAgentStatus(
         payload.agent || '',
         payload.status || 'idle',
@@ -208,16 +224,16 @@ function handleCrewEvent(line) {
         payload.detail || ''
       );
       break;
-    case 'crew:task':
+    case 'task':
       broadcast({
         type: 'CREW_TASK',
         payload: { runId: runState.runId, task: payload.task || '' },
       });
       break;
-    case 'crew:output':
+    case 'output':
       pushOutput(payload.task || '', payload.content || '', payload.isJson);
       break;
-    case 'crew:stats':
+    case 'stats':
       // 先写入 Token 消耗仪表盘数据库，再广播，避免前端刷新时读不到最新数据
       try {
         dbModule.run(
@@ -247,7 +263,21 @@ function handleCrewEvent(line) {
         payload.provider || 'unknown'
       );
       break;
-    case 'crew:finished': {
+    case 'staged':
+      // RFC-001 D4：进入暂存区自动通知人工（Crew Dashboard 广播 + 事件日志）
+      pushLog('warning', `[FLOW_STAGED] 任务 ${payload.task_id || ''} 已进入暂存区，等待人工处理`);
+      broadcast({
+        type: 'FLOW_STAGED',
+        payload: {
+          runId: runState.runId,
+          taskId: payload.task_id || '',
+          stagingArea: payload.staging_area || '',
+          notifiedAt: payload.notified_at || '',
+          channel: payload.channel || 'crew-dashboard',
+        },
+      });
+      break;
+    case 'finished': {
       const success = payload.success !== false;
       const error = payload.error || null;
       runState.finishedAt = new Date().toISOString();
@@ -260,8 +290,8 @@ function handleCrewEvent(line) {
       break;
     }
     default:
-      // 未知 crew:* 事件：降级为日志，不中断
-      pushLog('info', `[crew] 未知事件 ${type}: ${JSON.stringify(payload)}`);
+      // 未知事件：降级为日志，不中断
+      pushLog('info', `[${isFlow ? 'flow' : 'crew'}] 未知事件 ${type}: ${JSON.stringify(payload)}`);
   }
   return true;
 }
@@ -284,11 +314,12 @@ function resolvePython() {
   return process.env.PYTHON || (isWindows ? 'python' : 'python3');
 }
 
-function startCrewRun({ requirement, process: crewProcess = 'sequential', memory = false, planning = false, debug = false, noOutputFiles = false, dryRun = false }) {
+function startCrewRun({ requirement, engine = DEFAULT_ENGINE, process: crewProcess = 'sequential', memory = false, planning = false, debug = false, noOutputFiles = false, dryRun = false }) {
   const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   runState.running = true;
   runState.runId = runId;
   runState.requirement = requirement;
+  runState.engine = engine === 'flow' ? 'flow' : 'crew';
   runState.process = crewProcess;
   runState.memory = !!memory;
   runState.planning = !!planning;
@@ -300,16 +331,20 @@ function startCrewRun({ requirement, process: crewProcess = 'sequential', memory
   runState.agents = createInitialAgents();
   runState.outputs = [];
 
+  const script = runState.engine === 'flow' ? FLOW_SCRIPT : CREW_SCRIPT;
   const args = [
-    CREW_SCRIPT,
+    script,
     '--once',
     '--json-logs',
     '--requirement',
     requirement,
   ];
-  if (crewProcess === 'hierarchical') args.push('--process', 'hierarchical');
-  if (memory) args.push('--memory');
-  if (planning) args.push('--planning');
+  // Crew 专有参数：Flow 状态机不识别 --process/--memory/--planning，不传
+  if (runState.engine === 'crew') {
+    if (crewProcess === 'hierarchical') args.push('--process', 'hierarchical');
+    if (memory) args.push('--memory');
+    if (planning) args.push('--planning');
+  }
   if (debug) args.push('--debug');
   if (noOutputFiles) args.push('--no-output-files');
   if (dryRun) args.push('--dry-run');
@@ -461,8 +496,14 @@ function registerCrewRoutes(GET, POST) {
 
     const crewProcess = body.process === 'hierarchical' ? 'hierarchical' : 'sequential';
     const dryRun = !!body.dryRun;
+    const engine = body.engine === 'flow' ? 'flow' : (body.engine === 'shadow' ? 'shadow' : DEFAULT_ENGINE);
+    if (engine === 'shadow') {
+      sendError(res, 400, 'engine=shadow 影子运行尚未实施（RFC-001 灰度第 2 步）', 'ENGINE_SHADOW_NOT_IMPLEMENTED');
+      return;
+    }
     const child = startCrewRun({
       requirement,
+      engine,
       process: crewProcess,
       memory: !!body.memory,
       planning: !!body.planning,
@@ -472,7 +513,7 @@ function registerCrewRoutes(GET, POST) {
     });
 
     if (!child) {
-      sendError(res, 500, 'Crew 子进程启动失败', 'CREW_SPAWN_FAILED');
+      sendError(res, 500, 'Crew/Flow 子进程启动失败', 'CREW_SPAWN_FAILED');
       return;
     }
 
@@ -480,6 +521,7 @@ function registerCrewRoutes(GET, POST) {
       runId: runState.runId,
       status: 'started',
       requirement,
+      engine: runState.engine,
       process: crewProcess,
       dryRun,
       startedAt: runState.startedAt,

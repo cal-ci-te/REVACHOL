@@ -93,5 +93,7 @@ export const EVENTS = {
   CREW_FINISHED: 'crew:finished',
   CREW_STOPPED: 'crew:stopped',
   CREW_ERROR: 'crew:error',
+  // RFC-001：Flow 任务进入暂存区（自动通知人工）
+  CREW_FLOW_STAGED: 'crew:flow-staged',
 };
 

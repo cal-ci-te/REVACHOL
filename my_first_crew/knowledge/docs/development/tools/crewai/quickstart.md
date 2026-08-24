@@ -1,9 +1,9 @@
 # CrewAI 多 Agent 协作 — 快速启动
 
 > 面向新接入的开发者或 AI 助手。完整说明见 [crewai-guide.md](crewai-guide.md)。
-> 项目版本：crewai 1.15.16 | 更新：2026-08-20
+> 项目版本：crewai 1.15.17 | 更新：2026-08-24
 
-REVACHOL 使用 **CrewAI 框架**（JSON-first 声明式配置）编排多 Agent 协作。四个 Agent 各司其职：技术规划 → 代码开发 → 代码审查 → 文档处理。
+REVACHOL 使用 **CrewAI 框架**（JSON-first 声明式配置）编排多 Agent 协作。既有顺序流程为：技术规划 → 代码开发 → 代码审查 → 文档处理；RFC-001 新增 Flow 状态机入口，额外引入文本处理员（TextProcessor）先行撰写文档初稿。
 
 ---
 
@@ -77,6 +77,7 @@ OPENAI_API_BASE=https://4sapi.org/v1
 ```
 
 > **四个必须配置的 API Key**：`DEEPSEEK_PRO_API_KEY`、`DEEPSEEK_FLASH_API_KEY`、`KIMI_API_KEY`、`MIMO_API_KEY`。
+> TextProcessor 复用 `DEEPSEEK_FLASH_*`（deepseek-v4-flash），无需额外 Key。
 > Embedding 变量 `OPENAI_API_KEY` / `OPENAI_API_BASE` 在启用 `memory: true` 时必需（详见 [crewai-guide.md §4](#4-记忆功能配置)）。
 
 ---
@@ -93,7 +94,10 @@ my_first_crew/
 │   ├── _planner.jsonc          # 技术规划师 (Planner)
 │   ├── _coder.jsonc            # 代码开发者 (Coder)
 │   ├── _reviewer.jsonc         # 代码审查员 (Reviewer)
-│   └── _document_admin.jsonc   # 文档处理员 (Document Admin)
+│   ├── _document_admin.jsonc   # 文档处理员 (Document Admin)
+│   └── _text_processor.jsonc   # 文本处理员 (TextProcessor，RFC-001 Flow 专用)
+├── flows/                  # RFC-001 Flow 状态机（state/persistence/staging/document_review_flow）
+├── run_revachol_flow.py    # Flow 入口（双入口之一，--once --json-logs --resume）
 ├── tools/                  # 自定义工具目录（Python，预留）
 ├── knowledge/              # 知识库目录（Agent 可读取的项目文档）
 │   ├── AI_CONTEXT.md
@@ -168,6 +172,23 @@ python run_revachol_crew.py --once --json-logs --dry-run --requirement "验证�
 ```
 
 事件流类型：`crew:started` / `crew:log` / `crew:agent-status` / `crew:task` / `crew:output` / `crew:stats` / `crew:finished`。后端 `backend/routes/crew.cjs` 解析后翻译为 WebSocket 广播 `CREW_*` 事件，由前端实时渲染。
+
+### 3.2 Flow 状态机模式（RFC-001）
+
+```bash
+# Flow 无头模式（事件类型为 flow:*，后端会翻译为 CREW_* 并新增 FLOW_STAGED）
+python run_revachol_flow.py --once --json-logs --requirement "为贴纸系统新增旋转功能"
+
+# Flow 安全验证
+python run_revachol_flow.py --once --json-logs --dry-run --requirement "验证配置"
+
+# 断点续跑 / 清理暂存
+python run_revachol_flow.py --once --json-logs --resume <task_id>
+python run_revachol_flow.py --cleanup-staging --days 30
+```
+
+> 后端 `POST /api/crew/run` 可传 `engine: "flow"` 选择 Flow 入口；默认引擎由 `CREW_ENGINE` 环境变量控制（`crew` / `flow`）。
+> **Crew Dashboard（`/crew-dashboard.html`）已固定发送 `engine: "flow"`**，页面上的 dry-run 与正常运行均走 Flow。详细说明见 [crewai-guide.md §8](#8-flow-状态机rfc-001)。
 
 ---
 

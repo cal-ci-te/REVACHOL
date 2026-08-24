@@ -15,7 +15,9 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 # ---- 系统依赖：Python3 / pip / venv / git / 编译工具链 ----
-# build-essential：bcrypt 等 Node 原生模块与部分 Python wheel 需要本地编译
+# build-essential + make + g++：bcrypt / better-sqlite3 等 Node 原生模块
+# 与部分 Python wheel 需要本地编译；必须放在 COPY package*.json 之前，
+# 确保 npm install 时 node-gyp 能找到 g++/make/python3（利用 Docker 层缓存）。
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3 \
@@ -23,6 +25,8 @@ RUN apt-get update \
         python3-venv \
         git \
         build-essential \
+        make \
+        g++ \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3 /usr/local/bin/python \
     && ln -sf /usr/bin/pip3 /usr/local/bin/pip

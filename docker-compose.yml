@@ -26,6 +26,8 @@ services:
       - CREW_PYTHON=/app/my_first_crew/.venv/bin/python
       - CREW_DIR=/app/my_first_crew
       - CREW_OUTPUT_DIR=/app/my_first_crew/output
+      # RFC-001 默认引擎：crew | flow（灰度迁移第 3 步环境开关）
+      - CREW_ENGINE=${CREW_ENGINE:-crew}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:9999/api/crew/status',(r)=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{try{const j=JSON.parse(d);process.exit(j&&typeof j.running==='boolean'?0:1)}catch(_){process.exit(1)}})}).on('error',()=>process.exit(1))"]

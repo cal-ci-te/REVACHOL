@@ -1,6 +1,6 @@
 # REVACHOL WebSocket 协议
 
-> 版本：v1.24.0-wip | 更新：2026-08-22
+> 版本：v1.25.0-wip | 更新：2026-08-24
 >
 > 本文档基于 `backend/websocket.cjs`、`backend/routes/crew.cjs`、`js/services/crew-service.js`、`js/core/event-constants.js` 的实际实现编写，不包含未实现内容。
 
@@ -43,6 +43,7 @@ Python 输出 `crew:started` 后由 `crew.cjs` 翻译广播。
   "type": "CREW_STARTED",
   "payload": {
     "runId": "1720000000000_abc123",
+    "engine": "flow",
     "requirement": "为贴纸系统新增旋转功能",
     "process": "sequential",
     "memory": false,
@@ -52,7 +53,7 @@ Python 输出 `crew:started` 后由 `crew.cjs` 翻译广播。
 }
 ```
 
-前端映射：`EVENTS.CREW_STARTED` → `crew-dashboard-component` 置 `running=true`、记录 runId/requirement。
+`engine` 取值：`crew`（`run_revachol_crew.py`）或 `flow`（`run_revachol_flow.py`，RFC-001）。前端映射：`EVENTS.CREW_STARTED` → `crew-dashboard-component` 置 `running=true`、记录 runId/requirement/engine。
 
 ### 3.2 `CREW_LOG` — 通用日志
 
@@ -176,7 +177,26 @@ Python 输出 `crew:started` 后由 `crew.cjs` 翻译广播。
 
 停止时后端会**连续广播** `CREW_STOPPED` 与 `CREW_FINISHED`（`success:false, error:"已被管理员手动停止"`）。
 
-### 3.9 客户端内部事件（非 WS 帧）
+### 3.9 `FLOW_STAGED` — Flow 任务进入暂存区（RFC-001 D4）
+
+来源：Python `flow:staged`（`run_revachol_flow.py` 在 3 次审查仍不通过时发出），`crew.cjs` 翻译广播并写入事件日志。
+
+```json
+{
+  "type": "FLOW_STAGED",
+  "payload": {
+    "runId": "1720000000000_abc123",
+    "taskId": "20260824120000",
+    "stagingArea": "output/staging/20260824120000",
+    "notifiedAt": "2026-08-24T12:00:00.000Z",
+    "channel": "crew-dashboard"
+  }
+}
+```
+
+前端映射：`EVENTS.CREW_FLOW_STAGED` → 向日志流追加 `[FLOW_STAGED]` 警告并弹出提示，通知人工处理。
+
+### 3.10 客户端内部事件（非 WS 帧）
 
 | 事件 | 说明 | 来源 |
 |---|---|---|
@@ -237,8 +257,9 @@ Crew Dashboard 的启动/停止均通过 REST 发起，错误以 HTTP 状态 + `
 | 文件 | 职责 |
 |---|---|
 | `backend/websocket.cjs` | WS 服务端：路径限定、心跳、`broadcast()` |
-| `backend/routes/crew.cjs` | NDJSON 解析、`CREW_*` 事件翻译、运行状态快照、REST 端点 |
+| `backend/routes/crew.cjs` | NDJSON 解析、`CREW_*`/`FLOW_STAGED` 事件翻译、运行状态快照、REST 端点 |
 | `my_first_crew/run_revachol_crew.py` | 无头模式 NDJSON 事件源（`crew:*`） |
+| `my_first_crew/run_revachol_flow.py` | Flow 无头模式 NDJSON 事件源（`flow:*`，RFC-001） |
 | `js/services/crew-service.js` | 前端 WS 客户端：连接/重连/降级/消息分发 |
-| `js/core/event-constants.js` | `EVENTS.CREW_*` 常量定义 |
-| `js/components/crew-dashboard-component.js` | 事件消费与 UI 渲染 |
+| `js/core/event-constants.js` | `EVENTS.CREW_*` 常量定义（含 `CREW_FLOW_STAGED`） |
+| `js/components/crew-dashboard-component.js` | 事件消费与 UI 渲染（Flow 引擎固定） |

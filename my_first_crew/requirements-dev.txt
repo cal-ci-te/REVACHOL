@@ -1,0 +1,2 @@
+# RFC-001 Flow 开发/测试依赖（不进入运行时 requirements.txt）
+pytest>=8.0.0

@@ -609,64 +609,56 @@ input[type='color'] {
 .sidebar-search .sidebar-search-box { flex: 1; width: auto; }
 
 /* ===== 图标包键名文档（详情页阅读模式） ===== */
-.icon-pack-doc { max-width: 720px; }
+.icon-pack-doc { 
+    max-width: 720px; 
+}
+
 .icon-pack-doc-tabs {
-  display: flex;
-  gap: 4px;
-  margin: 6px 0;
+    display: flex;              
+    flex-wrap: nowrap;         
+    gap: 8px;                  
+    margin: 4px 0 8px 0;
+    text-align: center;   
 }
-.icon-pack-doc-tab {
-  flex: 1;
-  padding: 4px 6px;
-  font-size: 11px;
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-.icon-pack-doc-tab.active {
-  background: rgba(196, 122, 68, 0.2);
-  border-color: var(--color-border-highlight);
-  color: #e8c88a;
-}
-.icon-pack-doc-legend {
-  font-size: 10px;
-  color: var(--color-text-muted);
-  margin-bottom: 6px;
-}
-.icon-pack-doc-group-title {
-  font-size: 11px;
-  color: #e8c88a;
-  margin: 8px 0 4px;
-  font-family: 'Courier New', monospace;
-}
+
 .icon-pack-key {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  padding: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 16px;
+    padding: 0px 0;
+    line-height: 1.2;             
 }
+
 .icon-pack-key code {
-  color: var(--color-text-accent);
-  background: var(--color-bg-secondary);
-  padding: 1px 4px;
-  border-radius: 3px;
-  flex-shrink: 0;
+    color: var(--color-text-accent);
+    background: var(--color-bg-secondary);
+    padding: 0px 4px; 
+    border-radius: 3px;
+    flex-shrink: 0;
+    font-size: 16px;
+    line-height: 1.2;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
 }
+
 .icon-pack-key-label {
-  color: var(--color-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 16px;
+    line-height: 1.2;
 }
+
 .icon-pack-key .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-block;
+    background: var(--color-text-muted);
+    min-width: 8px;
+    min-height: 8px;
 }
-.icon-pack-key .dot.default { background: var(--color-text-muted); }
-.icon-pack-key .dot.custom  { background: var(--color-success); }

@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.24.0 ⚠️ WIP（开发中）
+当前版本：v1.25.0 ⚠️ WIP（开发中）
 
 > 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
 > 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
@@ -91,6 +91,23 @@ RUSTFS_ACCESS_KEY=minioadmin
 RUSTFS_SECRET_KEY=minioadmin
 RUSTFS_BUCKET=revachol
 
+### CrewAI Flow（RFC-001）
+
+`my_first_crew/` 在既有 Crew 顺序执行之外新增 **Flow 状态机入口**（文本处理员先行撰写文档初稿 + 审查修改循环）：
+
+- 入口：`my_first_crew/run_revachol_flow.py`（与 `run_revachol_crew.py` 双入口并存）
+- 核心：`my_first_crew/flows/document_review_flow.py`（Planner → TextProcessor → Coder → Reviewer ↺ → Merging / Staging → FailureReport）
+- 设计文档：`my_first_crew/knowledge/docs/rfcs/rfc-001-crewai-workflow-with-document-writer-and-review-loop.md`
+- 常用命令：
+  ```bash
+  cd my_first_crew
+  python run_revachol_flow.py --once --json-logs --dry-run --requirement "需求"
+  python run_revachol_flow.py --once --json-logs --requirement "需求"
+  python run_revachol_flow.py --cleanup-staging --days 30
+  ```
+- 测试：`python -m pytest tests -q`（27 用例，覆盖路由/执行/断点/暂存）
+- Crew Dashboard（`/crew-dashboard.html`）：已固定使用 Flow 引擎，dry-run 与正常运行均走 `run_revachol_flow.py`，页面显示 `引擎: Flow` 徽标并监听 `FLOW_STAGED` 通知
+
 ## 架构亮点
 
 存储层适配器模式：本地文件系统与 S3 兼容存储无缝切换，业务代码零感知。
@@ -104,6 +121,34 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.25.0-wip
+
+**CrewAI Flow 状态机（RFC-001）+ Crew Dashboard 切换 Flow 引擎 + Docker 编译链修复（WIP）**
+
+> ⚠️ WIP：贴纸浮动渲染显示功能尚未修复，仍为 WIP 版本。
+
+**CrewAI Flow 状态机（新）：**
+- 新增 `flows/` 包：`ReviewLoopState` + `DocumentReviewFlow`（Planning → Drafting → Coding → Reviewing ↺ → Merging / Staging → FailureReport）
+- 新增 TextProcessor（`agents/_text_processor.jsonc` + `run_revachol_crew.build_text_processor_agent()`）：仅首次撰写文档初稿（决议 D1）
+- 审查循环：总计最多 3 次审查（初始 1 次 + 最多 2 轮修改，决议 D2）；3 次不通过进入暂存区（保留 30 天，D3）
+- 暂存通知：进入暂存区广播 `flow:staged` → 后端 `FLOW_STAGED` → 前端 `CREW_FLOW_STAGED` 通知人工（D4）
+- 断点续跑：`output/flow_state/<task_id>.json` 快照 + `--resume <task_id>`（D7）
+- 双入口：新增 `run_revachol_flow.py`（`--once --json-logs --dry-run --resume --cleanup-staging`），与 `run_revachol_crew.py` 并存
+- 后端 `POST /api/crew/run` 新增 `engine` 参数（`crew` / `flow`，默认由 `CREW_ENGINE` 控制）；`flow:*` NDJSON 事件翻译为 `CREW_*` WebSocket 事件
+- 测试：新增 27 个 Flow pytest 用例（路由 0/1/2/3 分支、完整状态机执行、断点续跑、暂存清理）
+
+**Crew Dashboard 切换 Flow 引擎：**
+- `/crew-dashboard.html` 固定提交 `engine: "flow"`，dry-run 与正常运行均走 Flow 状态机
+- 页面显示「引擎: Flow」徽标、Flow 状态机链路说明；移除 process/memory/planning 选项（Flow 不适用）
+- 前端监听 `FLOW_STAGED` 并在日志流与弹窗中通知人工
+
+**Docker 修复：**
+- `Dockerfile`（backend）系统依赖层显式安装 `make` / `g++`，确保 `better-sqlite3` 原生模块在 `npm install --production` 阶段编译成功（层顺序保持在 `COPY package*.json` 之前）
+
+**工程与文档：**
+- `CREW_ENGINE` 环境变量已加入 `.env.example` / `docker-compose.yml`；`pyproject.toml` 保持 `type = "crew"`（灰度双入口）
+- 文档同步：`knowledge/README.md`、`roadmap.md`（状态图模式完善标记已完成）、`module-index.md`、CrewAI quickstart/guide、websocket-protocol（新增 `FLOW_STAGED` 协议）
 
 ### v1.24.0-wip
 

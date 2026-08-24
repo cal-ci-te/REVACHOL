@@ -417,6 +417,12 @@ _AGENT_ENV = {
         "default_model": "mimo-v2.5",
         "temperature": 0.4,
     },
+    # RFC-001 新增：文本处理员（TextProcessor），复用 deepseek-v4-flash
+    "text_processor": {
+        "prefix": "DEEPSEEK_FLASH",
+        "default_model": "deepseek-v4-flash",
+        "temperature": 0.2,
+    },
 }
 
 # Agent id → Provider 兜底映射（model 字符串无法识别时使用）
@@ -425,6 +431,7 @@ _AGENT_PROVIDER_FALLBACK = {
     "coder": "deepseek",
     "reviewer": "moonshot",
     "document_admin": "xiaomimo",
+    "text_processor": "deepseek",
 }
 
 
@@ -594,6 +601,32 @@ def build_agents() -> dict:
         "reviewer": reviewer,
         "document_admin": document_admin,
     }
+
+
+def build_text_processor_agent() -> Agent:
+    """构建 RFC-001 新增的文本处理员（TextProcessor）。
+
+    仅在 Flow 工作流中使用，不进入既有 Crew（保持 run_revachol_crew.py
+    原有四 Agent 语义不变）。
+    """
+    llm = build_llm("text_processor")
+    return Agent(
+        role="文本处理员 (TextProcessor)",
+        goal=(
+            "1. 依据 Planner 提供的计划，先行撰写结构完整、内容准确的文档初稿；"
+            "2. 确保文档与项目知识库规范一致；"
+            "3. 仅参与首次撰写，不进入修改循环。"
+        ),
+        backstory=(
+            "你是一位严谨的文档撰写专家，擅长把技术计划转化为结构清晰、内容准确、"
+            "可直接评审的文档初稿。你注重文档的完整性、可读性与一致性，会在撰写时"
+            "主动参照项目知识库（knowledge/）中的既有规范和格式。你清楚自己的职责"
+            "边界：只负责首次初稿，后续修改由 Coder 直接完成。"
+        ),
+        llm=llm,
+        allow_delegation=False,
+        verbose=False,
+    )
 
 
 # ============================================================================
