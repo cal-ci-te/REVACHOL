@@ -39,6 +39,15 @@ _RESUME_REVIEWING = "resume_reviewing"
 _RESUME_STAGING = "resume_staging"
 _RESUME_DONE = "flow_done"
 
+# Agent ID -> Dashboard 显示名（与 ui/agent_panel.py / backend/routes/crew.cjs 对齐）
+_AGENT_DISPLAY_NAMES = {
+    "planner": "Planner",
+    "text_processor": "Text Processor",
+    "coder": "Coder",
+    "reviewer": "Reviewer",
+    "document_admin": "Document Admin",
+}
+
 
 class DocumentReviewFlow(Flow[ReviewLoopState]):
     """文档撰写 + 审查修改循环的 CrewAI Flow。"""
@@ -124,6 +133,35 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         )
         result = crew.kickoff()
         return (getattr(result, "raw", None) or str(result)).strip()
+
+    def emit_usage_stats(self) -> None:
+        """将各 Agent 的 Token 用量以 flow:stats 事件发出（后端翻译为 crew:stats 落库）。
+
+        在 Flow 结束后调用一次，避免同一 Agent 多次任务导致累计值重复计数。
+        """
+        from run_revachol_crew import _infer_provider
+
+        for agent_id, agent in self._agents.items():
+            try:
+                usage = agent.llm.get_token_usage_summary()
+                tokens = int(getattr(usage, "total_tokens", 0) or 0)
+                cost = float(getattr(usage, "cost", 0.0) or 0.0)
+                if not tokens:
+                    continue
+                model = getattr(agent.llm, "model", "unknown")
+                provider = _infer_provider(model, agent_id)
+                display = _AGENT_DISPLAY_NAMES.get(agent_id, agent_id)
+                self._emit(
+                    "flow:stats",
+                    agent=display,
+                    model=model,
+                    provider=provider,
+                    tokens=tokens,
+                    cost=cost,
+                )
+                self._log("info", f"[stats] {display}: {tokens} tokens, cost={cost:.4f}")
+            except Exception as exc:  # noqa: BLE001 - 统计失败不影响主流程
+                self._log("warning", f"[stats] {agent_id} Token 统计失败: {exc}")
 
     # =====================================================================
     # 各状态的实际执行（可被测试覆写，避免真实 LLM 调用）

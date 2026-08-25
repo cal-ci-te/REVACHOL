@@ -501,6 +501,37 @@ def validate_env() -> None:
 # ============================================================================
 
 
+def build_git_mcp_config() -> list:
+    """构建 document_admin 的 Git MCP 配置（优雅降级）。
+
+    返回空列表表示不启用 MCP。跳过条件：
+    1. 环境变量 CREW_DISABLE_GIT_MCP=1 强制禁用；
+    2. 仓库路径不存在（Docker 容器内没有 Windows 路径 D:/Revachol）；
+    3. uvx 未安装（MCP 服务器无法启动）。
+    可用环境变量 CREW_GIT_REPO 覆盖仓库路径。
+    """
+    git_repo = os.getenv("CREW_GIT_REPO") or "D:/Revachol"
+
+    if os.getenv("CREW_DISABLE_GIT_MCP") == "1":
+        print("[WARN] CREW_DISABLE_GIT_MCP=1，跳过 Git MCP 配置")
+        return []
+
+    if not os.path.exists(git_repo):
+        print(f"[WARN] Git MCP 仓库路径不存在（{git_repo}），跳过 MCP 配置")
+        return []
+
+    if shutil.which("uvx") is None:
+        print("[WARN] uvx 未在 PATH 中找到，跳过 Git MCP 配置")
+        return []
+
+    return [
+        {
+            "command": "uvx",
+            "args": ["mcp-server-git", "--repository", git_repo],
+        }
+    ]
+
+
 def build_agents() -> dict:
     """构建四个 Agent，返回 {agent_id: Agent}。"""
 
@@ -584,15 +615,9 @@ def build_agents() -> dict:
         # 注意：npm 上的 @modelcontextprotocol/server-git 不存在（404 实测），
         # 官方参考实现为 modelcontextprotocol/servers 仓库的 Python 版 mcp-server-git。
         # uvx 随项目使用的 uv 一并安装（.venv 由 uv 管理）。
-        mcps=[
-            {
-                "command": "uvx",
-                "args": [
-                    "mcp-server-git",
-                    "--repository", "D:/Revachol",  # 仓库根目录绝对路径（正斜杠）
-                ],
-            }
-        ],
+        # 优雅降级：Docker 容器内不存在 Windows 路径 D:/Revachol 时跳过 MCP，
+        # 避免 Document_Admin 因 MCP 连接失败而中断整条 Flow。
+        mcps=build_git_mcp_config(),
     )
 
     return {

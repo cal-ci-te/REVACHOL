@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.25.0 ⚠️ WIP（开发中）
+当前版本：v1.26.0 ⚠️ WIP（开发中）
 
 > 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
 > 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
@@ -121,6 +121,29 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.26.0-wip
+
+**Flow 引擎真实 Token 采集 + Git MCP 优雅降级 + 种子数据清理（WIP）**
+
+> ⚠️ WIP：贴纸浮动渲染显示功能尚未修复，仍为 WIP 版本。
+
+**Flow 引擎 Token 消耗自动采集（新）：**
+- `DocumentReviewFlow.emit_usage_stats()`：Flow 结束后一次性遍历各 Agent，读取 `get_token_usage_summary()` 并发出 `flow:stats`（agent/model/provider/tokens/cost），后端 `crew.cjs` 翻译为 `crew:stats` 落库，Token 消耗仪表盘由种子数据过渡到真实任务数据
+- 新增 `_AGENT_DISPLAY_NAMES` 映射，Flow 统计显示名与后端 `routes/crew.cjs`、前端 Agent 面板对齐（含 TextProcessor）
+- `run_revachol_flow.py` 在 `kickoff()` 后调用统计，不影响主流程；统计失败仅告警不中断
+
+**Usage API 查询参数修复：**
+- `backend/server.cjs` 路由层新增 `req.query` 解析（URLSearchParams），使 `/api/crew/usage/timeline` 的 `groupBy`（day/month/total）与 startDate/endDate/agent/model/provider 筛选真正生效
+
+**Git MCP 优雅降级：**
+- 新增 `build_git_mcp_config()`：`CREW_DISABLE_GIT_MCP=1` 强制禁用、`CREW_GIT_REPO` 覆盖仓库路径、仓库路径不存在（如 Docker 容器内无 Windows 路径）或 uvx 缺失时跳过 MCP，避免 Document_Admin 因 MCP 连接失败中断整条 Flow
+
+**种子数据清理脚本（新）：**
+- `backend/scripts/cleanup-seed-usage.cjs`：删除 `crew_usage` 表中 `run_id LIKE 'seed-%'` 的模拟数据，保留真实任务记录，便于仪表盘切换为真实数据
+
+**工程与文档：**
+- 版本号 v1.25.0 → v1.26.0（WIP，按 version-manage 规范）；同步根 README、`roadmap.md`、`module-index.md`、`websocket-protocol.md`
 
 ### v1.25.0-wip
 

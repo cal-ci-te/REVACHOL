@@ -1,6 +1,6 @@
 # REVACHOL WebSocket 协议
 
-> 版本：v1.25.0-wip | 更新：2026-08-24
+> 版本：v1.26.0-wip | 更新：2026-08-25
 >
 > 本文档基于 `backend/websocket.cjs`、`backend/routes/crew.cjs`、`js/services/crew-service.js`、`js/core/event-constants.js` 的实际实现编写，不包含未实现内容。
 
@@ -129,7 +129,7 @@ Python 输出 `crew:started` 后由 `crew.cjs` 翻译广播。
 
 ### 3.6 `CREW_STATS` — Token 消耗统计
 
-来源：Python `crew:stats`。
+来源：Python `crew:stats`（Flow 引擎为 `flow:stats`，后端统一翻译为 `CREW_STATS` 并先写入 `crew_usage` 表再广播）。
 
 ```json
 {

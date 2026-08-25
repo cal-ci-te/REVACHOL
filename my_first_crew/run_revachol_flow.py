@@ -317,6 +317,9 @@ def run_flow(emitter, args: argparse.Namespace) -> None:
     print_flow_summary(flow, emitter)
     flow.kickoff()
 
+    # Token 消耗统计：Flow 结束后一次性发出 flow:stats（后端翻译 crew:stats 落库）
+    flow.emit_usage_stats()
+
     # 汇总
     state = flow.state
     emitter.log(

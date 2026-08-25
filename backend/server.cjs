@@ -120,6 +120,8 @@ const server = http.createServer(async (req, res) => {
     const parsedUrl = new URL(req.url, 'http://localhost');
     const pathname = parsedUrl.pathname;
     const method = req.method;
+    // 路由层读取 req.query（如 /api/crew/usage/timeline?groupBy=day）
+    req.query = Object.fromEntries(parsedUrl.searchParams.entries());
 
     // CORS：开发环境 Vite 端口 (3000) 与后端 (9999) 不同源
     res.setHeader('Access-Control-Allow-Origin', '*');

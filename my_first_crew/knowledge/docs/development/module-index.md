@@ -1,6 +1,6 @@
 # REVACHOL 模块索引
 
-> 版本：v1.25.0-wip | 更新：2026-08-24
+> 版本：v1.26.0-wip | 更新：2026-08-25
 >
 > 本文档基于代码现状扫描生成，用于降低单人维护的认知负荷。模块增减时应同步更新本索引。
 > 文件数与实际目录一致（前端 `js/` 134 个文件、后端 `backend/` 27 个文件、CrewAI `my_first_crew/` 66 个文件）。
@@ -173,7 +173,7 @@
 
 ### 2.4 脚本与工具
 
-`scripts/seed-admin.js`（管理员种子）、`cleanup-drafts.cjs`（草稿清理）、`check-tables.cjs`/`check.cjs`/`test.cjs`（诊断）、`migrate.cjs`（迁移入口）
+`scripts/seed-admin.js`（管理员种子）、`cleanup-drafts.cjs`（草稿清理）、`cleanup-seed-usage.cjs`（清理 `crew_usage` 表 `seed-*` 模拟数据）、`check-tables.cjs`/`check.cjs`/`test.cjs`（诊断）、`migrate.cjs`（迁移入口）
 
 ---
 
@@ -182,9 +182,9 @@
 | 文件 | 职责 | 关键依赖 |
 |---|---|---|
 | `run_revachol_crew.py` | 既有 Crew 顺序执行入口（四 Agent + Git MCP）；提供 LLM 工厂 / 结构化输出后处理 / NDJSON 事件流 | crewai、ui.dashboard |
-| `run_revachol_flow.py` | RFC-001 Flow 入口（双入口）：`--once --json-logs --dry-run --resume --cleanup-staging` | flows、run_revachol_crew |
+| `run_revachol_flow.py` | RFC-001 Flow 入口（双入口）：`--once --json-logs --dry-run --resume --cleanup-staging`；Flow 结束后调用 `emit_usage_stats()` 发出 `flow:stats` | flows、run_revachol_crew |
 | `flows/state.py` | `FlowStatus` 枚举 + `ReviewLoopState`（Pydantic 状态模型，D2/D3/D4 字段） | pydantic |
-| `flows/document_review_flow.py` | `DocumentReviewFlow` 状态机：Planning → Drafting → Coding → Reviewing ↺ → Merging/Staging → FailureReport | crewai.flow、flows.persistence/staging |
+| `flows/document_review_flow.py` | `DocumentReviewFlow` 状态机：Planning → Drafting → Coding → Reviewing ↺ → Merging/Staging → FailureReport；含 `emit_usage_stats()` Token 统计 | crewai.flow、flows.persistence/staging |
 | `flows/persistence.py` | D7 断点续跑：`output/flow_state/<task_id>.json` 保存/加载/列表 | flows.state |
 | `flows/staging.py` | D3/D4 暂存区：快照写入、通知人工（`flow:staged`）、30 天清理 | flows.state |
 | `agents/_text_processor.jsonc` | RFC-001 新增文本处理员（TextProcessor，deepseek-v4-flash，仅首次撰写） | — |
