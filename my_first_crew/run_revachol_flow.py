@@ -20,6 +20,9 @@ import os
 
 os.environ.setdefault("CREWAI_DISABLE_ASYNC", "1")
 os.environ.setdefault("HTTPX_USE_SYNC", "1")
+# 关闭 CrewAI 遥测（telemetry.crewai.com 超时噪音，不影响主流程）
+os.environ.setdefault("OTEL_SDK_DISABLED", "1")
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "1")
 
 import argparse
 import json

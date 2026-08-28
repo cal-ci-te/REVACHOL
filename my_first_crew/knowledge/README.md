@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.26.0 ⚠️ WIP（开发中）
+当前版本：v1.27.0 ⚠️ WIP（开发中）
 
 > 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
 > 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
@@ -121,6 +121,33 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.27.0-wip
+
+**Flow 稳定性加固 + Reviewer 合入标准调整 + 贴纸重构方案收敛（WIP）**
+
+> ⚠️ WIP：贴纸浮动渲染显示功能尚未修复，仍为 WIP 版本（设计方案已通过审查，待实施）。
+
+**Flow 稳定性加固：**
+- `build_llm()` 超时由 60s → 600s，降低 Kimi/MiMo 大文档生成导致的 `Request timed out`
+- `DocumentReviewFlow._run_single_task` 对 `ConnectionError/TimeoutError` 指数退避重试（5 次），缓解 DeepSeek 间歇性连接重置
+- Reviewer 计划 ≤8000 字符、文档 ≤40000 字符，Document_Admin 合入文档 ≤40000 字符（上下文截断）
+- 关闭 CrewAI 遥测（`OTEL_SDK_DISABLED` / `CREWAI_DISABLE_TELEMETRY`），消除 telemetry.crewai.com 超时噪音
+
+**Flow 状态机修复：**
+- 修复断点续跑后「修改循环不会自动回到 Reviewer」的 bug：新增 `route_after_coding` router，避免 CrewAI OR 监听器在恢复场景被抑制（27 个 pytest 覆盖）
+
+**Reviewer 合入标准调整：**
+- 明确 P0/P1 阻塞合入、P2 及以下不影响合入；Reviewer 仅对 P0/P1 输出拒绝意见
+
+**贴纸重构 8 轮迭代收敛：**
+- 经 8 轮 RFC-001 Flow 迭代（v1–v7 需求 + 7 轮暂存审查），第 8 轮 Reviewer 首次审查通过并合入
+- 通过审查的设计方案归档：`my_first_crew/knowledge/docs/tasks/sticker-refactor-design-approved.md`
+- 任务需求归档：`my_first_crew/knowledge/docs/tasks/sticker-refactor-requirement*.md`（v1–v7）
+- 迭代效率复盘：`my_first_crew/knowledge/docs/ai-collaboration/flow-iteration-efficiency-review.md`（8 轮低效原因与未来改进方向）
+
+**工程与文档：**
+- 版本号 v1.26.0 → v1.27.0（WIP，按 version-manage 规范）；同步根 README
 
 ### v1.26.0-wip
 

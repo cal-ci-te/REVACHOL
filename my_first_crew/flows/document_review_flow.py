@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from typing import Any, Literal, Optional
 
@@ -47,6 +48,15 @@ _AGENT_DISPLAY_NAMES = {
     "reviewer": "Reviewer",
     "document_admin": "Document Admin",
 }
+
+# 网络/API 稳定性加固：
+# - LLM 调用对 ConnectionError/TimeoutError 做指数退避重试（缓解 DeepSeek 间歇性连接重置）
+# - Reviewer/Document_Admin 的输入上下文截断，降低 Kimi/MiMo 大文档生成耗时与超时概率
+_LLM_RETRY_ATTEMPTS = 5
+_LLM_RETRY_BASE_SLEEP = 3
+_MAX_REVIEW_PLAN_CHARS = 8000
+_MAX_REVIEW_DOC_CHARS = 40000
+_MAX_MERGE_DOC_CHARS = 40000
 
 
 class DocumentReviewFlow(Flow[ReviewLoopState]):
@@ -115,7 +125,11 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         description: str,
         expected_output: str,
     ) -> str:
-        """用单个 Agent + Task 组成临时 Crew 执行，返回 raw 输出。"""
+        """用单个 Agent + Task 组成临时 Crew 执行，返回 raw 输出。
+
+        网络加固：对 ConnectionError / TimeoutError 做指数退避重试，
+        缓解 DeepSeek/Kimi 等 OpenAI 兼容端点的间歇性连接重置与超时。
+        """
         from crewai import Crew, Task
 
         agents = self._ensure_agents()
@@ -131,8 +145,28 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
             process="sequential",
             verbose=False,
         )
-        result = crew.kickoff()
-        return (getattr(result, "raw", None) or str(result)).strip()
+
+        last_exc: Exception | None = None
+        for attempt in range(1, _LLM_RETRY_ATTEMPTS + 1):
+            try:
+                result = crew.kickoff()
+                return (getattr(result, "raw", None) or str(result)).strip()
+            except (ConnectionError, TimeoutError) as exc:
+                last_exc = exc
+                self._log(
+                    "warning",
+                    f"[retry] {agent_id}/{task_name} 第 {attempt} 次调用失败: {exc}",
+                )
+                if attempt < _LLM_RETRY_ATTEMPTS:
+                    sleep_secs = _LLM_RETRY_BASE_SLEEP * (2 ** (attempt - 1))
+                    self._log(
+                        "warning",
+                        f"[retry] {agent_id}/{task_name} {sleep_secs}s 后重试",
+                    )
+                    time.sleep(sleep_secs)
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError(f"{agent_id}/{task_name} 执行失败：无可用结果")
 
     def emit_usage_stats(self) -> None:
         """将各 Agent 的 Token 用量以 flow:stats 事件发出（后端翻译为 crew:stats 落库）。
@@ -250,12 +284,26 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         """Reviewer：按量化合入标准审查，输出结构化结论并写入 review_history。"""
         import run_revachol_crew as rrc
 
+        # 上下文截断：Kimi 对大文档审查耗时长，控制输入体积以降低超时概率
+        plan_text = (self.state.plan or "").strip()
+        doc_text = (self.state.document or "").strip()
+        if len(plan_text) > _MAX_REVIEW_PLAN_CHARS:
+            plan_text = plan_text[:_MAX_REVIEW_PLAN_CHARS] + "\n...[计划已截断]"
+        if len(doc_text) > _MAX_REVIEW_DOC_CHARS:
+            doc_text = doc_text[:_MAX_REVIEW_DOC_CHARS] + "\n...[文档已截断]"
+
         description = (
             "你是代码审查员。请审查以下文档/代码，输出结构化 JSON 审查结论：\n\n"
-            f"计划：\n{self.state.plan}\n\n"
-            f"文档：\n{self.state.document}\n\n"
+            f"计划：\n{plan_text}\n\n"
+            f"文档：\n{doc_text}\n\n"
             "审查维度：逻辑与计划一致性、测试、静态检查、构建、安全、文档同步。\n"
-            "若 approved 为 false，必须在 feedback 中给出具体、可执行的修改意见。"
+            "审查分级标准：\n"
+            "- P0：数据丢失、安全漏洞、核心功能不可用；\n"
+            "- P1：明确功能缺陷、接口契约错误、会导致返工的问题；\n"
+            "- P2 及以下：样式细节、体验优化、文档措辞、低风险建议。\n"
+            "合入规则：不允许存在 P0/P1 级别问题；P2 及以下问题可以存在，"
+            "不影响合入，但仍应在 issues/suggestions 中记录。\n"
+            "若 approved 为 false，必须在 feedback 中给出具体、可执行的 P0/P1 修改意见。"
             + rrc.build_output_requirement(rrc.ReviewOutput)
         )
         raw = self._run_single_task(
@@ -306,11 +354,15 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
 
     def _run_merging(self) -> None:
         """Document_Admin：合入通过项并同步相关文档。"""
+        doc_text = (self.state.document or "").strip()
+        if len(doc_text) > _MAX_MERGE_DOC_CHARS:
+            doc_text = doc_text[:_MAX_MERGE_DOC_CHARS] + "\n...[文档已截断]"
+
         description = (
             "你是文档处理员。以下文档已通过审查，请执行合入并同步相关文档：\n\n"
             f"需求：{self.state.requirement}\n\n"
             f"计划：\n{self.state.plan}\n\n"
-            f"文档：\n{self.state.document}\n\n"
+            f"文档：\n{doc_text}\n\n"
             "请确认合入完成，并简要说明同步了哪些文档。"
         )
         self._run_single_task(
@@ -435,7 +487,17 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         self.state.status = FlowStatus.CODING
         self._checkpoint()
 
-    @listen(or_("coding", _RESUME_REVIEWING))
+    @router(coding)
+    def route_after_coding(self) -> Literal["resume_reviewing"]:
+        """Coding 完成后统一进入 Reviewing（首次撰写与修改循环均适用）。
+
+        使用独立 router 而非 or_("coding", ...) 监听器：断点续跑时 coding
+        可能是本轮首次执行，CrewAI 的 OR 监听器不会被循环清理重新武装，
+        会导致修改循环后 Reviewer 不再触发（RFC-001 审查循环中断）。
+        """
+        return _RESUME_REVIEWING
+
+    @listen(_RESUME_REVIEWING)
     def reviewing(self) -> None:
         """Reviewer 审查。"""
         self._run_reviewing()

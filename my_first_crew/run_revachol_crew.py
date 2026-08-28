@@ -77,6 +77,9 @@ import os
 
 os.environ.setdefault("CREWAI_DISABLE_ASYNC", "1")
 os.environ.setdefault("HTTPX_USE_SYNC", "1")
+# 关闭 CrewAI 遥测（telemetry.crewai.com 超时噪音，不影响主流程）
+os.environ.setdefault("OTEL_SDK_DISABLED", "1")
+os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "1")
 
 import argparse
 import json
@@ -478,7 +481,9 @@ def build_llm(agent_id: str) -> LLM:
         api_key=api_key,
         base_url=base_url,
         temperature=cfg["temperature"],
-        timeout=60.0,  # 同步请求超时，避免异步客户端残留
+        # 同步请求超时：Kimi/MiMo 生成大文档审查/文档同步结论可能超过 60s，
+        # 放宽到 600s 进一步降低慢生成导致的 Request timed out。
+        timeout=600.0,
     )
 
 
