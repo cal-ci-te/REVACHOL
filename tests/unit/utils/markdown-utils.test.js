@@ -87,9 +87,9 @@ describe('MarkdownUtils', () => {
       expect(MarkdownUtils.toHTML('<p>hello</p>')).toBe('<p>hello</p>');
     });
 
-    it('should return escaped HTML entities as-is (no unescape)', () => {
+    it('should decode entity-escaped HTML into real tags', () => {
       expect(MarkdownUtils.toHTML('&lt;h1&gt;Hello&lt;/h1&gt;')).toBe(
-        '&lt;h1&gt;Hello&lt;/h1&gt;'
+        '<h1>Hello</h1>'
       );
     });
 
@@ -98,7 +98,8 @@ describe('MarkdownUtils', () => {
         '<!-- sticker:x x=1 y=2 w=10 h=10 align=left -->&lt;p&gt;text&lt;/p&gt;';
       const html = MarkdownUtils.toHTML(input);
       expect(html).toContain('<!-- sticker:x x=1 y=2 w=10 h=10 align=left -->');
-      expect(html).toContain('&lt;p&gt;text&lt;/p&gt;');
+      expect(html).toContain('<p>text</p>');
+      expect(html).not.toContain('&lt;p&gt;');
     });
 
     it('should preserve sticker marker with anchor field intact', () => {

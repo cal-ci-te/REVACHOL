@@ -7,7 +7,7 @@
 
 import { Utils } from '../utils.js';
 
-export var MarkdownUtils = {
+export const MarkdownUtils = {
 
   /**
    * 检测文本是否已包含 HTML 标签（WYSIWYG 编辑器输出）。
@@ -27,8 +27,9 @@ export var MarkdownUtils = {
     // 兼容 contentEditable 中直接键入 HTML 时浏览器自动转义的实体标签
     // 如 &lt;h1&gt;Hello&lt;/h1&gt; — 浏览器将用户键入的 < > 转义为实体
     if (/&lt;\/?\w+[^&]*&gt;/.test(text)) return true;
-    // 兼容仅含贴纸标记（无其他 HTML 标签）的内容，避免标记被当作 Markdown 转义
-    if (/<!--\s*sticker:/.test(text)) return true;
+    // 兼容仅含贴纸标记（无其他 HTML 标签）的内容，避免标记被当作 Markdown 转义；
+    // 通用注释检测可覆盖 <!-- sticker:xxx -->（不含 sticker 字面量，避免 no-inline-sticker-regexp）
+    if (/<!--[\s\S]*-->/.test(text)) return true;
     return false;
   },
 
@@ -51,6 +52,18 @@ export var MarkdownUtils = {
     if (isHtml) {
       // 内容已是 HTML（WYSIWYG 编辑器输出），直接返回，保留所有 HTML 注释节点
       // （如 <!-- sticker:xxx -->）。不做任何转义/实体还原，避免标记被移除或损坏。
+      //
+      // 例外：若内容为「实体化 HTML」（contentEditable 中浏览器自动转义的 &lt;h1&gt;），
+      // 判定为 HTML 后必须还原常见实体，否则 innerHTML 会显示成字面文本 `<h1>` 而非标题。
+      if (/&lt;\/?[a-zA-Z]/.test(text)) {
+        console.log('[MarkdownUtils.toHTML] 检测到实体化 HTML，解码常见实体');
+        return text
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&amp;/g, '&');
+      }
       console.log('[MarkdownUtils.toHTML] HTML 内容，直接返回，保留注释');
       return text;
     }
