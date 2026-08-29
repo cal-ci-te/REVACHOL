@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime
 from typing import Any, Literal, Optional
@@ -506,7 +507,18 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
 
     @router(reviewing)
     def route_after_review(self) -> Literal["merge_approved", "revise_plan", "stage_failed"]:
-        """审查结论路由（D2：总计最多 3 次审查）。"""
+        """审查结论路由（D2：总计最多 3 次审查）。
+
+        临时模式：设置环境变量 CREW_REVIEWER_BLOCK_DISABLED=1 时，
+        Reviewer 仅作为质量审查（记录 issues/suggestions），不再禁止合入。
+        """
+        if os.getenv("CREW_REVIEWER_BLOCK_DISABLED") == "1":
+            self._log(
+                "warning",
+                "Reviewer 禁止合入权限已临时禁用（仅质量审查），直接进入合入",
+            )
+            return _MERGE_APPROVED
+
         approved = bool(self.state.review_history[-1].get("approved", False)) if self.state.review_history else False
         if approved:
             return _MERGE_APPROVED

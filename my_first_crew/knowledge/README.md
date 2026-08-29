@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.27.0 ⚠️ WIP（开发中）
+当前版本：v1.29.0
 
 > 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
 > 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
@@ -121,6 +121,66 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.29.0
+
+**贴纸系统重构 M4 完成：三端统一渲染核心、阅读页 absolute 定位、安全层增强、ESLint 规则加固（WIP 关闭）**
+
+**贴纸渲染修复（M4 完成）：**
+- `renderSticker` 支持 `mode:'absolute'`（编辑器覆盖层绝对定位），`_createEditorStickerElement` 已接入 facade
+- 阅读页改为 absolute 定位（`position:absolute` + `left:x top:y` px），替代原 float 主定位，坐标与编辑器一致
+- `reclampAll` 改为 clamp `left/top`（px），ResizeObserver 自动监听容器尺寸变化
+- `containerWidth` 读取真实值（`clientWidth`/`getBoundingClientRect`），不再写死为 0
+- `replaceChild` 前验证 `container.contains(comment)`，失败时回退 `appendChild` + warn
+- `stripStickerPrefix` 剥离注释 `sticker:` 前缀（非正则，避免 ESLint 冲突）
+
+**安全层增强：**
+- `assertSafeStickerData` 支持同源相对路径（`/api/decos/...`），不再因相对 URL 回退旧渲染（修复"贴纸不可见"根因）
+- `sanitizeSvg` href 协议白名单校验（`SVG_ALLOWED_HREF_PROTOCOLS`），新增 xlink:href 测试
+- `MarkdownUtils.toHTML` 检测实体化 HTML（`&lt;h1&gt;`）时解码常见实体，避免存储内容显示为字面文本
+
+**ESLint 规则：**
+- `no-inline-sticker-regexp`：增加动态拼接检测（`BinaryExpression`/`TemplateLiteral`）
+- `ban-internal-import`：放宽正则覆盖 `business/sticker/` 内部模块，作用域扩展至 `js/editor/**`
+
+**Flow 排查与修复（4 轮 Flow 迭代）：**
+- 第一轮：阅读页 `sticker:` 前缀匹配 bug 修复
+- 第二轮：贴纸位置偏差根因（absolute 定位方案）
+- 第三轮：HTML 标签渲染根因（`_isLikelyHtml` 通用注释检测）
+- 第四轮：实体化 HTML 渲染根因（`toHTML` 解码实体）
+- 排查文档归档：`output/flow_state/20260829*-document.md`
+
+**测试：**
+- 新增 14 个测试（absolute 模式、reClamp、round-trip、DOM 前缀、相对路径安全、entity decode）
+- 贴纸测试 40 个，全量 414 个测试通过，ESLint 0 errors，`npm run build` 通过
+
+**文档：**
+- 版本号 v1.28.0 → v1.29.0（正式发布，移除 WIP 标记）；同步根 README、`roadmap.md`
+- `roadmap.md` 新增 v1.28.0-wip 行标记贴纸重构完成（WIP 关闭）
+
+### v1.28.0-wip
+
+**贴纸系统重构实施（M1–M3 安全层 + 核心模块 + ESLint 规则）**
+
+> M4 三端渲染集成与 M5 文档对齐已在 v1.29.0 完成（见上），贴纸浮动渲染显示已修复。
+
+**新增贴纸核心模块（`js/business/sticker/`）：**
+- `security-constants.js` + `security-utils.js`：安全常量单一来源；`validateDataUrlMimeType`（同步）/ `fetchAndValidateMimeType`（异步 + SSRF 限制）；`assertSafeStickerData` 仅同步；`sanitizeSvg` 黑名单清洗；`escapeCssUrl` 转义
+- `sticker-parser.js` / `sticker-serializer.js`：`parseMarkers` 单一解析、`serializeOne/serializeAll` 统一序列化
+- `sticker-model.js` / `id-generator.js`：CRUD、`backfillContent` 旧数据兼容、`releaseIds` 生命周期、`crypto.getRandomValues` + base64url 唯一 id
+- `sticker-renderer.js`：`renderSticker` 唯一渲染核心，`containerWidth===0` 降级、右对齐 clamp、resize 重新 clamp
+- `sticker-facade.js` / `index.js`：对外仅暴露 `StickerFacade` 统一入口，提供 `createStickerFacadeWithMocks` 测试工厂
+
+**ESLint 自定义规则：**
+- `no-inline-sticker-regexp`：禁止内联贴纸标记正则（对 sticker-parser 与测试豁免）
+- `ban-internal-import`：禁止业务目录导入 sticker 内部模块
+
+**测试：**
+- 新增 `tests/unit/sticker/`：安全层 13 个 + 核心模块 15 个，共 28 个测试
+- 全量 402 个测试通过，`npm run build` 通过
+
+**工程与文档：**
+- 版本号 v1.27.0 → v1.28.0（WIP，按 version-manage 规范）；同步根 README
 
 ### v1.27.0-wip
 

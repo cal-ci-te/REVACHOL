@@ -1,6 +1,6 @@
 # REVACHOL 路线图
 
-> 版本：v1.26.0-wip | 更新：2026-08-25
+> 版本：v1.29.0 | 更新：2026-08-29
 
 ---
 
@@ -31,10 +31,11 @@ REVACHOL 是一个面向个人创作者的、可扩展的创作存档与交互�
 
 ---
 
-## 已完成（v1.0 — v1.26）
+## 已完成（v1.0 — v1.29）
 
 | 版本 | 关键里程碑 |
 |------|----------|
+| v1.29.0 | 贴纸系统重构 M4 完成：三端统一渲染核心（`renderSticker` 支持 `mode:'absolute'` 覆盖层 + 阅读页 absolute 定位）、安全层增强（`assertSafeStickerData` 支持相对路径、`sanitizeSvg` 协议白名单）、ESLint 规则加固（`no-inline-sticker-regexp` / `ban-internal-import` 扩展至 editor）、Markdown 渲染修复（`toHTML` 实体化 HTML 解码、`_isLikelyHtml` 通用注释检测）、4 轮 Flow 排查闭环（容器宽度/replaceChild 容错/absolute 定位/实体解码）、414 个测试通过、ESLint 0 errors。✅ 贴纸浮动渲染显示已完成（WIP 关闭） |
 | v1.26.0-wip | Flow 引擎真实 Token 消耗自动采集（`flow:stats` → 后端 `crew:stats` 落库，仪表盘结束种子数据）；`/api/crew/usage/timeline` 查询参数（groupBy/筛选）修复；Git MCP 优雅降级（`CREW_DISABLE_GIT_MCP` / `CREW_GIT_REPO` / 路径与 uvx 检查，避免 Docker 内 Document_Admin 中断）；新增 `cleanup-seed-usage.cjs` 清理种子模拟数据。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.25.0-wip | CrewAI Flow 状态机（RFC-001）：TextProcessor 先行撰写文档初稿 + 审查修改循环（最多 3 次审查）、暂存区（30 天 + FLOW_STAGED 通知人工）、断点续跑（flow_state 快照 + --resume）、双入口 run_revachol_flow.py；后端 POST /api/crew/run 支持 engine=flow（CREW_ENGINE 环境开关）；Crew Dashboard 固定 Flow 引擎（dry-run/正常运行均走 Flow，引擎徽标 + FLOW_STAGED 前端通知）；Dockerfile 显式安装 make/g++ 修复 better-sqlite3 编译。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.24.0-wip | 图标包（Icon Pack）功能：33 键图标键名注册表、zip 上传（PNG/SVG 安全校验 + 尺寸检测 + 等比压缩）、主题绑定（dark/light/lofi）、全站图标槽位应用（站点/目录/工具栏/箭头/标签/主题/搜索/可见性/贴纸库/超现实箱子）；管理面板「图标包管理」区；工具栏 🎨 键名文档改详情标签页阅读模式；CustomIconManager 新增外部覆盖修复图标包与旧自定义图标上传的向后兼容。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
@@ -159,6 +160,46 @@ REVACHOL 是一个面向个人创作者的、可扩展的创作存档与交互�
 - [ ] 预设游戏类型：STG（飞行射击）、点击冒险、问答闯关
 - [ ] 用户只需配置参数 + 换 CSS 皮肤即可生成小游戏
 - [ ] 与物品/状态系统联动（游戏通关解锁内容）
+
+---
+
+## 贴纸系统结构性收敛计划（M5）
+
+> 状态：已规划（未开始）| 目标版本：v1.30.0-wip
+> 背景：v1.29.0 已完成贴纸 M4（三端统一渲染 + absolute 定位 + 安全加固），但 4 轮排查暴露了 7 项结构性隐患，需在下一版本系统收敛。
+
+### 目标
+
+将贴纸系统从「多套解析 + DOM 反向收集 + 双轨定位」收敛为「单一数据模型驱动」架构，消除坐标漂移、保存丢失、解析不一致等结构性风险。
+
+### 7 项隐患与收敛方向
+
+| # | 隐患 | 现状 | 收敛方向 |
+|---|------|------|----------|
+| 1 | 坐标语义断裂 | 编辑器绝对 px 直接当阅读页 px 使用，容器尺寸不同导致偏移 | 持久化编辑器容器宽度，或保存时归一化为容器宽度百分比；阅读页按自身宽度换算 |
+| 2 | 解析逻辑三套并存 | `detail.js._parseMarkerContent` / `facade.parseMarkerFields` / `editor-content.parseStickersFromContent` 字段命名不一致 | 统一收敛到 facade 单一解析入口，废弃旧解析函数 |
+| 3 | 保存依赖 DOM 反向收集 | `collectStickersWithAnchor` 依赖渲染后 DOM 存在贴纸 div，未渲染则静默丢失 | 改为数据模型驱动：内容 → StickerModel → 渲染/保存，不经过 DOM 收集 |
+| 4 | anchor 与 x/y 双轨定位 | 定位用 x/y，保存插入用 anchor，两套模型不互相校验 | 统一定位模型（anchor 为唯一语义），x/y 作为 anchor 内的偏移量 |
+| 5 | HTML 分支无消毒 | `_isLikelyHtml=true` 时 HTML 原样进 innerHTML，无白名单 | 引入 DOMPurify 白名单（或后端消毒），贴纸正文与导入内容均过消毒 |
+| 6 | 注释节点作为数据载体 | 贴纸数据存在 HTML 注释，易被转义/剥离/实体化 | 保留注释作为存储格式，但解析/序列化全部收敛到 facade；增加 schema 校验与 round-trip 测试 |
+| 7 | 局部残留 | float clearfix 残留、ResizeObserver 未 disconnect、`el._sticker` 内存态 | 清理 float 残留；`clearElements()` 统一 disconnect；数据挂载到模型而非 DOM |
+
+### 里程碑
+
+| 里程碑 | 内容 | 验收标准 |
+|--------|------|----------|
+| M5-1 | 解析收敛：删除 detail.js/editor 旧解析函数，全部走 facade | 搜索不到 `_parseMarkerContent`/`parseStickersFromContent` 旧实现；字段命名统一为 `id/width/height` |
+| M5-2 | 数据模型驱动：新增/改造渲染与保存链路，不依赖 DOM 收集 | 保存内容 = 读取内容（round-trip 一致）；贴纸未渲染时保存不丢失 |
+| M5-3 | 坐标归一化：保存时记录容器宽度或百分比坐标 | 阅读页与编辑器在任意容器宽度下位置一致（容差 ≤2px） |
+| M5-4 | 定位模型统一：anchor 为唯一语义，x/y 为 anchor 内偏移 | anchor 重排后坐标仍正确；resize 重算 anchor 内偏移 |
+| M5-5 | HTML 消毒：引入 DOMPurify 白名单 | `<script>`/`onerror` 等 payload 被剥离；贴纸注释经 hook 保留 |
+| M5-6 | 清理与测试：清除 float 残留/监听泄漏；全量回归 | 全量测试通过、ESLint 0 errors；新增 round-trip/坐标/消毒测试 |
+
+### 约束
+
+- 保持贴纸标记格式向后兼容（旧文章可读）
+- 每步独立提交，遵循 Conventional Commits + version-manage
+- 坐标/消毒等行为变更需先写测试再改实现
 
 ---
 
