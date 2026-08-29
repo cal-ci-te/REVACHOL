@@ -4,6 +4,7 @@ import { FlatCompat } from "@eslint/eslintrc";
 import path from "path";
 import { fileURLToPath } from "url";
 import globals from "globals";
+import stickerPlugin from "./eslint/plugins/sticker.js";
 
 // 模拟 CommonJS 的 __dirname，便于处理相对路径
 const __filename = fileURLToPath(import.meta.url);
@@ -41,6 +42,25 @@ export default defineConfig([
                 ...globals.node,
                 ...globals.es2022,
             },
+        },
+    },
+
+    // 3.1 贴纸自定义规则：禁止内联贴纸标记正则（仅作用于前端业务代码；规则自身与测试豁免）
+    {
+        files: ["js/**/*.js"],
+        plugins: { sticker: stickerPlugin },
+        rules: {
+            "sticker/no-inline-sticker-regexp": "error",
+        },
+    },
+
+    // 3.2 贴纸自定义规则：禁止业务目录/编辑器导入 sticker 内部模块
+    {
+        files: ["js/business/**/*.js", "js/editor/**/*.js"],
+        ignores: ["js/business/sticker/**"],
+        plugins: { sticker: stickerPlugin },
+        rules: {
+            "sticker/ban-internal-import": "error",
         },
     },
 
