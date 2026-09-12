@@ -74,6 +74,8 @@ export const UIDetail = {
 
     console.log('[UIDetail] 初始化完成（浏览器式顶部栏 + 最小化栏 + 全屏）');
     setTimeout(() => { this._restoreMinimizedState(); }, 100);
+    // 文章数据加载完成后：清理失效的最小化标签（id 在当前数据中不存在）
+    EventBus.on(EVENTS.ARTICLE_DATA_LOADED, this._pruneInvalidMinimized.bind(this));
   },
 
   _buildTopbar: function () {
@@ -343,31 +345,89 @@ export const UIDetail = {
       });
     });
     this._renderMinimizedBar();
+    // 如果文章数据已就绪，立即清理失效的最小化标签
+    this._pruneInvalidMinimized();
+  },
+
+  /** 清理 openArticles 中已不存在的文章的失效最小化标签 */
+  _pruneInvalidMinimized: function () {
+    const all = ArticleService.getAllArticles();
+    // 数据尚未就绪时暂不清理（避免误删正常标签）
+    if (!all || all.length === 0) return;
+    let changed = false;
+    const self = this;
+    this.openArticles = this.openArticles.filter(function (entry) {
+      if (entry.isMinimized && !entry.paneElement) {
+        const exists = all.some(function (a) { return String(a.id) === String(entry.id); });
+        if (!exists) {
+          changed = true;
+          if (entry.minimizedItem) { entry.minimizedItem.remove(); entry.minimizedItem = null; }
+          return false;
+        }
+      }
+      return true;
+    });
+    if (changed) {
+      this._renderMinimizedBar();
+      this._saveMinimizedState();
+    }
   },
 
   restoreFromMinimize: function (id) {
     const entry = this.openArticles.find((item) => item.id === id);
     if (!entry || !entry.isMinimized) return;
 
+    // 持久化条目（无 paneElement）：先尝试获取文章数据
+    if (!entry.paneElement) {
+      const article = ArticleListStore.getArticleById(id);
+      if (article) {
+        entry.isMinimized = false;
+        if (entry.minimizedItem) { entry.minimizedItem = null; }
+        this.openArticles = this.openArticles.filter(function (e) { return e.id !== id; });
+        this._renderMinimizedBar();
+        this.createTab(article);
+      } else {
+        // 判断数据是否已就绪
+        const loaded = ArticleService.getAllArticles().length > 0;
+        if (loaded) {
+          // 数据已加载但文章不存在 → 清理失效标签，不留死标签
+          this.closeTab(id);
+        } else {
+          // 数据未就绪 → 保留最小化标签，等待加载后自动重试
+          this._retryRestoreAfterDataLoaded(id);
+        }
+      }
+      return;
+    }
+
     entry.isMinimized = false;
     if (entry.minimizedItem) { entry.minimizedItem = null; }
     this._renderMinimizedBar();
-
-    // 持久化条目（无 paneElement）：获取文章数据后通过 createTab 渲染
-    if (!entry.paneElement) {
-      this.openArticles = this.openArticles.filter(function (e) { return e.id !== id; });
-      this._renderMinimizedBar();
-      const article = ArticleListStore.getArticleById(id);
-      if (article) { this.createTab(article); }
-      else { Utils.showToast(UI.detail.defaultContent, true); }
-      return;
-    }
 
     entry.paneElement.classList.add('active');
     this.activateTab(id);
     this.overlay.classList.add('active');
     document.documentElement.style.overflow = "hidden"; document.body.style.overflow = "hidden";
     this._saveMinimizedState();
+  },
+
+  /** 文章数据加载后自动重试恢复最小化标签 */
+  _retryRestoreAfterDataLoaded: function (id) {
+    const self = this;
+    const retry = function () {
+      const entry = self.openArticles.find((item) => item.id === id);
+      if (!entry) { EventBus.off(EVENTS.ARTICLE_DATA_LOADED, retry); return; }
+      const article = ArticleListStore.getArticleById(id);
+      if (article) {
+        EventBus.off(EVENTS.ARTICLE_DATA_LOADED, retry);
+        self.restoreFromMinimize(id);
+      } else if (ArticleService.getAllArticles().length > 0) {
+        // 数据已加载但文章不存在：清理失效标签，停止重试
+        EventBus.off(EVENTS.ARTICLE_DATA_LOADED, retry);
+        self.closeTab(id);
+      }
+    };
+    EventBus.on(EVENTS.ARTICLE_DATA_LOADED, retry);
   },
 
   toggleFullscreen: function () {
