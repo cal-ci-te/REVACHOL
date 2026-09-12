@@ -9,6 +9,69 @@ import { Utils } from '../utils.js';
 
 const CHART_COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0'];
 
+// 官方价格（USD / 1M tokens，按 3:1 输入:输出加权混合参考价；倍率可在前端调整）
+const MODEL_OFFICIAL_PRICE_PER_1M = {
+  'deepseek-v4-pro': 0.54375,
+  'deepseek-v4-flash': 0.175,
+  'kimi-k2.7-code': 1.7125,
+  'mimo-v2.5': 0.2,
+  'glm-5.3-flash': 0.2375,
+};
+
+// Agent 显示名 -> 模型（用于把 agent 维度 token 映射到模型价格）
+const AGENT_MODEL_MAP = {
+  Planner: 'deepseek-v4-pro',
+  'Text Processor': 'deepseek-v4-flash',
+  Coder: 'deepseek-v4-flash',
+  Csser: 'glm-5.3-flash',
+  Reviewer: 'kimi-k2.7-code',
+  'Document Admin': 'mimo-v2.5',
+};
+
+const PRICE_MULTIPLIER_STORAGE_KEY = 'crew_usage_price_multipliers';
+
+function loadPriceMultipliers() {
+  try {
+    return JSON.parse(localStorage.getItem(PRICE_MULTIPLIER_STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function savePriceMultipliers(multipliers) {
+  try {
+    localStorage.setItem(PRICE_MULTIPLIER_STORAGE_KEY, JSON.stringify(multipliers));
+  } catch { /* localStorage 不可用时忽略 */ }
+}
+
+function normalizeModelName(model) {
+  if (!model) return '';
+  // 兼容 openai/glm-5.3-flash、z-ai/glm-5.3-flash 等带前缀的模型名
+  return String(model)
+    .trim()
+    .replace(/^openai\//i, '')
+    .replace(/^z-ai\//i, '')
+    .replace(/^zai\//i, '')
+    .replace(/^glm\//i, '');
+}
+
+function getModelForAgent(agentName, stats) {
+  if (stats && stats[agentName] && stats[agentName].model) {
+    return normalizeModelName(stats[agentName].model);
+  }
+  return AGENT_MODEL_MAP[agentName] || '';
+}
+
+function getOfficialPrice(model) {
+  return Number(MODEL_OFFICIAL_PRICE_PER_1M[normalizeModelName(model)]) || 0;
+}
+
+function getEffectivePrice(model, tokens, multipliers) {
+  const normalized = normalizeModelName(model);
+  const multiplier = Number(multipliers[normalized]) || 1;
+  return (Number(tokens) || 0) / 1e6 * getOfficialPrice(normalized) * multiplier;
+}
+
 function createComponent() {
   let root = null;
   let chart = null;
@@ -26,6 +89,9 @@ function createComponent() {
     drillDown: null, // { period, rows }
     loading: false,
     error: null,
+    priceMultipliers: loadPriceMultipliers(),
+    priceModel: '',
+    priceMultiplier: '1',
   };
 
   function on(eventName, callback) {
@@ -117,6 +183,17 @@ function createComponent() {
     const totalRuns = overview?.totalRuns || 0;
     const totalAgents = overview?.totalAgents || 0;
 
+    // 按「官方价格 × 倍率」计算实际总费用（以 agent 维度 token 汇总）
+    let effectiveTotalCost = 0;
+    (state.agents || []).forEach((a) => {
+      const model = getModelForAgent(a.agent, state.stats);
+      effectiveTotalCost += getEffectivePrice(model, a.totalTokens, state.priceMultipliers);
+    });
+    const hasMultipliers = Object.keys(state.priceMultipliers || {}).length > 0;
+    const effectiveTotalStr = effectiveTotalCost > 0
+      ? `$${effectiveTotalCost.toFixed(5)}${hasMultipliers ? '（倍率后）' : ''}`
+      : `$${totalCost.toFixed(4)}`;
+
     return `
       <div class="crew-usage-dashboard">
         <div class="usage-header">
@@ -147,6 +224,20 @@ function createComponent() {
                 <option value="total" ${selectedFilters.groupBy === 'total' ? 'selected' : ''}>总消耗</option>
               </select>
             </div>
+            <div class="price-controls">
+              <select data-price-model>
+                <option value="">选择模型设置倍率</option>
+                ${Object.entries(MODEL_OFFICIAL_PRICE_PER_1M).map(([model]) => {
+                  const official = MODEL_OFFICIAL_PRICE_PER_1M[model];
+                  return `<option value="${Utils.escapeHtml(model)}" ${state.priceModel === model ? 'selected' : ''}>
+                    ${Utils.escapeHtml(model)} (官方 $${official}/1M)
+                  </option>`;
+                }).join('')}
+              </select>
+              <input type="number" data-price-multiplier min="0" step="0.01" placeholder="倍率(如 0.15)"
+                value="${state.priceMultiplier}">
+              <button type="button" class="btn-price-apply" data-action="price-apply">✅ 应用倍率</button>
+            </div>
             <button class="btn-refresh" data-action="refresh">🔄 刷新</button>
           </div>
         </div>
@@ -161,7 +252,7 @@ function createComponent() {
           </div>
           <div class="stat-card">
             <span class="stat-label">总费用</span>
-            <span class="stat-value">$${totalCost.toFixed(4)}</span>
+            <span class="stat-value">${effectiveTotalStr}</span>
           </div>
           <div class="stat-card">
             <span class="stat-label">执行次数</span>
@@ -235,13 +326,17 @@ function createComponent() {
     const ctx = canvas.getContext('2d');
     if (chart) chart.destroy();
 
-    const datasets = series.map((s, i) => ({
-      label: s.name,
-      data: s.data,
-      backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '80',
-      borderColor: CHART_COLORS[i % CHART_COLORS.length],
-      borderWidth: 1,
-    }));
+    const datasets = series.map((s, i) => {
+      const model = getModelForAgent(s.name, state.stats);
+      return {
+        label: s.name,
+        data: s.data,
+        model,
+        backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '80',
+        borderColor: CHART_COLORS[i % CHART_COLORS.length],
+        borderWidth: 1,
+      };
+    });
 
     chart = new window.Chart(ctx, {
       type: 'bar',
@@ -254,7 +349,16 @@ function createComponent() {
           tooltip: {
             callbacks: {
               label(context) {
-                return `${context.dataset.label}: ${context.raw.toLocaleString()} tokens`;
+                const ds = context.dataset || {};
+                const tokens = Number(context.raw) || 0;
+                const price = getEffectivePrice(ds.model, tokens, state.priceMultipliers);
+                const lines = [`${ds.label}: ${tokens.toLocaleString()} tokens`];
+                if (ds.model) {
+                  const multiplier = Number(state.priceMultipliers[ds.model]) || 1;
+                  lines.push(`模型: ${ds.model} (倍率 ${multiplier})`);
+                }
+                lines.push(`价格: $${price.toFixed(5)}`);
+                return lines;
               },
             },
           },
@@ -283,11 +387,14 @@ function createComponent() {
     let html = '<div class="simple-chart">';
     html += '<div class="chart-labels">' + periods.map((p) => `<span>${Utils.escapeHtml(String(p))}</span>`).join('') + '</div>';
     series.forEach((s, i) => {
+      const model = getModelForAgent(s.name, state.stats);
       html += `<div class="chart-row">`;
       html += `<span class="chart-row-label">${Utils.escapeHtml(s.name)}</span>`;
       s.data.forEach((v, idx) => {
         const pct = Math.round((v / maxVal) * 100);
-        html += `<div class="chart-bar-wrap" data-period="${Utils.escapeHtml(String(periods[idx]))}" title="${Utils.escapeHtml(String(periods[idx]))}: ${v} tokens">
+        const price = getEffectivePrice(model, v, state.priceMultipliers);
+        const tip = `${String(periods[idx])}: ${v} tokens · $${price.toFixed(5)}`;
+        html += `<div class="chart-bar-wrap" data-period="${Utils.escapeHtml(String(periods[idx]))}" title="${Utils.escapeHtml(tip)}">
           <div class="chart-bar" style="height:${Math.max(pct, v > 0 ? 2 : 0)}%;background:${CHART_COLORS[i % CHART_COLORS.length]}"></div>
         </div>`;
       });
@@ -342,6 +449,47 @@ function createComponent() {
         loadData();
       });
     });
+
+    const priceModelSelect = root.querySelector('[data-price-model]');
+    const priceMultiplierInput = root.querySelector('[data-price-multiplier]');
+    if (priceModelSelect) {
+      priceModelSelect.addEventListener('change', (e) => {
+        state.priceModel = e.target.value;
+        const current = state.priceMultipliers[state.priceModel];
+        if (priceMultiplierInput) {
+          priceMultiplierInput.value = (current !== undefined ? current : '1');
+        }
+      });
+    }
+    if (priceMultiplierInput) {
+      priceMultiplierInput.addEventListener('input', (e) => {
+        state.priceMultiplier = e.target.value;
+      });
+    }
+
+    const priceApplyBtn = root.querySelector('[data-action="price-apply"]');
+    if (priceApplyBtn) {
+      priceApplyBtn.addEventListener('click', () => {
+        if (!state.priceModel) {
+          state.error = '请先选择要设置倍率的模型';
+          render();
+          return;
+        }
+        const value = Number(state.priceMultiplier);
+        if (!Number.isFinite(value) || value < 0) {
+          state.error = '倍率必须是非负数字';
+          render();
+          return;
+        }
+        state.priceMultipliers[state.priceModel] = value;
+        savePriceMultipliers(state.priceMultipliers);
+        state.error = null;
+        state.priceModel = '';
+        state.priceMultiplier = '1';
+        render();
+        renderChart();
+      });
+    }
 
     const refreshBtn = root.querySelector('[data-action="refresh"]');
     if (refreshBtn) {

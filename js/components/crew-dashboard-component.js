@@ -116,15 +116,32 @@ function createComponent() {
           { id: 'planner', name: 'Planner', status: 'idle', task: '', detail: '' },
           { id: 'text_processor', name: 'Text Processor', status: 'idle', task: '', detail: '' },
           { id: 'coder', name: 'Coder', status: 'idle', task: '', detail: '' },
+          { id: 'csser', name: 'Csser', status: 'idle', task: '', detail: '' },
           { id: 'reviewer', name: 'Reviewer', status: 'idle', task: '', detail: '' },
           { id: 'document_admin', name: 'Document Admin', status: 'idle', task: '', detail: '' },
         ];
+
+    const stats = state.stats || {};
 
     container.innerHTML = agents.map((agent) => {
       const meta = STATUS_META[agent.status] || STATUS_META.idle;
       const safeName = Utils.escapeHtml(agent.name || agent.id || 'Agent');
       const safeTask = Utils.escapeHtml(agent.task || '');
       const safeDetail = Utils.escapeHtml(agent.detail || '');
+
+      // 关联该 Agent 的 token 消耗与供应商（含 csser / GLM）
+      const agentStats = stats[agent.name] || stats[agent.id];
+      const tokens = agentStats ? Number(agentStats.tokens) || 0 : 0;
+      const model = agentStats?.model || '';
+      const provider = agentStats?.provider || '';
+      const statsHtml = tokens > 0 || model || provider
+        ? `<p class="crew-agent-stats">
+            ${tokens > 0 ? `<span class="crew-agent-tokens">⚡ ${tokens.toLocaleString()} tokens</span>` : ''}
+            ${model ? `<span class="crew-agent-model">${Utils.escapeHtml(model)}</span>` : ''}
+            ${provider ? `<span class="crew-agent-provider">${Utils.escapeHtml(provider)}</span>` : ''}
+          </p>`
+        : '';
+
       return `
         <article class="crew-agent-card status-${agent.status || 'idle'}">
           <div class="crew-agent-icon">${meta.icon}</div>
@@ -132,6 +149,7 @@ function createComponent() {
             <h3>${safeName}</h3>
             <p class="crew-agent-task">${safeTask || '等待任务'}</p>
             <p class="crew-agent-detail">${safeDetail}</p>
+            ${statsHtml}
             <span class="crew-agent-status-label">${meta.label}</span>
           </div>
         </article>
@@ -158,6 +176,14 @@ function createComponent() {
     }).join('');
     stream.innerHTML = html;
     stream.scrollTop = stream.scrollHeight;
+  }
+
+  function handleClearLogs() {
+    patchCrew((state) => {
+      state.logs = [];
+      return state;
+    });
+    render();
   }
 
   function renderOutputs(state) {
@@ -291,6 +317,12 @@ function createComponent() {
     });
   }
 
+  function bindClearLogs() {
+    const clearBtn = root.querySelector('#crewLogClearBtn');
+    if (!clearBtn) return;
+    clearBtn.addEventListener('click', handleClearLogs);
+  }
+
   function bindEventListeners() {
     on(EVENTS.CREW_STATUS_LOADED, (payload) => {
       AppState.commit(MUTATIONS.SET_CREW_STATE, payload);
@@ -371,6 +403,8 @@ function createComponent() {
         state.stats[payload.agent] = {
           tokens: Number(payload.tokens) || 0,
           cost: Number(payload.cost) || 0,
+          model: payload.model || 'unknown',
+          provider: payload.provider || 'unknown',
         };
         return state;
       });
@@ -452,7 +486,7 @@ function createComponent() {
           <header class="crew-header">
             <div class="crew-header-titles">
               <h1>REVACHOL Crew Dashboard</h1>
-              <p>Flow: Planner → TextProcessor → Coder → Reviewer ↺ → Merging / Staging · RFC-001</p>
+              <p>Flow: Planner → TextProcessor → Coder → Csser → Reviewer ↺ → Merging / Staging · RFC-001</p>
             </div>
             <div class="crew-header-status">
               <span class="crew-engine-pill flow" id="crewEnginePill">引擎: Flow</span>
@@ -499,6 +533,9 @@ function createComponent() {
             <section class="crew-log-panel">
               <h2>实时日志</h2>
               <div class="crew-log-stream" id="crewLogStream"></div>
+              <div class="crew-log-toolbar">
+                <button type="button" id="crewLogClearBtn" title="清空实时日志">🧹 清空日志</button>
+              </div>
             </section>
             <section class="crew-output-panel">
               <h2>执行回放</h2>
@@ -514,6 +551,7 @@ function createComponent() {
 
       bindAuthEvents();
       bindRunEvents();
+      bindClearLogs();
       bindEventListeners();
 
       // 首次渲染（使用 AppState 默认状态 / 历史快照）

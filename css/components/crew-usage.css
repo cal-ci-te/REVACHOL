@@ -38,6 +38,36 @@
   flex-wrap: wrap;
 }
 
+.price-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  border: 1px dashed var(--color-border, #555);
+  border-radius: 4px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.price-controls select,
+.price-controls input {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border, #444);
+  background: var(--color-bg, #2d2d44);
+  color: var(--color-text, #fff);
+  font-size: 13px;
+}
+
+.price-controls input[type="number"] {
+  width: 90px;
+}
+
+.btn-price-apply {
+  background: var(--color-accent-dark, #7a5a3a) !important;
+  border: 1px solid var(--color-border-highlight, #b08050) !important;
+}
+
 .usage-controls select,
 .usage-controls button {
   padding: 4px 8px;

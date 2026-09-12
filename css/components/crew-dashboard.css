@@ -290,6 +290,31 @@
   padding: 2px 8px;
 }
 
+.crew-agent-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+}
+
+.crew-agent-stats span {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-light);
+  color: var(--color-text-secondary);
+}
+
+.crew-agent-tokens {
+  color: var(--color-accent-light);
+}
+
+.crew-agent-provider {
+  color: var(--color-text-muted);
+}
+
 /* ---- 双栏：日志 + 回放 ---- */
 .crew-columns {
   display: grid;
@@ -325,6 +350,29 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   line-height: 1.55;
+}
+
+.crew-log-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 0 0;
+}
+
+.crew-log-toolbar button {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.crew-log-toolbar button:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
 }
 
 .crew-log-line {
