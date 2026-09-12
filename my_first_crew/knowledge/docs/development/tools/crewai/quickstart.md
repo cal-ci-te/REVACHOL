@@ -69,6 +69,13 @@ MIMO_BASE_URL=https://api.xiaomimimo.com/v1
 MIMO_MODEL=mimo-v2.5
 
 # ============================================================
+# CSS 开发者 (Csser) - glm-5.3-flash (Z.AI / GLM)
+# ============================================================
+GLM_API_KEY=your_key_here
+GLM_BASE_URL=https://api.ginka.cloud/v1
+GLM_MODEL=glm-5.3-flash
+
+# ============================================================
 # CrewAI 记忆存储 / Embedding（通过 4SAPI 中转 OpenAI 兼容接口）
 # 对应 crew.jsonc 中 embedder 配置（memory: true 时必需）
 # ============================================================
@@ -76,8 +83,9 @@ OPENAI_API_KEY=your_key_here
 OPENAI_API_BASE=https://4sapi.org/v1
 ```
 
-> **四个必须配置的 API Key**：`DEEPSEEK_PRO_API_KEY`、`DEEPSEEK_FLASH_API_KEY`、`KIMI_API_KEY`、`MIMO_API_KEY`。
+> **必须配置的 API Key**：`DEEPSEEK_PRO_API_KEY`、`DEEPSEEK_FLASH_API_KEY`、`KIMI_API_KEY`、`MIMO_API_KEY`、`GLM_API_KEY`。
 > TextProcessor 复用 `DEEPSEEK_FLASH_*`（deepseek-v4-flash），无需额外 Key。
+> Csser（GLM）在 Flow 中处理 CSS/样式任务，仅 Flow 模式使用。
 > Embedding 变量 `OPENAI_API_KEY` / `OPENAI_API_BASE` 在启用 `memory: true` 时必需（详见 [crewai-guide.md §4](#4-记忆功能配置)）。
 
 ---

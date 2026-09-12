@@ -48,6 +48,7 @@ _AGENT_DISPLAY_NAMES = {
     "coder": "Coder",
     "reviewer": "Reviewer",
     "document_admin": "Document Admin",
+    "csser": "Csser",
 }
 
 # 网络/API 稳定性加固：
@@ -104,17 +105,22 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
     # =====================================================================
 
     def _ensure_agents(self) -> dict:
-        """构建/复用 Agent 字典；包含既有四 Agent + 新增 TextProcessor。"""
+        """构建/复用 Agent 字典；包含既有四 Agent + TextProcessor + Csser。"""
         if self._agents:
             return self._agents
 
         if self.agent_builder is not None:
             agents = self.agent_builder()
         else:
-            from run_revachol_crew import build_agents, build_text_processor_agent
+            from run_revachol_crew import (
+                build_agents,
+                build_csser_agent,
+                build_text_processor_agent,
+            )
 
             agents = build_agents()
             agents["text_processor"] = build_text_processor_agent()
+            agents["csser"] = build_csser_agent()
 
         self._agents = agents
         return agents
@@ -257,7 +263,10 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         self._log("info", "TextProcessor 初稿完成")
 
     def _run_coding(self) -> None:
-        """Coder：完善文档 / 编写代码；修改循环中直接承接修订计划（D1）。"""
+        """Coder：完善文档 / 编写代码；修改循环中直接承接修订计划（D1）。
+        
+        若需求或文档涉及 CSS/样式，Coder 完成后会调用 Csser 补充样式部分。
+        """
         feedback_block = (
             "\n\n⚠️ Reviewer 修改意见（必须解决）：\n" + self.state.review_feedback
             if self.state.review_feedback
@@ -280,6 +289,50 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
             "一份已按计划/修改意见完善的文档。",
         )
         self._log("info", "Coder 修改完成")
+
+        # Csser 补充：若需求或文档涉及 CSS/样式，调用 csser 输出样式相关建议/补丁
+        if self._needs_csser():
+            self._run_cssing()
+        else:
+            self._log("info", "未检测到 CSS 关键词，跳过 Csser 调用")
+
+    def _needs_csser(self) -> bool:
+        """判断当前任务是否需要 Csser 参与（检测 CSS/样式相关关键词）。"""
+        keywords = [
+            "css", "样式", "style", "主题", "theme", "颜色", "color",
+            "字体", "font", "布局", "layout", "响应式", "responsive",
+            "组件样式", "sticker", "贴纸", "动画", "animation",
+            "移动端", "mobile", "暗色", "亮色", "低保真", "lofi",
+        ]
+        combined = f"{self.state.requirement} {self.state.document}".lower()
+        return any(kw.lower() in combined for kw in keywords)
+
+    def _run_cssing(self) -> None:
+        """Csser：根据当前文档输出 CSS 样式建议/补丁，附加到文档末尾。"""
+        description = (
+            "你是 CSS 开发者（Csser）。请根据以下计划和文档，输出 CSS 样式相关建议或补丁：\n\n"
+            f"计划：\n{self.state.plan}\n\n"
+            f"当前文档：\n{self.state.document}\n\n"
+            "要求：\n"
+            "1. 输出 CSS 样式代码或样式修改建议（使用项目 CSS 变量体系）；\n"
+            "2. 若需修改现有 CSS，请给出完整替换后的代码块；\n"
+            "3. 确保三套主题（dark/light/lofi）与移动端适配一致；\n"
+            "4. 以 '--- CSS 样式部分 ---' 开头，追加到文档末尾。"
+        )
+        css_output = self._run_single_task(
+            "csser",
+            "cssing",
+            description,
+            "CSS 样式建议/补丁，以 '--- CSS 样式部分 ---' 开头。",
+        )
+        if css_output and css_output.strip():
+            # 将 csser 产出附加到文档末尾
+            self.state.document = (
+                f"{self.state.document}\n\n{css_output}"
+            )
+            self._log("info", "Csser 样式补充完成")
+        else:
+            self._log("warning", "Csser 输出为空，跳过附加")
 
     def _run_reviewing(self) -> None:
         """Reviewer：按量化合入标准审查，输出结构化结论并写入 review_history。"""

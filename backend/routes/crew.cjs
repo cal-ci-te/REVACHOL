@@ -34,14 +34,15 @@ const DEFAULT_ENGINE = process.env.CREW_ENGINE === 'flow' ? 'flow' : 'crew';
 const MAX_LOGS = 500;
 const MAX_OUTPUTS = 100;
 
-// 与 ui/agent_panel.py 对齐的 Agent 显示名（Flow 模式额外含 TextProcessor）
-const AGENT_IDS = ['planner', 'coder', 'reviewer', 'document_admin', 'text_processor'];
+// 与 ui/agent_panel.py 对齐的 Agent 显示名（Flow 模式额外含 TextProcessor / Csser）
+const AGENT_IDS = ['planner', 'coder', 'reviewer', 'document_admin', 'text_processor', 'csser'];
 const AGENT_DISPLAY_NAMES = {
   planner: 'Planner',
   coder: 'Coder',
   reviewer: 'Reviewer',
   document_admin: 'Document Admin',
   text_processor: 'Text Processor',
+  csser: 'Csser',
 };
 
 function createInitialAgents() {

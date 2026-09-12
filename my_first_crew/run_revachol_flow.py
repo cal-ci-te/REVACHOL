@@ -346,7 +346,7 @@ def print_flow_summary(flow, emitter) -> None:
         f"  task_id          = {state.task_id}",
         f"  requirement      = {(state.requirement or '')[:60]}",
         f"  状态机链路       = Planning → Drafting → Coding → Reviewing ↺ → Merging / Staging → FailureReport",
-        f"  参与 Agent       = Planner / TextProcessor / Coder / Reviewer / Document_Admin",
+        f"  参与 Agent       = Planner / TextProcessor / Coder / Csser / Reviewer / Document_Admin",
         f"  max_review_rounds= {state.max_review_rounds}",
         f"  max_revisions    = {state.max_revisions}",
         f"  status           = {state.status.value}",

@@ -4,7 +4,7 @@
 test_single_model.py — 单模型独立测试工具
 
 用途：
-- 快速测试四个 Agent 使用的模型（DeepSeek Pro/Flash、Kimi、Mimo）
+- 快速测试 Crew/Flow 使用的模型（DeepSeek Pro/Flash、Kimi、Mimo、GLM/Csser）
 - 验证 API Key 有效性、模型连通性
 - 支持自定义消息、温度参数
 - 支持交互式对话模式
@@ -14,6 +14,7 @@ test_single_model.py — 单模型独立测试工具
     python test_single_model.py --model coder        # 测试 Coder 模型
     python test_single_model.py --model reviewer     # 测试 Reviewer 模型
     python test_single_model.py --model document_admin  # 测试 Document Admin 模型
+    python test_single_model.py --model csser        # 测试 Csser（GLM）模型
     python test_single_model.py --model all          # 测试所有模型
     python test_single_model.py --interactive        # 交互式对话模式
     python test_single_model.py --model planner --message "解释微服务架构" --temperature 0.5
@@ -44,6 +45,7 @@ _MODEL_CONFIGS = {
     "planner": {
         "model": "deepseek-v4-pro",
         "api_key_env": "DEEPSEEK_PRO_API_KEY",
+        "base_url_env": "DEEPSEEK_PRO_BASE_URL",
         "base_url": "https://api.deepseek.com/v1",
         "temperature": 0.3,
         "description": "DeepSeek V4 Pro — 技术规划师",
@@ -51,6 +53,7 @@ _MODEL_CONFIGS = {
     "coder": {
         "model": "deepseek-v4-flash",
         "api_key_env": "DEEPSEEK_FLASH_API_KEY",
+        "base_url_env": "DEEPSEEK_FLASH_BASE_URL",
         "base_url": "https://api.deepseek.com/v1",
         "temperature": 0.1,
         "description": "DeepSeek V4 Flash — 代码开发者",
@@ -58,6 +61,7 @@ _MODEL_CONFIGS = {
     "reviewer": {
         "model": "kimi-k2.7-code",
         "api_key_env": "KIMI_API_KEY",
+        "base_url_env": "KIMI_BASE_URL",
         "base_url": "https://api.moonshot.cn/v1",
         "temperature": 1.0,  # Kimi 强制要求 1.0
         "description": "Kimi K2.7 Code — 代码审查员",
@@ -65,28 +69,43 @@ _MODEL_CONFIGS = {
     "document_admin": {
         "model": "mimo-v2.5",
         "api_key_env": "MIMO_API_KEY",
+        "base_url_env": "MIMO_BASE_URL",
         "base_url": "https://api.xiaomimimo.com/v1",
         "temperature": 0.4,
         "description": "Mimo V2.5 — 文档处理员",
+    },
+    "csser": {
+        "model": "glm-5.3-flash",
+        "api_key_env": "GLM_API_KEY",
+        "base_url_env": "GLM_BASE_URL",
+        "base_url": "https://api.ginka.cloud/v1",
+        "temperature": 0.2,
+        "description": "GLM 5.3 Flash — CSS 开发者 (Csser)",
     },
 }
 
 
 def build_llm(model_key: str, temperature: Optional[float] = None) -> LLM:
-    """根据模型 Key 构建 LLM 实例"""
+    """根据模型 Key 构建 LLM 实例
+
+    base_url 优先读取 .env 中的 <PREFIX>_BASE_URL（与 run_revachol_crew.py 行为一致），
+    缺失时才回退到内置官方端点，便于连通性测试反映真实运行配置。
+    """
     config = _MODEL_CONFIGS[model_key]
-    
+
     api_key = os.getenv(config["api_key_env"])
     if not api_key:
         raise ValueError(
             f"[错误] 环境变量 {config['api_key_env']} 未配置，"
             f"请在 .env 文件中添加"
         )
-    
+
+    base_url = os.getenv(config.get("base_url_env", "")) or config["base_url"]
+
     return LLM(
         model=f"openai/{config['model']}",
         api_key=api_key,
-        base_url=config["base_url"],
+        base_url=base_url,
         temperature=temperature if temperature is not None else config["temperature"],
     )
 
@@ -195,6 +214,7 @@ def main():
   python test_single_model.py --model planner
   python test_single_model.py --model coder --message "写一个排序算法"
   python test_single_model.py --model reviewer --temperature 0.5
+  python test_single_model.py --model csser --message "输出一条 CSS 规则"
   python test_single_model.py --model all
   python test_single_model.py --interactive
   python test_single_model.py --interactive --model document_admin
@@ -205,7 +225,7 @@ def main():
         "--model", "-m",
         choices=list(_MODEL_CONFIGS.keys()) + ["all"],
         default="planner",
-        help="要测试的模型 (planner/coder/reviewer/document_admin/all)"
+        help="要测试的模型 (planner/coder/reviewer/document_admin/csser/all)"
     )
     
     parser.add_argument(

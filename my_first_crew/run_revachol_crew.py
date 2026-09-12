@@ -49,6 +49,13 @@ DeepSeek 的 OpenAI 兼容 API 未实现该参数，直接拒绝。
 | reviewer        | 代码审查员   | kimi-k2.7-code     | KIMI_*                    |
 | document_admin  | 文档处理员   | mimo-v2.5          | MIMO_*                    |
 
+Flow 专用 Agent
+---------------
+| Agent           | 角色         | 模型               | 环境变量（.env）          |
+|-----------------|--------------|--------------------|---------------------------|
+| text_processor  | 文本处理员   | deepseek-v4-flash  | DEEPSEEK_FLASH_*          |
+| csser           | CSS 开发者   | glm-5.3-flash      | GLM_*                     |
+
 使用方法
 --------
     python run_revachol_crew.py                        # 默认 sequential；未传需求时进入仪表盘交互式输入
@@ -426,6 +433,12 @@ _AGENT_ENV = {
         "default_model": "deepseek-v4-flash",
         "temperature": 0.2,
     },
+    # css 开发者（Csser）：由 GLM（智谱 Z.AI）驱动，专注 CSS/样式
+    "csser": {
+        "prefix": "GLM",
+        "default_model": "glm-5.3-flash",
+        "temperature": 0.2,  # 样式生成需确定性，温度适中偏低
+    },
 }
 
 # Agent id → Provider 兜底映射（model 字符串无法识别时使用）
@@ -435,6 +448,7 @@ _AGENT_PROVIDER_FALLBACK = {
     "reviewer": "moonshot",
     "document_admin": "xiaomimo",
     "text_processor": "deepseek",
+    "csser": "zai",
 }
 
 
@@ -447,6 +461,8 @@ def _infer_provider(model: str, agent_id: str = "") -> str:
         return "moonshot"
     if "mimo" in model_lower or "xiaomimo" in model_lower:
         return "xiaomimo"
+    if "glm" in model_lower or "zai" in model_lower or "z-ai" in model_lower:
+        return "zai"
     return _AGENT_PROVIDER_FALLBACK.get(agent_id, "unknown")
 
 
@@ -467,12 +483,13 @@ def build_llm(agent_id: str) -> LLM:
         raise RuntimeError(f"[配置错误] 缺少环境变量 {prefix}_API_KEY，请在 .env 中配置")
 
     if not base_url:
-        # DeepSeek / Kimi / Mimo 的官方端点兜底
+        # DeepSeek / Kimi / Mimo / GLM 的官方端点兜底
         _DEFAULT_BASE_URLS = {
             "planner": "https://api.deepseek.com/v1",
             "coder": "https://api.deepseek.com/v1",
             "reviewer": "https://api.moonshot.cn/v1",
             "document_admin": "https://api.xiaomimimo.com/v1",
+            "csser": "https://api.ginka.cloud/v1",
         }
         base_url = _DEFAULT_BASE_URLS[agent_id]
 
@@ -659,6 +676,35 @@ def build_text_processor_agent() -> Agent:
     )
 
 
+def build_csser_agent() -> Agent:
+    """构建 CSS 开发者（Csser）。
+
+    由 GLM（Z.AI 的 glm-5.3-flash）驱动，专注 CSS/样式相关任务（如样式迁移、
+    主题适配、组件样式、响应式与三主题变量一致化）。仅在 Flow 工作流中使用，
+    不进入既有 Crew（保持 run_revachol_crew.py 原有四 Agent 语义不变）。
+    """
+    llm = build_llm("csser")
+    return Agent(
+        role="CSS 开发者 (Csser)",
+        goal=(
+            "1. 依据 Planner 的计划与 Coder 的产出，编写/修改高质量、可复用的 CSS 样式；"
+            "2. 始终使用项目 CSS 变量（var(--color-*)、var(--font-family-*) 等）而非硬编码色值；"
+            "3. 确保三套主题（dark/light/lofi）与移动端（≤768px）适配一致；"
+            "4. 样式与组件实现保持同步，便于 Reviewer 审查。"
+        ),
+        backstory=(
+            "你是一位专注 CSS 的资深样式工程师，精通现代 CSS（变量、Flex/Grid、"
+            "响应式、动画、主题系统）。你严格遵循 REVACHOL 的样式规范：颜色一律走"
+            " var(--color-*) 设计令牌，字体用 var(--font-family-*)，间距/圆角用"
+            " var(--spacing-*)/var(--radius-*)，阴影用 var(--shadow-*)，z-index 参照"
+            " 既有层级表。你清楚自己的职责边界：只负责样式与视觉，不修改业务逻辑代码。"
+        ),
+        llm=llm,
+        allow_delegation=False,
+        verbose=False,
+    )
+
+
 # ============================================================================
 # 4. Task 定义（体现协作：reviewer 依赖 coder 输出，doc 汇总全链路）
 # ============================================================================
@@ -824,6 +870,7 @@ _AGENT_DISPLAY_NAMES = {
     "coder": "Coder",
     "reviewer": "Reviewer",
     "document_admin": "Document Admin",
+    "csser": "Csser",
 }
 
 

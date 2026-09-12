@@ -28,9 +28,9 @@ class AgentPanel:
         self._init_agents()
     
     def _init_agents(self):
-        """初始化四个Agent的状态"""
+        """初始化各 Agent 的状态"""
         self.selected_agent = None
-        agent_names = ["Planner", "Coder", "Reviewer", "Document Admin"]
+        agent_names = ["Planner", "Coder", "Reviewer", "Document Admin", "Csser"]
         for name in agent_names:
             self.agents[name] = {
                 "status": "idle",

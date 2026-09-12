@@ -55,12 +55,13 @@ class Dashboard:
         self._input_locked_message = ""  # 输入面板锁屏状态提示
 
         # ---- Agent 选择器数据（None 表示“显示全部”）----
-        self.agent_list = ["Planner", "Coder", "Reviewer", "Document Admin", None]
+        self.agent_list = ["Planner", "Coder", "Reviewer", "Document Admin", "Csser", None]
         self.agent_list_display = [
             "Planner",
             "Coder",
             "Reviewer",
             "Document Admin",
+            "Csser",
             "显示全部",
         ]
 
