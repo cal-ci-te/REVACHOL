@@ -17,7 +17,8 @@ const path = require('path');
 const fs = require('fs');
 const { send, sendError, json } = require('../enhance.cjs');
 const { broadcast } = require('../websocket.cjs');
-const { requireAuth } = require('../auth.cjs');
+const { requireAuth, requireRole, compose } = require('../auth.cjs');
+const agentState = require('../agent-state.cjs');
 const dbModule = require('../db.cjs');
 
 // Crew 目录定位：
@@ -363,14 +364,16 @@ function startCrewRun({ requirement, engine = DEFAULT_ENGINE, process: crewProce
   try {
     child = spawn(pythonBin, args, {
       cwd: CREW_DIR,
-      env: {
+      // 以 agentState 的实际启用状态为准注入 CREW_DISABLE_*：
+      // 前端切换后新启动的子进程即刻生效，避免「界面已改、流程照旧」
+      env: agentState.buildChildEnv({
         ...process.env,
         PATH: [venvBinDir, process.env.PATH].filter(Boolean).join(path.delimiter),
         PYTHONIOENCODING: 'utf-8',
         PYTHONUNBUFFERED: '1',
         CREWAI_DISABLE_ASYNC: '1',
         HTTPX_USE_SYNC: '1',
-      },
+      }),
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -534,6 +537,48 @@ function registerCrewRoutes(GET, POST) {
     const stopped = stopCrewRun();
     send(res, { success: stopped, stopped: stopped });
   }));
+
+  // 查询各 Agent 启停状态（无需登录：前端需据此渲染开关的只读态）
+  GET('/api/crew/agents/state', async (req, res) => {
+    send(res, agentState.getState());
+  });
+
+  // 切换单个 Agent 开关（需管理员）
+  // 权限裁定：仅 admin。requireRole 只接受单一角色，项目亦无 operator 角色
+  POST('/api/crew/agents/:agentId/toggle',
+    compose(requireAuth, requireRole('admin'))(async (req, res) => {
+      const agentId = String(req.params.agentId || '');
+      const body = await json(req).catch(() => ({}));
+      const baseRevision = Number.isInteger(body.baseRevision) ? body.baseRevision : undefined;
+
+      try {
+        const next = await agentState.setAgentEnabled(agentId, body.enabled, baseRevision);
+        send(res, next);
+      } catch (err) {
+        mapAgentStateError(res, err, agentId);
+      }
+    })
+  );
+}
+
+// Agent 状态错误 → HTTP 状态码
+// 仅「状态竞争」与「环境变量锁定」返回 409（客户端可自行处理），
+// 其余（目录不可写、写盘失败等基础设施故障）一律 503，便于运维区分告警来源
+function mapAgentStateError(res, err, agentId) {
+  const code = err && err.code;
+  if (code === 'AGENT_STATE_UNKNOWN_AGENT') {
+    sendError(res, 404, '未知 Agent: ' + agentId, code);
+    return;
+  }
+  if (code === 'AGENT_STATE_INVALID_BODY') {
+    sendError(res, 400, err.message, code);
+    return;
+  }
+  if (code === 'AGENT_STATE_CONFLICT' || code === 'AGENT_STATE_ENV_LOCKED') {
+    sendError(res, 409, err.message, code);
+    return;
+  }
+  sendError(res, 503, (err && err.message) || 'Agent 状态服务不可用', code || 'AGENT_STATE_UNAVAILABLE');
 }
 
 module.exports = { registerCrewRoutes, runState, snapshotState, stopCrewRun, handleCrewEvent };

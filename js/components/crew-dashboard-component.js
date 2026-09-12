@@ -1,6 +1,6 @@
-// CrewAI Web Dashboard 组件。
-// 以 ComponentManager 标准组件形态接入：init 准备服务，mount 渲染 DOM + 订阅
-// EventBus（CREW_*），unmount 清理 WebSocket 与订阅。页面状态统一存放在 AppState.crew。
+// ！Crew Dashboard 组件
+// 以 ComponentManager 标准组件接入：init 准备服务，mount 渲染 DOM 并订阅 CREW_* 事件，unmount 清理 WebSocket 与订阅。
+// 页面状态统一存在 AppState.crew，组件本身不持有状态，故刷新后可直接从快照恢复。
 import { AppState } from '../core/app-state.js';
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
@@ -9,6 +9,7 @@ import { ApiClient } from '../services/api-client.js';
 import { CrewService } from '../services/crew-service.js';
 import { Utils } from '../utils.js';
 
+// Agent 状态对应的图标与文案
 const STATUS_META = {
   idle: { icon: '⏸', label: '空闲' },
   waiting: { icon: '⏳', label: '等待' },
@@ -17,16 +18,20 @@ const STATUS_META = {
   failed: { icon: '❌', label: '失败' },
 };
 
+// 读取 crew 状态
 function getCrewState() {
   return AppState.get('crew') || {};
 }
 
+// 深拷贝后改写再提交
+// AppState 依赖引用变化触发订阅通知，直接改原对象会让订阅方收到同一引用而不刷新
 function patchCrew(patchFn) {
   const current = getCrewState();
   const next = patchFn(JSON.parse(JSON.stringify(current)));
   AppState.commit(MUTATIONS.SET_CREW_STATE, next);
 }
 
+// 格式化时间戳
 function formatTime(isoString) {
   if (!isoString) return '';
   const date = new Date(isoString);
@@ -39,11 +44,13 @@ function createComponent() {
   let listeners = [];
   let wsPillTimer = null;
 
+  // 登记事件并记录，卸载时统一退订
   function on(eventName, callback) {
     EventBus.on(eventName, callback);
     listeners.push({ eventName, callback });
   }
 
+  // 全量重绘
   function render() {
     if (!root) return;
     const state = getCrewState();
@@ -73,6 +80,7 @@ function createComponent() {
     renderStats(state);
   }
 
+  // 渲染登录态与运行控制区
   function renderAuth(state, isLoggedIn) {
     const authPanel = root.querySelector('#crewAuthPanel');
     const runForm = root.querySelector('#crewRunForm');
@@ -107,6 +115,64 @@ function createComponent() {
     }
   }
 
+  // Agent 启停状态（来自 /api/crew/agents/state）；null 表示尚未加载
+  let agentEnabled = null;
+  // 顶部 Flow 链路按此顺序渲染，被禁用的 Agent 会被剔除
+  const FLOW_CHAIN = [
+    { id: 'planner', label: 'Planner' },
+    { id: 'text_processor', label: 'TextProcessor' },
+    { id: 'coder', label: 'Coder' },
+    { id: 'csser', label: 'Csser' },
+    { id: 'reviewer', label: 'Reviewer ↺' },
+  ];
+
+  // 拉取各 Agent 启停状态
+  async function loadAgentState() {
+    try {
+      agentEnabled = await ApiClient.get('/api/crew/agents/state');
+    } catch (err) {
+      // 接口不可用时保持 null，开关退回「全部启用」只读展示，不影响仪表盘其余功能
+      agentEnabled = null;
+      console.warn('[CrewDashboard] Agent 状态加载失败:', err && err.message);
+    }
+    updateFlowChain();
+    return agentEnabled;
+  }
+
+  // 渲染顶部 Flow 链路
+  // 被禁用的 Agent 直接移除而非置灰：链路表达的是本次实际会执行的步骤
+  function updateFlowChain() {
+    const el = root.querySelector('#crewFlowChain');
+    if (!el) return;
+    const enabledIds = FLOW_CHAIN
+      .map((n) => n.id)
+      .filter((id) => !agentEnabled || !agentEnabled.agents || agentEnabled.agents[id]?.enabled !== false);
+    const labels = FLOW_CHAIN.filter((n) => enabledIds.indexOf(n.id) !== -1).map((n) => n.label);
+    const tail = (!agentEnabled || !agentEnabled.agents || agentEnabled.agents.document_admin?.enabled !== false)
+      ? 'Merging / Staging'
+      : 'Staging';
+    el.textContent = labels.length > 0
+      ? `Flow: ${labels.join(' → ')} → ${tail} · RFC-001`
+      : `Flow: （全部 Agent 已禁用）→ ${tail} · RFC-001`;
+  }
+
+  // 切换单个 Agent 开关
+  async function toggleAgent(agentId, nextEnabled) {
+    try {
+      agentEnabled = await ApiClient.post(
+        '/api/crew/agents/' + encodeURIComponent(agentId) + '/toggle',
+        { enabled: nextEnabled, baseRevision: agentEnabled ? agentEnabled.revision : undefined }
+      );
+      showError(`${agentId} 已${nextEnabled ? '启用' : '禁用'}`);
+    } catch (err) {
+      // 409 多为状态过期或环境变量锁定，提示后重载以回到真实状态
+      showError(err && err.message ? err.message : '切换失败');
+      await loadAgentState();
+    }
+    renderAgents(getCrewState());
+  }
+
+  // 渲染 Agent 卡片
   function renderAgents(state) {
     const container = root.querySelector('#crewAgents');
     if (!container) return;
@@ -123,6 +189,7 @@ function createComponent() {
 
     const stats = state.stats || {};
 
+    // 卡片内嵌 stats 而非全量重绘：Agent 卡片数量固定，全量 innerHTML 会丢失滚动位置
     container.innerHTML = agents.map((agent) => {
       const meta = STATUS_META[agent.status] || STATUS_META.idle;
       const safeName = Utils.escapeHtml(agent.name || agent.id || 'Agent');
@@ -130,6 +197,7 @@ function createComponent() {
       const safeDetail = Utils.escapeHtml(agent.detail || '');
 
       // 关联该 Agent 的 token 消耗与供应商（含 csser / GLM）
+      // 优先按显示名取，回退按 id：后端两种字段都可能在用
       const agentStats = stats[agent.name] || stats[agent.id];
       const tokens = agentStats ? Number(agentStats.tokens) || 0 : 0;
       const model = agentStats?.model || '';
@@ -142,8 +210,23 @@ function createComponent() {
           </p>`
         : '';
 
+      const info = agentEnabled && agentEnabled.agents ? agentEnabled.agents[agent.id] : null;
+      const isOn = !info || info.enabled !== false;
+      const locked = !!(info && info.lockedByEnv);
+      const switchTitle = locked
+        ? '该 Agent 由环境变量 CREW_DISABLE_' + String(agent.id).toUpperCase() + ' 控制，请修改后重启服务'
+        : (isOn ? '点击禁用该 Agent' : '点击启用该 Agent');
+
       return `
-        <article class="crew-agent-card status-${agent.status || 'idle'}">
+        <article class="crew-agent-card status-${agent.status || 'idle'}${isOn ? '' : ' switch-off'}">
+          <button class="crew-agent-switch${locked ? ' env-locked' : ''}"
+                  type="button"
+                  role="switch"
+                  data-agent-id="${Utils.escapeHtml(agent.id || '')}"
+                  aria-checked="${isOn ? 'true' : 'false'}"
+                  aria-label="${Utils.escapeHtml((agent.name || agent.id || 'Agent'))} 启停开关"
+                  title="${Utils.escapeHtml(switchTitle)}"
+                  ${locked ? 'disabled' : ''}></button>
           <div class="crew-agent-icon">${meta.icon}</div>
           <div class="crew-agent-body">
             <h3>${safeName}</h3>
@@ -157,6 +240,7 @@ function createComponent() {
     }).join('');
   }
 
+  // 渲染实时日志
   function renderLogs(state) {
     const stream = root.querySelector('#crewLogStream');
     if (!stream) return;
@@ -178,6 +262,7 @@ function createComponent() {
     stream.scrollTop = stream.scrollHeight;
   }
 
+  // 清空日志
   function handleClearLogs() {
     patchCrew((state) => {
       state.logs = [];
@@ -186,6 +271,7 @@ function createComponent() {
     render();
   }
 
+  // 渲染执行回放
   function renderOutputs(state) {
     const container = root.querySelector('#crewOutputList');
     if (!container) return;
@@ -205,6 +291,7 @@ function createComponent() {
     }).join('');
   }
 
+  // 渲染 Token 统计
   function renderStats(state) {
     const container = root.querySelector('#crewStats');
     if (!container) return;
@@ -226,6 +313,7 @@ function createComponent() {
     container.innerHTML = `<div class="crew-stats-header">Token 消耗（合计 ${total}）</div>${rows}`;
   }
 
+  // 显示表单错误（8s 后自动隐藏）
   function showError(message) {
     const errorBox = root.querySelector('#crewFormError');
     if (!errorBox) return;
@@ -234,6 +322,7 @@ function createComponent() {
     setTimeout(() => { errorBox.hidden = true; }, 8000);
   }
 
+  // 绑定登录/登出
   function bindAuthEvents() {
     const loginBtn = root.querySelector('#crewLoginBtn');
     if (!loginBtn) return;
@@ -263,6 +352,7 @@ function createComponent() {
     });
   }
 
+  // 绑定任务启动/停止
   function bindRunEvents() {
     const form = root.querySelector('#crewRunForm');
     if (!form) return;
@@ -317,12 +407,29 @@ function createComponent() {
     });
   }
 
+  // 绑定 Agent 启停开关
+  // 用事件委托而非逐卡片绑定：卡片由 renderAgents 整块重建，直接绑会在重绘后失效
+  function bindAgentSwitches() {
+    const container = root.querySelector('#crewAgents');
+    if (!container) return;
+    container.addEventListener('click', (e) => {
+      const btn = e.target.closest('.crew-agent-switch');
+      if (!btn || btn.disabled) return;
+      const agentId = btn.dataset.agentId;
+      if (!agentId) return;
+      const next = btn.getAttribute('aria-checked') !== 'true';
+      toggleAgent(agentId, next);
+    });
+  }
+
+  // 绑定清空日志
   function bindClearLogs() {
     const clearBtn = root.querySelector('#crewLogClearBtn');
     if (!clearBtn) return;
     clearBtn.addEventListener('click', handleClearLogs);
   }
 
+  // 订阅全部 CREW_* 事件
   function bindEventListeners() {
     on(EVENTS.CREW_STATUS_LOADED, (payload) => {
       AppState.commit(MUTATIONS.SET_CREW_STATE, payload);
@@ -452,6 +559,7 @@ function createComponent() {
     });
   }
 
+  // 退订全部事件
   function cleanupListeners() {
     listeners.forEach(({ eventName, callback }) => EventBus.off(eventName, callback));
     listeners = [];
@@ -469,11 +577,13 @@ function createComponent() {
       unmountTimeout: 5000,
     },
 
+    // 准备服务
     init: async function () {
       console.log('[crew-dashboard] init: 准备 CrewService');
       return CrewService;
     },
 
+    // 渲染 DOM 并订阅事件
     mount: async function (instance) {
       root = document.getElementById('crewDashboardRoot');
       if (!root) {
@@ -486,7 +596,7 @@ function createComponent() {
           <header class="crew-header">
             <div class="crew-header-titles">
               <h1>REVACHOL Crew Dashboard</h1>
-              <p>Flow: Planner → TextProcessor → Coder → Csser → Reviewer ↺ → Merging / Staging · RFC-001</p>
+              <p id="crewFlowChain">Flow: Planner → TextProcessor → Coder → Csser → Reviewer ↺ → Merging / Staging · RFC-001</p>
             </div>
             <div class="crew-header-status">
               <span class="crew-engine-pill flow" id="crewEnginePill">引擎: Flow</span>
@@ -552,17 +662,21 @@ function createComponent() {
       bindAuthEvents();
       bindRunEvents();
       bindClearLogs();
+      bindAgentSwitches();
       bindEventListeners();
 
       // 首次渲染（使用 AppState 默认状态 / 历史快照）
       render();
+
+      // Agent 启停状态独立于运行快照，需单独拉取；失败不阻塞仪表盘其余部分
+      loadAgentState().then(() => renderAgents(getCrewState()));
 
       // 连接 WebSocket + 拉取后端状态快照
       if (instance && typeof instance.init === 'function') {
         instance.init();
       }
 
-      // WebSocket 连接状态小圆点定时刷新
+      // WebSocket 连接状态小圆点定时刷新（连接状态由 CrewService 内部异步变更，无事件可订阅）
       wsPillTimer = setInterval(() => {
         const wsPill = root.querySelector('#crewWsPill');
         if (wsPill) {
@@ -575,6 +689,7 @@ function createComponent() {
       return instance;
     },
 
+    // 退订并清理 DOM
     unmount: async function (instance) {
       cleanupListeners();
       if (wsPillTimer) {

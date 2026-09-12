@@ -60,6 +60,22 @@ _MAX_REVIEW_PLAN_CHARS = 8000
 _MAX_REVIEW_DOC_CHARS = 40000
 _MAX_MERGE_DOC_CHARS = 40000
 
+# Agent 级开关：CREW_DISABLE_<AGENT_ID 大写>=1 时禁用该 Agent。
+# 统一在此解析，避免各调用点重复拼接环境变量名。
+_AGENT_DISABLE_ENV_PREFIX = "CREW_DISABLE_"
+
+# 禁用字面量：必须与 backend/agent-state.cjs 的 TRUTHY 完全一致。
+# 两侧取值集合不同会导致「接口报已禁用、子进程仍在执行」的三方不一致。
+_AGENT_DISABLE_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def _agent_disabled(agent_id: str) -> bool:
+    """该 Agent 是否被环境开关禁用（CREW_DISABLE_<AGENT_ID> 取真值即禁用）。"""
+    raw = os.getenv(f"{_AGENT_DISABLE_ENV_PREFIX}{agent_id.upper()}")
+    if raw is None or not raw.strip():
+        return False
+    return raw.strip().lower() in _AGENT_DISABLE_TRUTHY
+
 
 class DocumentReviewFlow(Flow[ReviewLoopState]):
     """文档撰写 + 审查修改循环的 CrewAI Flow。"""
@@ -105,7 +121,11 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
     # =====================================================================
 
     def _ensure_agents(self) -> dict:
-        """构建/复用 Agent 字典；包含既有四 Agent + TextProcessor + Csser。"""
+        """构建/复用 Agent 字典；包含既有四 Agent + TextProcessor + Csser。
+
+        被 CREW_DISABLE_<AGENT_ID> 禁用的 Agent 不构建：既省去无谓的 LLM 客户端，
+        也避免误用未启用的 Agent（各阶段仍会自行跳过，此处是第二道防线）。
+        """
         if self._agents:
             return self._agents
 
@@ -120,10 +140,24 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
 
             agents = build_agents()
             agents["text_processor"] = build_text_processor_agent()
-            agents["csser"] = build_csser_agent()
+            if not _agent_disabled("csser"):
+                agents["csser"] = build_csser_agent()
+
+        disabled = [aid for aid in list(agents) if _agent_disabled(aid)]
+        for aid in disabled:
+            agents.pop(aid, None)
+        if disabled:
+            self._log("warning", f"以下 Agent 已被环境开关禁用，不参与本次流程: {', '.join(disabled)}")
 
         self._agents = agents
         return agents
+
+    def _agent_off(self, agent_id: str) -> bool:
+        """该 Agent 是否被禁用；禁用时记录并交由调用方做 pass-through。"""
+        if _agent_disabled(agent_id):
+            self._log("warning", f"Agent {agent_id} 已禁用，跳过其阶段（pass-through）")
+            return True
+        return False
 
     def _run_single_task(
         self,
@@ -212,6 +246,13 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         """Planner：制定计划（首次）或结合 review_feedback 制定修订计划。"""
         import run_revachol_crew as rrc
 
+        # 禁用时 pass-through：沿用既有计划；首次无计划则以需求原文兜底，
+        # 保证下游阶段拿到的 plan 非空，流程不因缺计划而中断
+        if self._agent_off("planner"):
+            if not (self.state.plan or "").strip():
+                self.state.plan = f"（Planner 已禁用，直接依据需求执行）\n{self.state.requirement}"
+            return
+
         if revision and self.state.review_feedback:
             feedback_block = (
                 "\n\n⚠️ 这是修订版规划。Reviewer 的修改意见如下（必须消化）：\n"
@@ -246,6 +287,11 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
 
     def _run_drafting(self) -> None:
         """TextProcessor：仅首次撰写文档初稿（D1）。"""
+        # 禁用时 pass-through：直接把需求原文当作初稿，交下游 Coder 处理
+        if self._agent_off("text_processor"):
+            self.state.document = self.state.requirement
+            return
+
         description = (
             "你是文本处理员。请依据以下 Planner 计划，撰写结构完整、内容准确的文档初稿。\n\n"
             f"计划：\n{self.state.plan}\n\n"
@@ -267,6 +313,10 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         
         若需求或文档涉及 CSS/样式，Coder 完成后会调用 Csser 补充样式部分。
         """
+        # 禁用时 pass-through：保留上游文档原样进入审查，流程不中断
+        if self._agent_off("coder"):
+            return
+
         feedback_block = (
             "\n\n⚠️ Reviewer 修改意见（必须解决）：\n" + self.state.review_feedback
             if self.state.review_feedback
@@ -298,6 +348,9 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
 
     def _needs_csser(self) -> bool:
         """判断当前任务是否需要 Csser 参与（检测 CSS/样式相关关键词）。"""
+        # 开关：CREW_DISABLE_CSSER=1 时完全跳过 Csser，不产生任何 GLM 调用
+        if _agent_disabled("csser"):
+            return False
         keywords = [
             "css", "样式", "style", "主题", "theme", "颜色", "color",
             "字体", "font", "布局", "layout", "响应式", "responsive",
@@ -337,6 +390,22 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
     def _run_reviewing(self) -> None:
         """Reviewer：按量化合入标准审查，输出结构化结论并写入 review_history。"""
         import run_revachol_crew as rrc
+
+        # 禁用时视为通过：不留审查记录会让 route_after_review 取不到结论而误判为不通过，
+        # 故仍写入一条显式标注「pass-through」的批准记录
+        if self._agent_off("reviewer"):
+            entry = {
+                "approved": True,
+                "summary": "Reviewer 已被禁用，本次跳过审查（pass-through）。",
+                "issues": [],
+                "suggestions": [],
+                "review_standard": "reviewer-disabled",
+                "feedback": "",
+                "timestamp": datetime.now().isoformat(),
+            }
+            self.state.review_history.append(entry)
+            self.state.review_feedback = ""
+            return
 
         # 上下文截断：Kimi 对大文档审查耗时长，控制输入体积以降低超时概率
         plan_text = (self.state.plan or "").strip()
@@ -408,6 +477,11 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
 
     def _run_merging(self) -> None:
         """Document_Admin：合入通过项并同步相关文档。"""
+        # 禁用时 pass-through：不调用 Document_Admin，但合入状态仍由状态机置为 MERGED，
+        # 保证下游收尾与快照逻辑不受影响
+        if self._agent_off("document_admin"):
+            return
+
         doc_text = (self.state.document or "").strip()
         if len(doc_text) > _MAX_MERGE_DOC_CHARS:
             doc_text = doc_text[:_MAX_MERGE_DOC_CHARS] + "\n...[文档已截断]"

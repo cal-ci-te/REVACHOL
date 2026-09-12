@@ -11,6 +11,9 @@ dist/
 *.db-journal
 backend/revachol.db
 
+# 运行时状态（Agent 启停开关等，每台机器各自维护，不入库）
+backend/data/
+
 # 环境变量（敏感信息）
 .env
 .env.local
