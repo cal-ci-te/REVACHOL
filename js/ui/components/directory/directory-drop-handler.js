@@ -1,14 +1,11 @@
+// ！目录拖放处理
+// 处理拖入目录树的放置：文件夹走内存搬迁，文章按「位置模式/即时模式」决定入队还是立刻发请求。
 import { ArticleService } from '../../../services/article-service.js';
 import { ApiClient } from '../../../services/api-client.js';
 import { Utils } from '../../../utils.js';
+import { UI } from '../../../utils/ui-strings.js';
 
-/**
- * 处理拖拽放置
- * @param {Object} sourceData - { type, id }
- * @param {Object} targetData - { targetFolderId, isSibling }
- * @param {Object} context - { positionManager, pendingMovesManager, updateTreeFn, isPositionMode }
- * @returns {Promise<void>}
- */
+// 处理拖放
 export async function handleDirectoryDrop(sourceData, targetData, context) {
     const { type: sourceType, id: sourceId } = sourceData;
     const { targetFolderId, isSibling } = targetData;
@@ -20,7 +17,8 @@ export async function handleDirectoryDrop(sourceData, targetData, context) {
     } = context;
 
     if (sourceType === 'folder') {
-        const finalParent = isSibling ? targetFolderId : targetFolderId;
+        // 平级插入与拖入最终都落到 targetFolderId（差异已在上游 targetData 计算时承担）
+        const finalParent = targetFolderId;
         const success = ArticleService.moveCategory(sourceId, finalParent);
         if (success) {
             const msg = finalParent ? '到 "' + finalParent + '"' : '到根目录';
@@ -40,15 +38,17 @@ export async function handleDirectoryDrop(sourceData, targetData, context) {
             return;
         }
 
-        const newCategory = isSibling ? (targetFolderId || '未分类') : (targetFolderId || '未分类');
+        // 平级插入与拖入最终都归入同一目标分类（差异已在上游 targetData 计算时承担）
+        const newCategory = targetFolderId || '未分类';
+        // 落到原分类时直接返回：避免产生一次无意义的移动请求
         if (article.category === newCategory) {
             Utils.showToast(UI.toast.articleAlreadyInTarget, false);
             return;
         }
 
-        // 判断是否处于位置模式（通过快照是否存在）
+        // 位置模式以「存在快照」为判据：该模式下落库要等用户点保存
         if (isPositionMode && positionManager.getSnapshot()) {
-            // 位置模式：仅修改内存，记录操作
+            // 位置模式：仅改内存并记录，保存时统一提交
             article.category = newCategory;
             pendingMovesManager.recordMove(article.id, newCategory);
             if (updateTreeFn) updateTreeFn();

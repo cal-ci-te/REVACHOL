@@ -1,10 +1,13 @@
+// ！目录拖放（桌面端）
+// 基于原生 HTML5 拖放实现桌面端的目录/文章移动，落点分「拖入文件夹」与「平级插入」两种语义。
+// 用节点上半/下半区区分两种语义：同一元素既要接收「放入其中」又要接收「插到旁边」。
 import { Utils } from '../../../utils.js';
 import { Article } from '../../../models/article-model.js';
 import { ArticleService } from '../../../services/article-service.js';
 import { ApiClient } from '../../../services/api-client.js';
-// [新增] 导入 UI 文案
 import { UI } from '../../../utils/ui-strings.js';
 
+// 启用拖放（返回停用函数）
 export function enableDragDrop(container, updateTreeFn) {
     if (!container) return;
     const treeItems = container.querySelectorAll('.tree-node');
@@ -30,6 +33,7 @@ export function enableDragDrop(container, updateTreeFn) {
         console.log('[DragDrop] dragStart - dragData:', dragData);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', id);
+        // 延迟加类：拖拽镜像在本帧内截取，立即加类会把半透明样式也带进镜像
         setTimeout(() => target.classList.add('dragging'), 0);
     };
 
@@ -38,7 +42,7 @@ export function enableDragDrop(container, updateTreeFn) {
         e.dataTransfer.dropEffect = 'move';
         const target = e.target.closest('.tree-node, .dropzone-background');
         if (!target) return;
-        // 清除之前的 hover 样式
+        // 每次移动先清掉上一轮高亮：高亮是纯视觉状态，残留会让用户误判落点
         container.querySelectorAll('.drag-over, .dropzone-sibling-highlight').forEach(el => {
             el.classList.remove('drag-over', 'dropzone-sibling-highlight');
             if (el.classList.contains('dropzone-background')) {
@@ -52,7 +56,7 @@ export function enableDragDrop(container, updateTreeFn) {
         if (target.classList.contains('tree-node')) {
             const type = target.dataset.type;
             if (type === 'folder') {
-                // 检查鼠标是否在节点下半部分（平级放置）
+                // 下半区判为平级插入，上半区判为拖入该文件夹
                 const rect = target.getBoundingClientRect();
                 const y = e.clientY;
                 const isLowerHalf = (y - rect.top) > (rect.height / 2);
@@ -75,7 +79,7 @@ export function enableDragDrop(container, updateTreeFn) {
 
     const onDrop = async function (e) {
         e.preventDefault();
-        // 清除所有高亮
+        // 放置前清空全部高亮
         container.querySelectorAll('.drag-over, .dropzone-sibling-highlight').forEach(el => {
             el.classList.remove('drag-over', 'dropzone-sibling-highlight');
             if (el.classList.contains('dropzone-background')) {
@@ -100,33 +104,32 @@ export function enableDragDrop(container, updateTreeFn) {
         const sourceType = dragData.type;
         const sourceId = dragData.id;
         let targetFolderId = null;
-        let isSibling = false; // 是否为平级放置
+        // 平级放置：插到目标所在层级；否则拖入目标内部
+        let isSibling = false;
 
         if (target.classList.contains('dropzone-background')) {
-            // 底部空白区 → 平级
+            // 底部空白区 = 移到根目录
             isSibling = true;
         } else if (target.classList.contains('tree-node')) {
             const targetType = target.dataset.type;
             if (targetType === 'folder') {
-                // 检查鼠标是否在节点下半部分（平级放置）
+                // 下半区判为平级插入，上半区判为拖入该文件夹
                 const rect = target.getBoundingClientRect();
                 const y = e.clientY;
                 isSibling = (y - rect.top) > (rect.height / 2);
                 if (isSibling) {
-                    // 平级目标：该文件夹的父级
+                    // 平级目标取该文件夹的父级，可能与源相同则为无效移动
                     targetFolderId = ArticleService.getCategoryParent(target.dataset.name);
                     if (targetFolderId === undefined) {
-                        // [修改] 使用 UI 文案
                         Utils.showToast(UI.toast.dragTargetFolderNotFound, true);
                         dragData = null;
                         return;
                     }
                 } else {
-                    // 拖入目标：该文件夹本身
                     targetFolderId = target.dataset.name;
                 }
             } else if (targetType === 'article') {
-                // 拖到文章 → 目标为该文章所属文件夹（仅当源为文件夹或文章时）
+                // 拖到文章 = 拖入该文章所属文件夹
                 const articleId = parseInt(target.dataset.articleId);
                 const article = Article.allArticles.find(a => a.id === articleId);
                 if (!article) {
@@ -135,7 +138,7 @@ export function enableDragDrop(container, updateTreeFn) {
                     return;
                 }
                 targetFolderId = article.category || '未分类';
-                isSibling = false; // 拖到文章视为拖入该文章所在文件夹（默认）
+                isSibling = false;
             } else {
                 Utils.showToast(UI.toast.dragUnknownType, true);
                 dragData = null;
@@ -147,16 +150,15 @@ export function enableDragDrop(container, updateTreeFn) {
             return;
         }
 
-        // 如果源是文件夹，平级移动时目标不能是源自身
+        // 源是文件夹时禁止移动到自身
         if (sourceType === 'folder' && isSibling && targetFolderId === sourceId) {
             Utils.showToast(UI.toast.dragCannotMoveToSelf, true);
             dragData = null;
             return;
         }
 
-        // 如果源是文件夹且目标文件夹是源自身的子文件夹（拖入时），禁止
+        // 源是文件夹时禁止移入自身子孙：否则目录树会形成环，渲染时无限递归
         if (sourceType === 'folder' && !isSibling) {
-            // 检查是否将文件夹拖到其子文件夹中（形成循环）
             const isDescendant = (id, targetId) => {
                 const children = ArticleService.getCategoryChildren(id);
                 for (const child of children) {
@@ -173,8 +175,8 @@ export function enableDragDrop(container, updateTreeFn) {
         }
 
         if (sourceType === 'folder') {
-            // 文件夹移动
-            const finalParent = isSibling ? targetFolderId : targetFolderId;
+            // 平级插入与拖入最终都落到 targetFolderId（差异已在上游落点计算时承担）
+            const finalParent = targetFolderId;
             const success = ArticleService.moveCategory(sourceId, finalParent);
             if (success) {
                 const msg = finalParent ? '到 "' + finalParent + '"' : '到根目录';
@@ -198,13 +200,13 @@ export function enableDragDrop(container, updateTreeFn) {
                 return;
             }
             let newCategory;
+            // 两种落点最终都落到目标文件夹；targetFolderId 为空时归入「未分类」
             if (isSibling) {
-                // 平级放置：将文章移动到目标文件夹的父级（可能为 null）
                 newCategory = targetFolderId || '未分类';
             } else {
-                // 拖入文件夹
                 newCategory = targetFolderId || '未分类';
             }
+            // 目标与现状相同时跳过请求，避免无意义的写库与列表刷新
             if (article.category === newCategory) {
                 Utils.showToast(UI.toast.articleAlreadyInTarget, false);
                 dragData = null;
@@ -231,6 +233,7 @@ export function enableDragDrop(container, updateTreeFn) {
     };
 
     const onDragEnd = function () {
+        // dragend 兜底清理：拖拽被 Esc 取消时不会走 drop，高亮需在此复位
         container.querySelectorAll('.drag-over, .dropzone-sibling-highlight').forEach(el => {
             el.classList.remove('drag-over', 'dropzone-sibling-highlight');
             if (el.classList.contains('dropzone-background')) {
@@ -249,6 +252,7 @@ export function enableDragDrop(container, updateTreeFn) {
     container.addEventListener('drop', onDrop);
     container.addEventListener('dragend', onDragEnd);
 
+    // 停用拖放
     return function disableDragDrop() {
         const treeItems = container.querySelectorAll('.tree-node');
         treeItems.forEach(item => {
@@ -263,6 +267,7 @@ export function enableDragDrop(container, updateTreeFn) {
     };
 }
 
+// 应用/清除拖放态的可视边框
 export function applyDragDropVisuals(container, enable) {
     if (!container) return;
     if (enable) {
