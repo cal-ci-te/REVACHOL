@@ -105,7 +105,7 @@ h1 { color: var(--color-text-heading) !important; }
 /* ========== 亮色主题 · 内容展示 ========== */
 
 /* ===== 卡片 ===== */
-.card { background: var(--color-bg-card) !important; border: 1px solid var(--color-border) !important; box-shadow: var(--shadow-md) !important; padding: 22px !important; transition: all 0.25s !important; cursor: pointer !important; }
+.card { background: var(--color-bg-card) !important; border: 1px solid var(--color-border) !important; box-shadow: var(--shadow-md) !important; padding: 2.5rem 2.5rem 4rem 2.5rem !important; margin-bottom: 88px !important; transition: all 0.25s !important; cursor: pointer !important; }
 .card:hover { transform: rotate(0deg) translateY(-4px) !important; border-color: var(--color-border-highlight) !important; box-shadow: var(--shadow-lg) !important; }
 .card h3 { color: var(--color-text-heading) !important; }
 .card-content { color: var(--color-text-secondary) !important; }

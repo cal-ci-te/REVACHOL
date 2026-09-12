@@ -96,9 +96,9 @@ html[data-theme="lofi"] .card:hover {
 }
 
 html[data-theme="lofi"] .card h3 {
-  font-size: 1.4rem;
-  letter-spacing: 6px;
-  text-align: right;
+  font-size: 1.25rem;
+  letter-spacing: normal;
+  text-align: left;
   border-bottom: 1px dashed rgba(180, 150, 120, 0.4);
   padding-bottom: 8px;
   margin-bottom: 12px;
@@ -106,16 +106,16 @@ html[data-theme="lofi"] .card h3 {
 }
 html[data-theme="lofi"] .card-content {
   font-family: var(--font-family-serif);
-  font-size: 1rem;
+  font-size: 0.9rem;
   line-height: 2.2;
   color: var(--color-text-secondary);
   text-align: left;
 }
 html[data-theme="lofi"] .card-meta {
-  font-size: 0.8rem;
+  font-size: 10px;
   color: var(--color-text-muted);
-  letter-spacing: 3px;
-  text-align: right;
+  letter-spacing: 0.5px;
+  text-align: left;
   border-top: 1px dotted rgba(180, 150, 120, 0.3);
   padding-top: 12px;
   margin-top: 16px;

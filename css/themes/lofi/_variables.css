@@ -47,7 +47,7 @@
   --shadow-glow: 0 0 40px rgba(200, 160, 120, 0.05);
 
   --font-family-serif: 'Patrick Hand', 'Comic Sans MS', cursive;
-  --font-family-display: 'Press Start 2P', 'Courier New', monospace;
-  --font-family-mono: 'Press Start 2P', 'Courier New', monospace;
+  --font-family-display: 'VT323', 'Courier New', monospace;
+  --font-family-mono: 'VT323', 'Courier New', monospace;
   --font-family-base: 'Patrick Hand', 'Comic Sans MS', cursive;
 }

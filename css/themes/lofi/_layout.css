@@ -63,7 +63,7 @@ html[data-theme="lofi"] .folder-title {
   word-spacing: 6px;
   color: var(--color-text-heading);
   font-weight: 400;
-  text-align: right;
+  text-align: left;
   transform: rotate(-0.2deg);
 }
 html[data-theme="lofi"] .articles-grid {
@@ -71,9 +71,7 @@ html[data-theme="lofi"] .articles-grid {
   padding: 10px 0 40px;
 }
 html[data-theme="lofi"] .group-header .folder-title {
-  font-size: 1.8rem;
-  letter-spacing: 10px;
-  text-align: right;
+  text-align: left;
   border-bottom: 1px dotted var(--color-border-light);
   padding-bottom: 8px;
   margin-bottom: 20px;

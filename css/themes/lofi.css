@@ -49,8 +49,8 @@
   --shadow-glow: 0 0 40px rgba(200, 160, 120, 0.05);
 
   --font-family-serif: 'Patrick Hand', 'Comic Sans MS', cursive;
-  --font-family-display: 'Press Start 2P', 'Courier New', monospace;
-  --font-family-mono: 'Press Start 2P', 'Courier New', monospace;
+  --font-family-display: 'VT323', 'Courier New', monospace;
+  --font-family-mono: 'VT323', 'Courier New', monospace;
   --font-family-base: 'Patrick Hand', 'Comic Sans MS', cursive;
 }
 
@@ -90,10 +90,10 @@ html[data-theme="lofi"] h1, html[data-theme="lofi"] h2, html[data-theme="lofi"] 
 html[data-theme="lofi"] h4, html[data-theme="lofi"] h5, html[data-theme="lofi"] h6,
 html[data-theme="lofi"] .folder-title {
   font-family: var(--font-family-display); letter-spacing: 4px; word-spacing: 6px;
-  color: var(--color-text-heading); font-weight: 400; text-align: right; transform: rotate(-0.2deg);
+  color: var(--color-text-heading); font-weight: 400; text-align: left; transform: rotate(-0.2deg);
 }
 html[data-theme="lofi"] .articles-grid { gap: 60px; padding: 10px 0 40px; }
-html[data-theme="lofi"] .group-header .folder-title { font-size: 1.8rem; letter-spacing: 10px; text-align: right; border-bottom: 1px dotted var(--color-border-light); padding-bottom: 8px; margin-bottom: 20px; }
+html[data-theme="lofi"] .group-header .folder-title { text-align: left; border-bottom: 1px dotted var(--color-border-light); padding-bottom: 8px; margin-bottom: 20px; }
 html[data-theme="lofi"] .group-header .folder-title.level-1 { transform: rotate(-0.3deg); }
 html[data-theme="lofi"] .group-header .folder-title.level-2 { transform: rotate(0.5deg); padding-left: 24px; }
 html[data-theme="lofi"] .group-header .folder-title.level-3 { transform: rotate(-0.1deg); padding-left: 48px; }
@@ -138,9 +138,9 @@ html[data-theme="lofi"] .card:nth-child(6n+5) { clip-path: polygon(2% 0%, 96% 0%
 html[data-theme="lofi"] .card:nth-child(6n+6) { clip-path: polygon(0% 2%, 99% 0%, 100% 0%, 100% 96%, 93% 100%, 2% 100%, 0% 94%); transform: perspective(600px) rotateX(-1.8deg) rotateY(0.4deg); }
 
 html[data-theme="lofi"] .card:hover { transform: perspective(600px) rotateX(0.3deg) rotateY(-0.3deg) scale(1.015) !important; box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06), inset 0 0 60px rgba(160, 130, 100, 0.18); }
-html[data-theme="lofi"] .card h3 { font-size: 1.4rem; letter-spacing: 6px; text-align: right; border-bottom: 1px dashed rgba(180, 150, 120, 0.4); padding-bottom: 8px; margin-bottom: 12px; color: var(--color-text-heading); }
-html[data-theme="lofi"] .card-content { font-family: var(--font-family-serif); font-size: 1rem; line-height: 2.2; color: var(--color-text-secondary); text-align: left; }
-html[data-theme="lofi"] .card-meta { font-size: 0.8rem; color: var(--color-text-muted); letter-spacing: 3px; text-align: right; border-top: 1px dotted rgba(180, 150, 120, 0.3); padding-top: 12px; margin-top: 16px; }
+html[data-theme="lofi"] .card h3 { font-size: 1.25rem; letter-spacing: normal; text-align: left; border-bottom: 1px dashed rgba(180, 150, 120, 0.4); padding-bottom: 8px; margin-bottom: 12px; color: var(--color-text-heading); }
+html[data-theme="lofi"] .card-content { font-family: var(--font-family-serif); font-size: 0.9rem; line-height: 2.2; color: var(--color-text-secondary); text-align: left; }
+html[data-theme="lofi"] .card-meta { font-size: 10px; color: var(--color-text-muted); letter-spacing: 0.5px; text-align: left; border-top: 1px dotted rgba(180, 150, 120, 0.3); padding-top: 12px; margin-top: 16px; }
 
 /* ===== 详情页 ===== */
 html[data-theme="lofi"] .detail-container { border-radius: 2px !important; }
@@ -161,7 +161,7 @@ html[data-theme="lofi"] .card.card-highlight::before { filter: drop-shadow(0 0 6
 /* ========== 低保真主题 · 侧边栏与目录树 ========== */
 html[data-theme="lofi"] .sidebar { border: 1px solid var(--color-border); background: var(--color-bg-secondary); box-shadow: var(--shadow-lg); backdrop-filter: blur(2px); border-radius: 2px; }
 html[data-theme="lofi"] .sidebar-header { background: var(--color-bg-tertiary); border-bottom: 1px solid var(--color-border); padding: 10px 12px; }
-html[data-theme="lofi"] .sidebar-header h3 { font-size: 1.2rem; letter-spacing: 6px; text-align: right; transform: rotate(0deg); }
+html[data-theme="lofi"] .sidebar-header h3 { font-size: 1.2rem; letter-spacing: 6px; text-align: left; transform: rotate(0deg); }
 html[data-theme="lofi"] .tree-node-content { padding: 6px 10px; border-left: 1px solid transparent; }
 html[data-theme="lofi"] .tree-node-content:hover { background: var(--color-hover); border-left-color: var(--color-border-highlight); transform: translateX(4px); }
 html[data-theme="lofi"] .tree-node-content.active { background: var(--color-active); border-left: 3px solid var(--color-border-highlight); }
