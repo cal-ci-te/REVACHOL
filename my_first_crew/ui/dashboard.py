@@ -278,7 +278,7 @@ class Dashboard:
         self.layout.update_stats_panel(self.stats_panel.render())
         self.layout.update_footer(self.log_panel.render())
 
-    # ===== 输入面板 =====
+    # 输入面板
 
     def _render_input_panel(self) -> Panel:
         """渲染交互式输入面板（支持锁屏状态）"""
@@ -389,7 +389,7 @@ class Dashboard:
             self.output_panel.show_all_blocks()
         self.update()
 
-    # ===== 光标闪烁 =====
+    # 光标闪烁
 
     def _start_cursor_blink(self) -> None:
         """启动光标闪烁定时器"""
@@ -417,7 +417,7 @@ class Dashboard:
             self._cursor_timer = None
         self.cursor_visible = True
 
-    # ===== 对外接口 =====
+    # 对外接口
 
     def set_agent_status(self, agent: str, status: str, task: str = "", detail: str = ""):
         """更新Agent状态"""
