@@ -6,6 +6,7 @@ import io
 import sys
 import tokenize
 
+# 非代码词法单元：判断「同行之前是否有代码」时须排除
 SKIP = {
     tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE,
     tokenize.INDENT, tokenize.DEDENT, tokenize.ENCODING,
@@ -13,6 +14,7 @@ SKIP = {
 }
 
 
+# 返回文件的行尾注释 [(行号, 文本)]
 def trailing(path):
     with io.open(path, "rb") as fh:
         tokens = list(tokenize.tokenize(fh.readline))
@@ -31,6 +33,7 @@ def trailing(path):
     return out
 
 
+# 命令行入口：逐文件打印行尾注释并汇总
 total = 0
 for path in sys.argv[1:]:
     hits = trailing(path)

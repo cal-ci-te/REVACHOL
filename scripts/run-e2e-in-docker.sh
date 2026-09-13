@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# ============================================================
-# REVACHOL Docker E2E 测试启动脚本
-# 功能：构建测试镜像 → 启动依赖服务 → 运行测试 → 归档报告
+# ！Docker 化 E2E 测试编排
+# 一条命令跑完 E2E：构建测试镜像 → 启动后端与前端 → 等待服务就绪 → 运行 Playwright → 归档报告。
 # 用法：bash scripts/run-e2e-in-docker.sh [options]
 #
 # 选项：
@@ -10,29 +9,32 @@
 #   --serve       测试完成后启动 playwright-archive 仪表盘（端口 3200）
 #   --ci          CI 模式：测试失败立即退出，不启动仪表盘
 #   --help        显示帮助
-# ============================================================
 
+# -o pipefail 不可省：本脚本大量用管道（curl | grep）判定服务状态，
+# 只靠 -e 无法察觉管道中段失败，会把「探测失败」误判成「服务未就绪」
 set -euo pipefail
 
-# ---- 颜色输出 ----
+# 颜色输出
+# NC 即 No Color，是重置序列；每处彩色输出后都要接它，否则后续终端文字会串色
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
+# 按级别输出彩色日志；-e 让 \033 转义生效，缺了会打印成字面量
 log_info()  { echo -e "${BLUE}[INFO]${NC}  $*"; }
 log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
-# ---- 默认配置 ----
+# 默认配置
 BUILD_FLAG=""
 DO_ARCHIVE=false
 DO_SERVE=false
 CI_MODE=false
 
-# ---- 解析参数 ----
+# 解析参数
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --build)   BUILD_FLAG="--build" ;;
@@ -56,7 +58,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# ---- 预检查：Docker 是否运行 ----
+# 预检查：Docker 是否运行
 log_info "检查 Docker 环境..."
 if ! docker info > /dev/null 2>&1; then
   log_error "Docker 未运行或权限不足，请启动 Docker Desktop"
@@ -64,14 +66,16 @@ if ! docker info > /dev/null 2>&1; then
 fi
 log_ok "Docker 运行中"
 
-# ---- 预创建宿主机报告目录 ----
-# bind mount 会覆盖镜像内的 chown，需在宿主机侧确保目录对容器内 pwuser(UID 1000) 可写
+# 预创建宿主机报告目录
+# 必须先建目录并放开权限：bind mount 会覆盖镜像内的 chown，
+# 而容器以非 root 的 pwuser(UID 1000) 运行，目录不可写会导致报告写不出来
 log_info "创建宿主机报告目录..."
 mkdir -p playwright-report test-results run-history
 chmod 777 playwright-report test-results run-history
 log_ok "报告目录已就绪"
 
-# ---- 确保依赖服务运行 ----
+# 确保依赖服务运行
+# 通过 compose 的 Up 状态判断，避免重复 up 打断正在运行的容器
 log_info "检查依赖服务状态..."
 if ! docker compose ps backend 2>/dev/null | grep -q "Up"; then
   log_info "后端未运行，启动依赖服务..."
@@ -80,7 +84,8 @@ else
   log_info "依赖服务已在运行"
 fi
 
-# ---- 等待服务就绪 ----
+# 等待服务就绪
+# 前端探测 200/302/304：根路径可能被重定向，只认 200 会误判为未就绪
 log_info "等待前端服务就绪 (http://localhost:3000)..."
 MAX_RETRIES=30
 RETRY=0
@@ -116,7 +121,8 @@ if [[ $RETRY -eq $MAX_RETRIES ]]; then
   exit 1
 fi
 
-# ---- 构建并运行测试 ----
+# 构建并运行测试
+# ${BUILD_FLAG} 故意不加引号：为空时应整体消失，加引号会把空串当作一个参数传给 compose run
 log_info "构建并运行 Playwright 测试容器..."
 TEST_EXIT_CODE=0
 
@@ -128,7 +134,7 @@ docker compose run --rm \
   playwright-tests \
   || TEST_EXIT_CODE=$?
 
-# ---- 输出测试结果 ----
+# 输出测试结果
 echo ""
 if [[ $TEST_EXIT_CODE -eq 0 ]]; then
   log_ok "========================================"
@@ -140,7 +146,7 @@ else
   log_error "========================================"
 fi
 
-# ---- 归档报告（可选） ----
+# 归档报告（可选）
 if $DO_ARCHIVE; then
   log_info "归档测试报告到 run-history/ ..."
   if [[ -d "playwright-report" ]]; then
@@ -151,7 +157,7 @@ if $DO_ARCHIVE; then
   fi
 fi
 
-# ---- 启动仪表盘（可选） ----
+# 启动仪表盘（可选）
 if $DO_SERVE; then
   log_info "启动 playwright-archive 仪表盘 (http://localhost:3200) ..."
   npx playwright-archive --serve 2>/dev/null &

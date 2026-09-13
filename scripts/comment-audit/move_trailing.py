@@ -12,13 +12,16 @@ import io
 import sys
 import tokenize
 
+# 必须与代码同行的 lint 工具指令，移走即失效
 KEEP_MARKERS = ("noqa", "type: ignore", "type:ignore", "pylint:", "mypy:")
 
 
+# 判断是否属于不可移动的工具指令
 def is_kept(comment):
     return any(marker in comment for marker in KEEP_MARKERS)
 
 
+# 收集可移动的行尾注释（行号、注释列、注释文本）
 def collect(path):
     """返回 [(行号, 注释列, 注释文本)]，仅含需要移动的行尾注释"""
     with io.open(path, "rb") as fh:
@@ -44,6 +47,7 @@ def collect(path):
     return hits
 
 
+# 把命中行改写为「注释行 + 代码行」，--apply 时才落盘
 def transform(path, apply_changes):
     lines = io.open(path, encoding="utf-8").read().split("\n")
     hits = collect(path)
@@ -64,6 +68,7 @@ def transform(path, apply_changes):
     return len(hits)
 
 
+# 入口：解析 --apply、逐文件处理并汇总
 def main():
     args = sys.argv[1:]
     apply_changes = "--apply" in args

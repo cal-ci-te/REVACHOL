@@ -1,4 +1,6 @@
-// 注释工程自检工具：注释规范审查 + 导入完整性审查。
+// ！注释规范与导入完整性审查
+// 注释工程的自检器：审查注释是否合规，并检查「引用了项目内符号却未导入」的缺陷。
+// 导入完整性检查已用历史版本回证——在 d5f17f2 上运行准确报出 D1~D3，而非只产生噪音。
 //
 // 用法：
 //   node scripts/comment-audit/audit.mjs <文件...>        # 注释规范审查（指定文件）
@@ -22,7 +24,7 @@ function loadAcorn(baseDir) {
     try {
       return createRequire(resolve(base, 'package.json'))('acorn');
     } catch {
-      // 试下一个候选位置
+      // 解析失败属预期：候选位置是逐级回落的列表，交由下一个候选继续
     }
   }
   throw new Error('无法解析 acorn：请在仓库根目录下运行，或用 --root 指定仓库根');
@@ -35,8 +37,9 @@ const acorn = loadAcorn(CWD);
 
 const SOURCE_TYPES = ['module', 'script', 'commonjs'];
 
-// ===== 通用：AST 解析 =====
+// 通用：AST 解析
 
+// 依次尝试 module/script/commonjs：仓库里三种写法混存，固定单一模式会解析失败
 function parseComments(src) {
   let lastErr;
   for (const st of SOURCE_TYPES) {
@@ -57,6 +60,7 @@ function parseComments(src) {
   throw lastErr;
 }
 
+// 只取 AST，不收集注释
 function parse(src) {
   let lastErr;
   for (const st of ['module', 'script']) {
@@ -86,6 +90,7 @@ function walkNodes(node, visit) {
   }
 }
 
+// 递归收集目录下所有 .js 文件
 function walkFiles(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
@@ -95,13 +100,15 @@ function walkFiles(dir, out = []) {
   return out;
 }
 
-// ===== 检查一：注释规范 =====
+// 检查一：注释规范
 
+// 判定用正则：emoji 覆盖常见符号区；CJK 用于区分中文与纯英文注释；TAGS 命中即视为过程标记
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
 const CJK = /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/;
 const CJK_ONLY = /[\u4e00-\u9fff]/;
 const TAGS = [/@author/i, /@param/i, /@returns?/i, /@typedef/i, /@internal/i, /@type\b/i, /\bMODIFIED\b/, /\[MODIFIED\]/, /v\d+\.\d+\.\d+/];
 
+// 逐文件审查注释；解析失败的文件只记录跳过，不中断整批
 function checkComments(files) {
   let violations = 0;
   let warnings = 0;
@@ -170,9 +177,9 @@ function checkComments(files) {
   return violations;
 }
 
-// ===== 检查二：导入完整性（未导入即引用）=====
+// 检查二：导入完整性（未导入即引用）
 //
-// 背景：此类缺陷已在本项目出现 5 次，且形态完全一致——
+// 背景：此类缺陷已在本项目出现 6 次，且形态完全一致——
 //   D1  directory-pending-moves.js  引用 UI.*    未导入
 //   D2  directory-drop-handler.js   引用 UI.*    未导入
 //   D3  position-manager.js         引用 UI.*    未导入
@@ -189,6 +196,7 @@ function checkComments(files) {
 //
 // 已验证：在 d5f17f2（D1~D3 修复前）上运行，确实报出 D1/D2/D3 三个文件。
 
+// 扫描 js/：报告「引用了项目内导出符号但本文件未导入」的情况
 function checkImports() {
   const dir = join(CWD, 'js');
   const files = walkFiles(dir);
@@ -284,7 +292,7 @@ function checkImports() {
   return total;
 }
 
-// ===== 入口 =====
+// 入口
 
 const wantAll = args.includes('--all');
 const wantImports = args.includes('--imports') || wantAll;

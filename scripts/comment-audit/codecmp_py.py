@@ -13,14 +13,15 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+# 统一在仓库根执行 git：路径解析不随调用目录漂移
 def git(*args):
-    # 统一以仓库根为工作目录执行 git，保证路径解析一致
     return subprocess.run(
         ("git",) + args,
         cwd=REPO, check=True, capture_output=True, text=True, encoding="utf-8",
     ).stdout
 
 
+# 取未提交的 .py 改动；用 status 而非 diff，后者会受索引 stat 缓存影响而漏报
 def changed_files():
     out = git("status", "--porcelain")
     files = []
@@ -31,16 +32,19 @@ def changed_files():
     return files
 
 
+# 取已暂存的 .py 改动
 def staged_files():
     out = git("diff", "--cached", "--name-only")
     return [f for f in out.splitlines() if f.endswith(".py")]
 
 
+# 序列化语法树，供直接比较
 def dump(source):
     # include_attributes=False：忽略行号等位置属性，只比结构
     return ast.dump(ast.parse(source), include_attributes=False)
 
 
+# 入口：确定文件清单、逐文件比对并汇总
 def main():
     args = sys.argv[1:]
     if not args or args[0] == "--changed":
