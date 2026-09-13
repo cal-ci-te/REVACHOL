@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# ！RFC-001 核心状态机
+# DocumentReviewFlow：以 CrewAI Flow 串联计划、撰写、编码、审查、合入与暂存各阶段。
 """RFC-001 核心：DocumentReviewFlow 状态机与路由。
 
 设计要点（对齐 RFC-001 决议）：
@@ -81,16 +83,18 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
     """文档撰写 + 审查修改循环的 CrewAI Flow。"""
 
     # --- 注入点（Pydantic 字段，便于 CLI / 测试注入） ---
-    emitter: Any = None  # NDJSON 事件发射器（JsonLogEmitter 兼容）
-    agent_builder: Any = None  # callable() -> dict[str, Agent]；缺省使用 run_revachol_crew
-    save_snapshots: bool = True  # 是否写 flow_state 快照
-    flow_output_dir: Optional[str] = None  # 覆盖输出目录（一般交给 CREW_OUTPUT_DIR）
+    # NDJSON 事件发射器（与 JsonLogEmitter 兼容）
+    emitter: Any = None
+    # callable() -> dict[str, Agent]；缺省用 run_revachol_crew 的 build_agents
+    agent_builder: Any = None
+    # 置 False 则不写 flow_state 快照，便于无副作用的测试
+    save_snapshots: bool = True
+    # 覆盖输出目录（一般交给 CREW_OUTPUT_DIR，此处仅供测试直接指定）
+    flow_output_dir: Optional[str] = None
 
     _agents: dict = PrivateAttr(default_factory=dict)
 
-    # =====================================================================
     # 日志 / 快照
-    # =====================================================================
 
     def _log(self, level: str, message: str) -> None:
         if self.emitter is not None:
@@ -116,9 +120,7 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         except Exception as exc:  # noqa: BLE001 - 快照失败不应中断主流程
             self._log("warning", f"Flow 状态快照写入失败: {exc}")
 
-    # =====================================================================
     # Agent 构建（复用既有 Crew 资产）
-    # =====================================================================
 
     def _ensure_agents(self) -> dict:
         """构建/复用 Agent 字典；包含既有四 Agent + TextProcessor + Csser。
@@ -238,9 +240,7 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
             except Exception as exc:  # noqa: BLE001 - 统计失败不影响主流程
                 self._log("warning", f"[stats] {agent_id} Token 统计失败: {exc}")
 
-    # =====================================================================
     # 各状态的实际执行（可被测试覆写，避免真实 LLM 调用）
-    # =====================================================================
 
     def _run_planning(self, revision: bool = False) -> None:
         """Planner：制定计划（首次）或结合 review_feedback 制定修订计划。"""
@@ -567,9 +567,7 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
 
         self._log("error", f"未通过审查报告已生成: {report_path}")
 
-    # =====================================================================
     # 状态机 / 路由
-    # =====================================================================
 
     @start()
     def planning(self) -> None:
@@ -598,8 +596,10 @@ class DocumentReviewFlow(Flow[ReviewLoopState]):
         if self.state.status == FlowStatus.FAILED:
             return _RESUME_DONE
         if self.state.revision_count == 0:
-            return _DRAFT_DOC  # 首次：TextProcessor 先行撰写
-        return _CODE_DOC  # 修改循环：直接交 Coder
+            # 首次：TextProcessor 先行撰写
+            return _DRAFT_DOC
+        # 修改循环：直接交 Coder
+        return _CODE_DOC
 
     @listen(_DRAFT_DOC)
     def drafting(self) -> None:
