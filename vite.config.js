@@ -1,4 +1,6 @@
-﻿import { defineConfig, loadEnv } from "vite";
+﻿// ！Vite 开发与构建配置
+// 定义开发服务器、代理、构建产物与路径别名。注意其 test 段不被 Vitest 使用，见文末说明。
+import { defineConfig, loadEnv } from "vite";
 // ErrPulse 前端采集已禁用（SDK 无开关配置，注释即关闭）。需启用时取消注释。
 // import errpulse from '@errpulse/vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
@@ -37,12 +39,15 @@ export default defineConfig(({ mode }) => {
         // 开发服务器配置
         server: {
             port: 3000,
-            host: '0.0.0.0', // 允许外部访问
+            // 监听所有网卡，使容器外与局域网设备可访问
+            host: '0.0.0.0',
             // 自动打开浏览器：本地开发默认开启；Docker 容器内无浏览器，
             // 通过 VITE_OPEN_BROWSER=false 关闭（否则会报 xdg-open ENOENT）
             open: env.VITE_OPEN_BROWSER !== 'false',
-            strictPort: false, // 端口被占用时尝试下一个
-            cors: true, // 启用 CORS
+            // 端口被占用时自动顺延，避免残留进程导致启动失败
+            strictPort: false,
+            // 允许开发期跨源调试请求
+            cors: true,
             
             // 代理配置
             proxy: {
@@ -214,6 +219,10 @@ export default defineConfig(({ mode }) => {
             exclude: [],
         },
         
+        // 注意：Vitest 实际读取 vitest.config.js（同名配置优先级更高），此处的 test 段
+        // 不会被测试运行使用。而 vitest.config.js 里的 `...viteConfig` 展开的是本文件
+        // 导出的函数（export default defineConfig(fn)），展开结果为空对象，
+        // 故 vitest 也不会继承本文件的 alias 与 plugins。两处配置目前各自独立。
         // 测试配置
         test: {
             environment: "jsdom",

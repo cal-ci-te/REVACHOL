@@ -1,83 +1,70 @@
-// Playwright 端到端测试配置
-// 仅使用 Chromium（轻量化），支持本地开发和 CI 两种运行模式
-// 项目：REVACHOL v1.12.2
+// ！Playwright 端到端测试配置
+// 仅使用 Chromium，支持本地开发与 CI 两种运行模式。
 //
-// 测试项目依赖链：setup（登录→保存 storageState）→ chromium（继承登录态）
-// auth.setup.js 通过 /api/auth/login 获取 Token 存入 .auth/user.json
-// articles/decos/directory/settings 测试通过 storageState 复用此登录态
+// 测试项目依赖链：setup（登录 → 保存 storageState）→ chromium（继承登录态）
+// auth.setup.js 通过 /api/auth/login 取 Token 存入 .auth/user.json，
+// 其余各 spec 经 storageState 复用该登录态，避免每个文件重复登录。
 
 import { defineConfig, devices } from '@playwright/test';
 
-// 通过环境变量切换模式：CI=true 时使用无头模式 + 更多重试
+// CI=true 时改用无头模式并增加重试
 const isCI = process.env.CI === 'true';
 
 export default defineConfig({
-  // 测试文件目录
   testDir: './e2e-tests',
 
-  // 全局测试超时（30 秒）
+  // 单条测试 30 秒；expect 另设 10 秒，便于区分「断言失败」与「用例整体卡住」
   timeout: 30 * 1000,
-
-  // 每个测试的 expect 超时
   expect: {
     timeout: 10 * 1000,
   },
 
-  // 失败重试：CI 环境重试 2 次，本地不重试
+  // CI 机器较慢，失败重试 2 次；本地不重试，以便立刻暴露问题
   retries: isCI ? 2 : 0,
 
-  // 并行 worker 数：全部使用 1 个（避免 sql.js 并发写冲突）
+  // 强制单 worker：sql.js 的写入不是并发安全的，多 worker 会互相覆盖数据库
   workers: 1,
 
-  // 报告格式：HTML（playwright-archive 要求使用默认目录名，不要覆盖 outputDir）
+  // 报告用 HTML，且不覆盖 outputDir——playwright-archive 依赖默认目录名
   reporter: [['html', { open: 'never' }]],
 
-  // 全局测试配置
   use: {
-    // 基础 URL：Vite dev server 默认端口
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
 
-    // 截图：仅失败时截取
     screenshot: 'only-on-failure',
 
-    // 录像：CI 环境保留录像用于归档回放
+    // CI 保留录像用于归档回放；本地关闭以省磁盘与时间
     video: isCI ? 'retain-on-failure' : 'off',
 
-    // 追踪：失败时记录
     trace: 'retain-on-failure',
   },
 
-  // 项目配置：setup → chromium 依赖链
   projects: [
-    // Setup 项目：登录并保存 storageState（仅运行一次）
+    // setup 只跑一次，产出的登录态供 chromium 项目复用
     {
       name: 'setup',
       testMatch: /auth\.setup\.js/,
     },
-    // Chromium 项目：继承 setup 的登录态，运行所有其他测试
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // CI 环境无头，本地可以有头调试
+        // CI 无头；本地有头，便于观察与调试
         headless: isCI ? true : false,
-        // 继承 setup 项目保存的登录态
         storageState: '.auth/user.json',
       },
       dependencies: ['setup'],
     },
   ],
 
-  // 开发服务器：始终配置，reuseExistingServer 保证不重复启动
-  // 本地：自动启动 Vite dev server
-  // CI / Docker：如果服务已运行（BASE_URL 可达），则复用
+  // 开发服务器始终配置：reuseExistingServer 使服务已在运行时不再重复启动。
+  // 本地自动起 Vite dev server；CI / Docker 下若端口已可达则直接复用。
   webServer: {
     command: 'npm run dev',
     url: process.env.BASE_URL || 'http://localhost:3000',
     reuseExistingServer: true,
     timeout: 60 * 1000,
-    // 如果 CI 中前端容器已运行此端口，reuseExistingServer 直接通过
-    // 如果端口不可达，则启动 npm run dev 作为后备
+    // stderr 走管道：保留启动失败的输出，便于定位端口占用等问题
     stderr: 'pipe',
   },
 });

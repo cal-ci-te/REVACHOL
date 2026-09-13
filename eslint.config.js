@@ -1,3 +1,7 @@
+// ！ESLint 扁平配置
+// ESLint 10 的 flat config 入口，集中定义规则、语言选项与忽略范围。
+// 注意：下方的规则是从旧的 .eslintrc.js 手工抄录而来，本文件并不加载那个文件
+// （它已废弃，原因见 .eslintrc.js 的模块头）。
 import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
 import { FlatCompat } from "@eslint/eslintrc";
@@ -19,7 +23,7 @@ export default defineConfig([
     // 1. 继承 ESLint 推荐规则
     js.configs.recommended,
 
-    // 2. 兼容旧的 .eslintrc.js 中的 extends 和 rules
+    // 2. 引入 prettier 共享配置，并声明与旧 .eslintrc.js 一致的 5 条规则
     ...compat.config({
         extends: ['prettier'],
         rules: {
