@@ -1,6 +1,6 @@
-// 贴图路由：元数据存 SQLite，图片文件通过 StorageService 独立存储。
-// GET /api/decos/:id/image 直接从适配器读取二进制返回，不经过 JSON 序列化。
-// 写操作（PUT/DELETE）通过 requireAuth 包装器保护，GET 保持公开。
+// ！贴图路由
+// 贴图元数据存 SQLite，图片文件经 StorageService 独立存储。
+// 图片接口直接回二进制而不经 JSON 序列化；写操作经 requireAuth 保护，GET 保持公开。
 const { send, sendError, json } = require('../enhance.cjs'); 
 const { storage } = require('../storage/index.cjs');
 const dbModule = require('../db.cjs');
@@ -41,14 +41,14 @@ function registerDecoRoutes(GET, PUT, DELETE) {
                 return;
             }
 
-            // 提取文件名
+            // 取纯文件名：image_path 可能带目录前缀
             const filename = row.image_path.includes('/') 
                 ? row.image_path.split('/').pop() 
                 : row.image_path;
 
             let buffer = await storage.read(filename);
             
-            // 如果 RustFS 没找到，尝试从本地读取（兼容旧数据）
+            // RustFS 未命中时回退本地读取，兼容早期把图片存在本地的数据
             if (!buffer && !storage.isLocal()) {
                 console.log('[GET /api/decos/:id/image] RustFS 未找到，尝试本地读取');
                 const LocalAdapter = require('../storage/adapters/local.cjs');
@@ -80,7 +80,7 @@ function registerDecoRoutes(GET, PUT, DELETE) {
         console.log('[PUT /api/decos/:id] ===== 开始处理 =====');
         console.log('[PUT /api/decos/:id] 接收到的 id:', id, '类型:', typeof id);
         
-        // 验证 id
+        // 先校验 id：空 id 会让后续查询落到未定义行为上
         if (!id) {
             console.log('[PUT /api/decos/:id] ❌ id 为空');
             sendError(res, 400, 'Missing id');
@@ -88,7 +88,7 @@ function registerDecoRoutes(GET, PUT, DELETE) {
         }
 
         try {
-            // 1. 检查贴图是否存在
+            // 1. 确认贴图存在
             console.log('[PUT /api/decos/:id] 检查贴图是否存在:', id);
             const existing = dbModule.query('SELECT id, image_path FROM decos WHERE id = ?', [id]);
             console.log('[PUT /api/decos/:id] 查询结果:', existing);
@@ -104,7 +104,7 @@ function registerDecoRoutes(GET, PUT, DELETE) {
             const updates = await json(req);
             console.log('[PUT /api/decos/:id] 更新数据:', JSON.stringify(updates, null, 2));
 
-            // 3. 构建更新 SQL
+            // 3. 按传入字段拼装更新语句，未传的字段保持不动
             const fields = [];
             const values = [];
             
@@ -127,7 +127,7 @@ function registerDecoRoutes(GET, PUT, DELETE) {
                 console.log('[PUT /api/decos/:id] 更新 style:', updates.style);
             }
 
-            // 如果更新了 dataUrl，意味着要更新图片
+            // 传入 dataUrl 表示换图：解码后上传新图并回收旧文件
             if (updates.dataUrl) {
                 console.log('[PUT /api/decos/:id] 检测到 dataUrl 更新，处理图片...');
                 try {
@@ -135,15 +135,15 @@ function registerDecoRoutes(GET, PUT, DELETE) {
                     const buffer = Buffer.from(base64Data, 'base64');
                     console.log('[PUT /api/decos/:id] 图片 Buffer 大小:', buffer.length);
                     
-                    // 获取原文件名
+                    // 记下旧文件名，待新图上传成功后据此回收
                     const oldFilename = existing.image_path ? existing.image_path.split('/').pop() : null;
                     console.log('[PUT /api/decos/:id] 旧文件名:', oldFilename);
                     
-                    // 上传新图片
+                    // 先上传新图再改库：上传失败即返回，不留下指向空文件的记录
                     const result = await storage.upload(buffer, 'update.webp', 'image/webp');
                     console.log('[PUT /api/decos/:id] 上传成功，新 key:', result.key);
                     
-                    // 删除旧文件
+                    // 新图落定后再删旧文件
                     if (oldFilename) {
                         console.log('[PUT /api/decos/:id] 删除旧文件:', oldFilename);
                         await storage.delete(oldFilename);
@@ -159,7 +159,7 @@ function registerDecoRoutes(GET, PUT, DELETE) {
                 }
             }
 
-            // 4. 检查是否有字段需要更新
+            // 4. 无任何可更新字段时报错，避免执行空 UPDATE
             if (fields.length === 0) {
                 console.log('[PUT /api/decos/:id] ⚠️ 没有字段需要更新');
                 sendError(res, 400, 'No fields to update');
@@ -181,7 +181,7 @@ function registerDecoRoutes(GET, PUT, DELETE) {
                 return;
             }
 
-            // 6. 广播变更
+            // 6. 广播变更，让其他客户端同步
             console.log('[PUT /api/decos/:id] 广播变更事件');
             broadcast({ 
                 type: 'deco_updated', 
@@ -211,7 +211,7 @@ function registerDecoRoutes(GET, PUT, DELETE) {
         console.log('[DELETE /api/decos/:id] 删除贴图:', id);
 
         try {
-            // 获取图片路径以便删除文件
+            // 先取出图片路径：删库之后就无法再定位文件
             const row = dbModule.query('SELECT image_path FROM decos WHERE id = ?', [id]);
             if (row && row.image_path) {
                 const filename = row.image_path.split('/').pop();
