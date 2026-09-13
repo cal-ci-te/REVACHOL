@@ -1,3 +1,7 @@
+// ！事件常量注册表
+// 集中登记 EventBus 全部事件名，统一采用「域:动作」命名（如 article:data-loaded）。
+// 选择常量集中而非各模块内联字符串：事件名拼写错误在引用处即可被静态工具发现，且便于检索订阅关系。
+
 export const EVENTS = {
   // 文章相关
   ARTICLE_VISIBILITY_CHANGED: 'article:visibility-changed',
@@ -7,7 +11,7 @@ export const EVENTS = {
   ARTICLE_DATA_ERROR: 'article:data-error',
   ARTICLES_UPDATED: 'articles:updated',
 
-  // UI相关
+  // UI 相关
   UI_INITIALIZED: 'ui:initialized',
   UI_REFRESH: 'ui:refresh',
 
@@ -44,7 +48,7 @@ export const EVENTS = {
   DECO_EDITING_STOPPED: 'deco:editing-stopped',
   DECO_CONTEXT_MENU: 'deco:context-menu',
 
-  // WebSocket
+  // WebSocket 连接
   WS_CONNECTED: 'ws:connected',
   WS_DISCONNECTED: 'ws:disconnected',
   WS_VISIBILITY_CHANGED: 'ws:visibility-changed',
@@ -82,7 +86,7 @@ export const EVENTS = {
   STICKER_EDITOR_CLOSED: 'sticker-editor:closed',
   STICKER_EDITOR_SAVED: 'sticker-editor:saved',
 
-  // CrewAI Web Dashboard
+  // Crew 仪表盘
   CREW_STATUS_LOADED: 'crew:status-loaded',
   CREW_STARTED: 'crew:started',
   CREW_AGENT_STATUS: 'crew:agent-status',

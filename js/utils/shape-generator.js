@@ -1,34 +1,23 @@
-/**
- * @deprecated 自 v1.18.4 起弃用 — 贴纸改为固定矩形绕排（仅 float + margin），不再需要动态多边形计算。
- * 保留此文件仅供历史参考，所有调用已移除。验证稳定后可安全删除。
- *
- * 多边形形状生成器 — 为贴纸文字绕排提供 shape-outside / clip-path 的 polygon() 顶点数组。
- *
- * 设计目标：
- *   1. 最多 16 边形（16 顶点 ≈ 圆形的视觉近似，同时保持 CSS polygon 的性能可接受）
- *   2. 支持圆形、椭圆、圆角矩形三种基础形状
- *   3. 返回 { cssPolygon: string, vertices: Array<{x,y}>, outerBox: {w,h} }
- *   4. 零外部依赖，纯计算工具
- */
+// ！多边形形状生成（已弃用）
+// 自 v1.18.4 起弃用：贴纸改为固定矩形绕排（仅 float + margin），不再需要动态多边形计算。
+// 保留此文件仅供历史参考，所有调用已移除，验证稳定后可安全删除。
+// 为贴纸文字绕排生成 shape-outside / clip-path 的 polygon() 顶点数组，支持圆形、椭圆、圆角矩形。
+// 各方法统一返回 cssPolygon（字符串）、vertices（点数组）、outerBox（外接矩形宽高）三个字段；纯计算，无外部依赖。
 
 export const ShapeGenerator = {
 
-  /** 默认顶点数量 */
+  // 默认顶点数量
+  // 取 16：16 顶点 ≈ 圆形的视觉近似，同时保持 CSS polygon 的性能可接受
   DEFAULT_VERTICES: 16,
 
-  /**
-   * 生成圆形顶点（用 N 边形近似）
-   * @param {number} cx - 圆心 X（相对于贴纸容器左上角）
-   * @param {number} cy - 圆心 Y
-   * @param {number} r - 半径
-   * @param {number} count - 顶点数（默认 16）
-   * @returns {{ cssPolygon: string, vertices: Array<{x:number,y:number}>, outerBox: {w:number,h:number} }}
-   */
+  // 生成圆形顶点
+  // 用 N 边形近似圆，从顶部开始逆时针取点
+  // cx / cy 为圆心坐标（相对贴纸容器左上角），r 为半径，count 缺省取 16
   circle(cx, cy, r, count) {
     count = count || this.DEFAULT_VERTICES;
     const vertices = [];
     for (let i = 0; i < count; i++) {
-      const angle = (i / count) * 2 * Math.PI - Math.PI / 2; // 从顶部开始
+      const angle = (i / count) * 2 * Math.PI - Math.PI / 2;
       vertices.push({
         x: Math.round((cx + r * Math.cos(angle)) * 100) / 100,
         y: Math.round((cy + r * Math.sin(angle)) * 100) / 100,
@@ -41,16 +30,9 @@ export const ShapeGenerator = {
     };
   },
 
-  /**
-   * 生成贴纸浮动形状（用于 shape-outside / clip-path）。
-   * 根据贴纸的 width/height 计算适配的圆形顶点。
-   *
-   * @param {number} w - 贴纸宽度（px）
-   * @param {number} h - 贴纸高度（px）
-   * @param {string} shape - 形状类型: 'circle' | 'ellipse' | 'rounded-rect'
-   * @param {number} vertices - 顶点数（默认 16）
-   * @returns {{ cssPolygon: string, vertices: Array<{x:number,y:number}>, outerBox: {w:number,h:number} }}
-   */
+  // 生成贴纸浮动形状
+  // 按形状类型分派，默认圆形
+  // shape 取 circle | ellipse | rounded-rect，w / h 为贴纸像素宽高，vertices 为顶点数
   forSticker(w, h, shape, vertices) {
     shape = shape || 'circle';
     vertices = vertices || this.DEFAULT_VERTICES;
@@ -66,9 +48,7 @@ export const ShapeGenerator = {
     }
   },
 
-  /**
-   * 圆形贴纸顶点：取较短边为直径
-   */
+  // 生成圆形贴纸顶点
   _circleVertices(w, h, vertices) {
     const size = Math.min(w, h);
     const r = size / 2;
@@ -77,9 +57,7 @@ export const ShapeGenerator = {
     return this.circle(cx, cy, r, vertices);
   },
 
-  /**
-   * 椭圆贴纸顶点：填充整个贴纸区域
-   */
+  // 生成椭圆贴纸顶点
   _ellipseVertices(w, h, vertices) {
     const rx = w / 2;
     const ry = h / 2;
@@ -100,11 +78,10 @@ export const ShapeGenerator = {
     };
   },
 
-  /**
-   * 圆角矩形贴纸顶点：用 16 边形近似（4 个角各 4 个顶点）
-   */
+  // 生成圆角矩形顶点
+  // 圆角半径取短边的 20%，四角均分顶点（顶点数除不尽时余数归左边）
   _roundedRectVertices(w, h, vertices) {
-    const r = Math.min(w, h) * 0.2; // 圆角半径 = 短边的 20%
+    const r = Math.min(w, h) * 0.2;
     const vPerCorner = Math.max(2, Math.floor(vertices / 4));
     const pts = [];
 
@@ -140,11 +117,7 @@ export const ShapeGenerator = {
     };
   },
 
-  /**
-   * 顶点数组 → CSS polygon() 字符串
-   * @param {Array<{x:number, y:number}>} vertices
-   * @returns {string} e.g. "polygon(50% 0%, 85% 15%, ...)"
-   */
+  // 顶点转 CSS polygon
   _toCssPolygon(vertices) {
     const parts = vertices.map(function (v) {
       return v.x + 'px ' + v.y + 'px';
@@ -152,13 +125,8 @@ export const ShapeGenerator = {
     return 'polygon(' + parts.join(', ') + ')';
   },
 
-  /**
-   * 顶点数组 → 百分比 polygon() 字符串（用于响应式场景）
-   * @param {Array<{x:number, y:number}>} vertices
-   * @param {number} w - 总宽度
-   * @param {number} h - 总高度
-   * @returns {string}
-   */
+  // 顶点转百分比 polygon
+  // 用于响应式场景；宽高非法时退回像素值
   toPercentPolygon(vertices, w, h) {
     if (w <= 0 || h <= 0) return this._toCssPolygon(vertices);
     const parts = vertices.map(function (v) {

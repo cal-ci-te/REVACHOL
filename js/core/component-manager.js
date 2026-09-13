@@ -1,41 +1,20 @@
-// 组件统一管理器 — 为所有自定义组件提供统一的生命周期、状态追踪、错误隔离。
-// v1.1.0 — 新增：超时保护、remount、updateComponent、updateConfig、EventBus 自动清理、
-//         COMPONENT_ALL_INITIALIZED 事件、拓扑排序缓存、同步卸载路径。
-//
-// 设计目标：
-//   1. 统一注册：所有交互/装饰组件通过 ComponentManager.register() 接入。
-//   2. 统一生命周期：register → init → mount → unmount，阶段化执行。
-//   3. 统一状态追踪：registered / initialized / mounted / unmounted / error。
-//   4. 错误隔离：单个组件的 init/mount/unmount 失败不影响其他组件。
-//   5. 预留互动引擎接口：createInteractive / renderInteractive（后续实现）。
-//
-// 组件描述符规范：
-//   {
-//     name: string,                   // 唯一标识
-//     config: {
-//       dependencies: string[],       // 依赖的其他组件名
-//       desktopOnly: boolean,         // 是否仅桌面端可用
-//       requiresAuth: boolean,        // 是否需要管理员权限
-//       initTimeout: number,          // init 超时 (ms)，默认 15000
-//       mountTimeout: number,         // mount 超时 (ms)，默认 10000
-//       unmountTimeout: number,       // unmount 超时 (ms)，默认 5000
-//       debug: boolean,               // 开启详细日志
-//     },
-//     init: async () => instance,      // 初始化（加载数据、检测环境）返回实例
-//     mount: async (instance) => instance, // 挂载到 DOM 返回实例
-//     unmount: async (instance) => instance, // 清理资源返回实例
-//     update: async (instance, payload) => instance, // 动态更新（可选）
-//   }
-//
-// 注意：组件不需要独立版本号。版本号统一由 package.json 管理，变更追踪在 CHANGELOG 记录。
+// ！组件统一管理
+// 为全部交互/装饰组件提供统一生命周期（register → init → mount → unmount）、状态追踪与错误隔离。
+// 组件通过描述符声明依赖、平台限制、超时与钩子；集中管理避免各组件重复实现超时、订阅清理与批量编排。
+// 描述符契约：{ name, config: { dependencies, desktopOnly, requiresAuth, initTimeout, mountTimeout,
+//   unmountTimeout, debug }, init?, mount?, unmount?, update? }，三个钩子均返回实例。
+// 状态机：registered → initialized → mounted → unmounted，任一阶段失败转 error。
+// 组件不维护独立版本号：版本统一由 package.json 管理，变更在 CHANGELOG 记录。
+// 一条龙互动引擎接口（createInteractive/renderInteractive）为预留位，当前仅存储配置。
 
 import { EventBus } from './event-bus.js';
 import { EVENTS } from './event-constants.js';
 
 const DEFAULTS = {
-  initTimeout: 15000,    // init 钩子超时 15s
-  mountTimeout: 10000,   // mount 钩子超时 10s
-  unmountTimeout: 5000,  // unmount 钩子超时 5s
+  // init/mount/unmount 钩子超时（ms），防止 Promise 挂起阻塞批量操作
+  initTimeout: 15000,
+  mountTimeout: 10000,
+  unmountTimeout: 5000,
 };
 
 const STATE_LABELS = {
@@ -46,13 +25,7 @@ const STATE_LABELS = {
   error: '错误',
 };
 
-/**
- * 创建带超时控制的 Promise 包装。
- * @param {Promise} promise — 原始 Promise
- * @param {number} ms — 超时毫秒数
- * @param {string} label — 超时错误描述
- * @returns {Promise}
- */
+// 超时包装 Promise：钩子挂起超过 ms 即拒绝，防止 initAll/mountAll 无限等待
 function withTimeout(promise, ms, label) {
   if (!ms || ms <= 0) return promise;
   return new Promise(function (resolve, reject) {
@@ -75,12 +48,10 @@ export var ComponentManager = {
   _interactiveEnabled: false,
   _sortedOrder: null,
   _dirty: true,
-  _eventTokens: new Map(),  // name → [{ eventName, callback }]
+  // 记录各组件登记的 EventBus 订阅，卸载时统一清理
+  _eventTokens: new Map(),
 
-  // =========================================================================
-  //  注册
-  // =========================================================================
-
+  // 登记组件
   register: function (descriptor) {
     if (!descriptor || !descriptor.name) {
       console.error('[ComponentManager] register: 缺少 name 字段');
@@ -132,6 +103,7 @@ export var ComponentManager = {
     return this;
   },
 
+  // 登记事件订阅
   trackEvents: function (name, tokens) {
     if (!tokens || !Array.isArray(tokens)) return this;
     if (!this._eventTokens.has(name)) this._eventTokens.set(name, []);
@@ -139,10 +111,7 @@ export var ComponentManager = {
     return this;
   },
 
-  // =========================================================================
-  //  批量操作
-  // =========================================================================
-
+  // 批量初始化
   initAll: async function (options) {
     const filter = options && options.filter ? new Set(options.filter) : null;
     const force = options && options.force;
@@ -177,6 +146,7 @@ export var ComponentManager = {
     return results;
   },
 
+  // 批量挂载
   mountAll: async function (options) {
     const filter = options && options.filter ? new Set(options.filter) : null;
     const order = this._getTopologicalOrder();
@@ -218,6 +188,7 @@ export var ComponentManager = {
     return results;
   },
 
+  // 批量卸载
   unmountAll: async function (options) {
     const filter = options && options.filter ? new Set(options.filter) : null;
     const useSync = options && options.sync;
@@ -227,6 +198,7 @@ export var ComponentManager = {
     this._registry.forEach(function (entry) {
       if (entry.state === 'mounted' || entry.state === 'error') entries.push(entry);
     });
+    // 逆注册序卸载：避免依赖方先于被依赖方销毁
     entries.reverse();
 
     const results = { success: 0, failed: 0, details: [] };
@@ -255,6 +227,7 @@ export var ComponentManager = {
     return results;
   },
 
+  // 全量更新
   updateAll: async function (payload) {
     const entries = [];
     this._registry.forEach(function (entry) {
@@ -278,10 +251,7 @@ export var ComponentManager = {
     return results;
   },
 
-  // =========================================================================
-  //  单个操作
-  // =========================================================================
-
+  // 初始化单个组件
   initComponent: async function (name) {
     const entry = this._registry.get(name);
     if (!entry || entry.state !== 'registered') {
@@ -306,6 +276,7 @@ export var ComponentManager = {
     return this._tryMount(entry);
   },
 
+  // 卸载单个组件
   unmountComponent: async function (name) {
     const entry = this._registry.get(name);
     if (!entry || (entry.state !== 'mounted' && entry.state !== 'error')) {
@@ -317,6 +288,7 @@ export var ComponentManager = {
     return this._tryUnmount(entry);
   },
 
+  // 重新挂载组件
   remountComponent: async function (name) {
     const entry = this._registry.get(name);
     if (!entry || entry.state !== 'unmounted') {
@@ -325,6 +297,7 @@ export var ComponentManager = {
       return false;
     }
 
+    // 复位为 registered 后重走 init→mount：确保重挂载使用最新配置与依赖
     entry.state = 'registered';
     entry.error = null;
     entry.instance = null;
@@ -343,6 +316,7 @@ export var ComponentManager = {
     return this._tryMount(entry);
   },
 
+  // 更新组件配置
   updateConfig: function (name, partialConfig) {
     const entry = this._registry.get(name);
     if (!entry) {
@@ -356,6 +330,7 @@ export var ComponentManager = {
     if (partialConfig.dependencies !== undefined) {
       entry.config.dependencies = Array.isArray(partialConfig.dependencies)
         ? partialConfig.dependencies : [];
+      // 依赖变更使拓扑缓存失效
       this._dirty = true;
     }
     if (partialConfig.initTimeout !== undefined) entry.options.initTimeout = partialConfig.initTimeout;
@@ -368,6 +343,7 @@ export var ComponentManager = {
     return true;
   },
 
+  // 更新单个组件
   updateComponent: async function (name, payload) {
     const entry = this._registry.get(name);
     if (!entry || entry.state !== 'mounted') {
@@ -386,15 +362,13 @@ export var ComponentManager = {
     }
   },
 
-  // =========================================================================
-  //  查询
-  // =========================================================================
-
+  // 获取组件实例
   getComponent: function (name) {
     const entry = this._registry.get(name);
     return entry ? entry.instance : null;
   },
 
+  // 获取组件状态
   getState: function (name) {
     const entry = this._registry.get(name);
     if (!entry) return null;
@@ -411,6 +385,7 @@ export var ComponentManager = {
     };
   },
 
+  // 获取全部状态
   getAllStates: function () {
     const result = {};
     this._registry.forEach(function (entry, name) {
@@ -419,6 +394,7 @@ export var ComponentManager = {
     return result;
   },
 
+  // 汇总状态计数
   getSummary: function () {
     let registered = 0, initialized = 0, mounted = 0, unmounted = 0, error = 0;
     this._registry.forEach(function (entry) {
@@ -434,8 +410,10 @@ export var ComponentManager = {
       mounted: mounted, unmounted: unmounted, error: error };
   },
 
+  // 判断是否已登记
   has: function (name) { return this._registry.has(name); },
 
+  // 动态加载组件模块
   loadComponent: async function (name, modulePath) {
     if (this._registry.has(name)) {
       console.warn('[ComponentManager] loadComponent: 组件已存在:', name);
@@ -456,6 +434,7 @@ export var ComponentManager = {
     }
   },
 
+  // 重置管理器
   reset: function () {
     this._registry.clear();
     this._interactiveConfigs = [];
@@ -467,10 +446,7 @@ export var ComponentManager = {
     return this;
   },
 
-  // =========================================================================
-  //  内部 — 生命周期执行
-  // =========================================================================
-
+  // 执行 init 钩子
   _tryInit: async function (entry) {
     if (typeof entry.hooks.init !== 'function') {
       entry.state = 'initialized';
@@ -507,6 +483,7 @@ export var ComponentManager = {
     }
   },
 
+  // 执行 mount 钩子
   _tryMount: async function (entry) {
     if (typeof entry.hooks.mount !== 'function') {
       entry.state = 'mounted';
@@ -543,6 +520,7 @@ export var ComponentManager = {
     }
   },
 
+  // 执行 unmount 钩子
   _tryUnmount: async function (entry) {
     this._cleanupErrorState(entry);
 
@@ -583,6 +561,7 @@ export var ComponentManager = {
     }
   },
 
+  // 同步卸载钩子
   _tryUnmountSync: function (entry) {
     this._cleanupErrorState(entry);
 
@@ -615,18 +594,28 @@ export var ComponentManager = {
     }
   },
 
+  // 补清理错误态实例
   _cleanupErrorState: function (entry) {
     if (entry.state === 'error' && typeof entry.hooks.unmount === 'function'
         && entry.instance !== null) {
-      try { entry.hooks.unmount(entry.instance); } catch (e) { /* ignore */ }
+      try {
+        entry.hooks.unmount(entry.instance);
+      } catch (e) {
+        // 忽略：组件已处于 error 态，此处仅为尽力释放
+      }
     }
   },
 
+  // 自动清理事件订阅
   _autoCleanupEvents: function (name) {
     const tokens = this._eventTokens.get(name);
     if (!tokens || tokens.length === 0) return;
     tokens.forEach(function (t) {
-      try { EventBus.off(t.eventName, t.callback); } catch (e) { /* ignore */ }
+      try {
+        EventBus.off(t.eventName, t.callback);
+      } catch (e) {
+        // 忽略：单个订阅取消失败不影响其余订阅清理
+      }
     });
     this._eventTokens.delete(name);
     if (tokens.length > 0) {
@@ -635,11 +624,9 @@ export var ComponentManager = {
     }
   },
 
-  // =========================================================================
-  //  内部 — 拓扑排序（带缓存）
-  // =========================================================================
-
+  // 计算拓扑顺序
   _getTopologicalOrder: function () {
+    // 命中缓存：注册/依赖未变更时跳过重建
     if (!this._dirty && this._sortedOrder) return this._sortedOrder;
 
     const names = [];
@@ -684,21 +671,20 @@ export var ComponentManager = {
         '/', names.length, '| 未解析:', unresolved.join(', '));
     }
 
+    // 写入缓存：下次 initAll/mountAll 复用，避免重复建图
     this._sortedOrder = result;
     this._dirty = false;
     return result;
   },
 
+  // 判断移动端
   _isMobile: function () {
     return window.innerWidth <= 768 ||
       ('ontouchstart' in window) ||
       navigator.maxTouchPoints > 0;
   },
 
-  // =========================================================================
-  //  预留 — 一条龙互动引擎接口
-  // =========================================================================
-
+  // 存储互动配置
   createInteractive: function (config) {
     if (!config || !config.name) {
       console.warn('[ComponentManager] createInteractive: 缺少 name 字段');
@@ -710,22 +696,26 @@ export var ComponentManager = {
     return this;
   },
 
+  // 渲染互动（预留）
   renderInteractive: function () {
     console.warn('[ComponentManager] 互动引擎未启用，请等待实现。' +
       '已存储 ' + this._interactiveConfigs.length + ' 个互动配置。');
     return this;
   },
 
+  // 获取互动配置列表
   getInteractiveConfigs: function () {
     return this._interactiveConfigs.slice();
   },
 
+  // 开关互动引擎
   setInteractiveEnabled: function (enabled) {
     this._interactiveEnabled = !!enabled;
     console.log('[ComponentManager] 互动引擎:', enabled ? '已启用' : '已禁用');
     return this;
   },
 
+  // 清空互动配置
   clearInteractiveConfigs: function () {
     this._interactiveConfigs = [];
     console.log('[ComponentManager] 互动配置队列已清空');

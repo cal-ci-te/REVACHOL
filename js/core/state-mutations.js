@@ -1,4 +1,6 @@
-// 用于规范 AppState 的修改操作，所有状态变更均应通过 AppState.commit 并传入以下类型之一。
+// ！状态变更常量
+// 登记 AppState.commit 允许的全部 mutation 类型，作为状态写入的白名单。
+// 选择集中常量而非自由字符串：拼写错误在提交处即被拒绝，避免静默写入无效键。
 
 export const MUTATIONS = {
   // 登录状态
@@ -45,17 +47,17 @@ export const MUTATIONS = {
   SET_KEY: 'SET_KEY',
 
   // 拼图组件
-  SET_PUZZLE_IMAGE: 'SET_PUZZLE_IMAGE',           // 拼图自定义图片 dataUrl
-  SET_PUZZLE_COMPLETED: 'SET_PUZZLE_COMPLETED',   // 拼图是否已对齐完成
+  // SET_PUZZLE_IMAGE 存自定义图片 dataUrl；SET_PUZZLE_COMPLETED 标记是否已对齐完成
+  SET_PUZZLE_IMAGE: 'SET_PUZZLE_IMAGE',
+  SET_PUZZLE_COMPLETED: 'SET_PUZZLE_COMPLETED',
 
-  // CrewAI Web Dashboard
-  SET_CREW_STATE: 'SET_CREW_STATE',               // 整体替换 crew 运行状态快照
+  // Crew 仪表盘
+  // 整体替换 crew 运行状态快照
+  SET_CREW_STATE: 'SET_CREW_STATE',
 };
 
-/**
- * 为给定键名生成对应的 mutation 类型
- * 用于快速添加新 mutation，但推荐显式使用上面的常量。
- */
+// 由键名推导 mutation 类型
+// 用于快速添加新 mutation，但推荐显式使用上面的常量。
 export function mutationFor(key) {
   return `SET_${key.toUpperCase()}`;
 }

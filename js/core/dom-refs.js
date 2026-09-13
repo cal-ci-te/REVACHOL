@@ -1,4 +1,9 @@
+// ！集中式 DOM 引用
+// 汇总各模块使用的选择器字符串，供按名字段或路径查询。
+// 选择集中登记而非散落各模块的 querySelector：选择器变更只需改一处，避免多处硬编码字符串漂移。
+
 export const DOMRefs = {
+  // 侧边栏
   sidebar: {
     container: '#sidebar',
     toggleBtn: '#sidebarCollapseBtn',
@@ -7,10 +12,12 @@ export const DOMRefs = {
     overlay: '#sidebarOverlay',
   },
 
+  // 文章列表
   articles: {
     container: '#articlesContainer',
   },
 
+  // 详情浮层
   detail: {
     overlay: '#detailOverlay',
     content: '#detailContent',
@@ -18,6 +25,7 @@ export const DOMRefs = {
     body: '#detailBody',
   },
 
+  // 登录
   login: {
     widget: '#loginWidget',
     trigger: '#loginTrigger',
@@ -31,6 +39,7 @@ export const DOMRefs = {
     password: '#loginPassword',
   },
 
+  // 头像裁剪
   crop: {
     overlay: '#avatarCropModalOverlay',
     canvas: '#cropCanvas',
@@ -40,6 +49,7 @@ export const DOMRefs = {
     closeBtn: '#cropModalCloseBtn',
   },
 
+  // 管理面板
   admin: {
     panel: '#adminPanel',
     header: '#panelHeader',
@@ -47,6 +57,7 @@ export const DOMRefs = {
     toggleIcon: '#panelToggleIcon',
   },
 
+  // 管理面板控件
   adminControls: {
     toggleDecoEdit: '#toggleDecoEditBtn',
     decoEditStatus: '#decoEditStatus',
@@ -74,6 +85,7 @@ export const DOMRefs = {
     logoutBtn: '#logoutBtn',
   },
 
+  // 页面装饰元素
   misc: {
     siteAvatar: '#siteAvatar',
     tiledWatermark: '#tiledWatermark',
@@ -84,6 +96,7 @@ export const DOMRefs = {
     decoRaven: '#decoRaven',
   },
 
+  // 查询单个元素
   get: function (selector) {
     if (typeof selector === 'string') {
       return document.querySelector(selector);
@@ -91,6 +104,7 @@ export const DOMRefs = {
     return null;
   },
 
+  // 查询多个元素
   getAll: function (selector) {
     if (typeof selector === 'string') {
       return document.querySelectorAll(selector);
@@ -98,6 +112,7 @@ export const DOMRefs = {
     return null;
   },
 
+  // 按字段路径查询
   getByPath: function (path) {
     const parts = path.split('.');
     let current = this;
@@ -111,4 +126,3 @@ export const DOMRefs = {
     return typeof current === 'string' ? document.querySelector(current) : current;
   },
 };
-

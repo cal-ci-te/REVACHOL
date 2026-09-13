@@ -1,3 +1,7 @@
+// ！UI 文案集中管理
+// 集中登记界面全部用户可见文案，按功能域分组，供各模块引用而非内联硬编码。
+// 选择集中登记而非散落文本：文案修改与多语言扩展只需改本文件，避免逐处搜寻。
+
 export const UI = {
 
     theme: {
@@ -416,7 +420,8 @@ export const UI = {
         adminUsername: 'admin',
         adminPassword: 'admin123',
         defaultWatermarkText: 'REVACHOL',
-        defaultBgColor: '#1a1612', // → var(--color-bg-primary)
+        // 对应 var(--color-bg-primary)
+        defaultBgColor: '#1a1612',
         defaultTextureOpacity: 0.12,
         defaultWatermarkOpacity: 0.15,
     },

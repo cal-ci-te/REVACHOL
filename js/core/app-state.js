@@ -1,8 +1,11 @@
-// 自研状态管理（类 Vuex）：集中式 state + mutation 变更 + subscriber 通知。
-// 选择自研而非引入 Vuex/Pinia 的原因：项目仅 ~15 个状态键，引入状态库的产物体积 (≈30KB gzip) 
-// 远超自研实现 (<1KB)。若未来状态键增长至 50+ 或需要时间旅行调试，可迁移至 Pinia。
+// ！全局状态管理
+// 集中式 state + mutation 变更 + subscriber 通知（类 Vuex）。
+// 选择自研而非引入 Vuex/Pinia：项目仅约 15 个状态键，状态库产物体积（≈30KB gzip）远超自研实现（<1KB）。
+// 若未来状态键增长至 50+ 或需要时间旅行调试，可迁移至 Pinia。
+
 import { MUTATIONS } from './state-mutations.js';
 
+// mutation 处理器
 const mutationHandlers = {
   [MUTATIONS.SET_LOGGED_IN]: (state, payload) => { state.isLoggedIn = payload; },
   [MUTATIONS.SET_PANEL_POSITION]: (state, payload) => {
@@ -34,6 +37,8 @@ const mutationHandlers = {
   [MUTATIONS.SET_CREW_STATE]: (state, payload) => { state.crew = payload; },
 };
 
+// mutation → 受影响状态键
+// 值为 null 表示键在 payload 中动态给出（对应 SET_KEY）
 const mutationKeyMap = {
   [MUTATIONS.SET_LOGGED_IN]: 'isLoggedIn',
   [MUTATIONS.SET_PANEL_POSITION]: ['panelRight', 'panelBottom'],
@@ -84,14 +89,18 @@ export const AppState = {
     articles: [], visibleArticles: [], articleVisibility: {},
     watermarkText: 'REVACHOL', watermarkOpacity: 0.08,
     textureDataUrl: null, textureOpacity: 0.12,
-    bgColor: '#1a1612', // → var(--color-bg-primary); admin: null, ui: null,
+    // bgColor 默认值对应 var(--color-bg-primary)；此处只能用 hex，CSS 侧走变量
+    // 注意：原注释残留的 admin / ui 两个键从未真正定义，SET_ADMIN_STATE / SET_UI_STATE 目标缺失
+    bgColor: '#1a1612',
     puzzleImage: null, puzzleCompleted: false, crew: defaultCrewState(),
   },
 
   _subscribers: {},
 
+  // 读取状态
   get(key) { return this._state[key]; },
 
+  // 提交状态变更
   commit(type, payload) {
     const handler = mutationHandlers[type];
     if (!handler) { console.warn(`[AppState] 未知 mutation: ${type}`); return; }
@@ -107,13 +116,16 @@ export const AppState = {
     }
   },
 
+  // 订阅状态变更
   subscribe(key, callback) {
     if (!this._subscribers[key]) this._subscribers[key] = [];
     this._subscribers[key].push(callback);
+    // 订阅即回调当前值：避免订阅方还要额外 get 一次初始状态
     if (this._state[key] !== undefined) callback(this._state[key]);
     return this;
   },
 
+  // 取消订阅
   unsubscribe(key, callback) {
     if (!this._subscribers[key]) return this;
     if (callback) {
@@ -124,11 +136,13 @@ export const AppState = {
     return this;
   },
 
+  // 逐个 try-catch：一个订阅回调报错不影响其他订阅
   _notify(key, newValue) {
     if (!this._subscribers[key]) return;
     this._subscribers[key].forEach(cb => { try { cb(newValue); } catch (e) { console.error('[AppState] 通知错误:', key, e); } });
   },
 
+  // 重置全部状态
   reset() {
     this._state = {
       isLoggedIn: false, adminUsername: 'admin',
@@ -138,12 +152,15 @@ export const AppState = {
       articles: [], visibleArticles: [], articleVisibility: {},
       watermarkText: 'REVACHOL', watermarkOpacity: 0.08,
       textureDataUrl: null, textureOpacity: 0.12,
-      bgColor: '#1a1612', // → var(--color-bg-primary); admin: null, ui: null,
+      // bgColor 默认值对应 var(--color-bg-primary)；此处只能用 hex，CSS 侧走变量
+      // 注意：原注释残留的 admin / ui 两个键从未真正定义，SET_ADMIN_STATE / SET_UI_STATE 目标缺失
+      bgColor: '#1a1612',
       puzzleImage: null, puzzleCompleted: false, crew: defaultCrewState(),
     };
     this._subscribers = {};
     return this;
   },
 
+  // 导出状态快照
   snapshot() { return JSON.parse(JSON.stringify(this._state)); },
 };

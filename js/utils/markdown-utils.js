@@ -1,20 +1,12 @@
-/**
- * Markdown → HTML 轻量转换工具。
- * 两个编辑器（ArticleEditorMode / StickerEditorMode）共享此实现。
- *
- * @module markdown-utils
- */
+// ！Markdown 渲染
+// 将 Markdown 文本转换为 HTML，供 ArticleEditorMode 与 StickerEditorMode 两个编辑器共用，避免两处解析行为漂移。
 
 import { Utils } from '../utils.js';
 
 export const MarkdownUtils = {
 
-  /**
-   * 检测文本是否已包含 HTML 标签（WYSIWYG 编辑器输出）。
-   * 使用启发式检测：匹配常见的块级/行内 HTML 标签。
-   * @param {string} text
-   * @returns {boolean}
-   */
+  // 检测文本是否已是 HTML
+  // 使用启发式检测：匹配常见的块级/行内 HTML 标签
   _isLikelyHtml: function (text) {
     if (!text) return false;
     // 与编辑器 _isHtmlContent 对齐：匹配任意 HTML 标签，而非白名单限制。
@@ -33,13 +25,8 @@ export const MarkdownUtils = {
     return false;
   },
 
-  /**
-   * 将 Markdown 文本转换为 HTML。若内容本身已是 HTML 则直接返回。
-   * 支持：标题 h1-h3、粗体/斜体、行内代码/代码块、引用、无序列表、段落。
-   *
-   * @param {string} text - Markdown 原始文本 或 已渲染的 HTML
-   * @returns {string} HTML 字符串
-   */
+  // Markdown 转 HTML
+  // 支持标题 h1-h3、粗体/斜体、行内代码/代码块、引用、无序列表、段落；内容已是 HTML 时直接返回
   toHTML: function (text) {
     if (!text) return '<p style="color:var(--color-text-muted);">（空内容）</p>';
 
