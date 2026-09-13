@@ -1,3 +1,5 @@
+# ！主仪表盘
+# 整合左中右各面板与 Rich Live 渲染循环，并接管键盘输入。
 import os
 import sys
 import threading
@@ -22,7 +24,8 @@ class Dashboard:
         # Windows 兼容性设置：由 Rich 自动检测终端能力，
         # 并尽量启用 VT 处理（Windows Terminal / PowerShell 7 支持）。
         self.console = Console(
-            legacy_windows=True,  # 允许 Rich 使用 Win32 控制台 API 回退
+            # 允许 Rich 使用 Win32 控制台 API 回退
+            legacy_windows=True,
             color_system="auto",
         )
         # Windows 上显式启用 VT 处理；失败则忽略（Rich 会自动降级）
@@ -41,18 +44,27 @@ class Dashboard:
         self.start_time = time()
         self.is_running = False
         self.live = None
-        self._live_paused = False  # prompt_toolkit 输入期间 Rich Live 是否已完全暂停
-        self._live_rebuild_failed = False  # Live 重建失败标记，允许后续重试
-        self.refresh_rate = 2  # 降低刷新率到 2Hz，减少闪烁
+        # prompt_toolkit 输入期间 Rich Live 是否已完全暂停
+        self._live_paused = False
+        # Live 重建失败标记，允许后续重试
+        self._live_rebuild_failed = False
+        # 降低刷新率到 2Hz，减少闪烁
+        self.refresh_rate = 2
 
         # ---- 输入面板状态 ----
         self.input_buffer = ""
-        self.input_active = True  # 是否处于输入模式（main 可按需关闭）
-        self.input_callback = None  # 提交输入时的回调函数
-        self.cursor_visible = True  # 光标闪烁控制
-        self._cursor_timer = None  # 光标闪烁定时器
-        self.debug_mode = False  # 是否打印按键调试日志（由 main 根据 --debug 设置）
-        self._input_locked_message = ""  # 输入面板锁屏状态提示
+        # 是否处于输入模式（main 可按需关闭）
+        self.input_active = True
+        # 提交输入时的回调函数
+        self.input_callback = None
+        # 光标闪烁控制
+        self.cursor_visible = True
+        # 光标闪烁定时器
+        self._cursor_timer = None
+        # 是否打印按键调试日志（由 main 根据 --debug 设置）
+        self.debug_mode = False
+        # 输入面板锁屏状态提示
+        self._input_locked_message = ""
 
         # ---- Agent 选择器数据（None 表示“显示全部”）----
         self.agent_list = ["Planner", "Coder", "Reviewer", "Document Admin", "Csser", None]
@@ -76,7 +88,8 @@ class Dashboard:
             console=self.console,
             refresh_per_second=self.refresh_rate,
             screen=True,
-            vertical_overflow="crop",  # 裁剪溢出内容，减少绘制压力
+            # 裁剪溢出内容，减少绘制压力
+            vertical_overflow="crop",
         )
         self.live.__enter__()
 
@@ -116,7 +129,8 @@ class Dashboard:
             if self.debug_mode:
                 self.log(f"[DEBUG] 暂停 Live 时退出失败: {exc}", "warning")
 
-        self.live = None  # 清除引用，强制下次重建
+        # 清除引用，强制下次重建
+        self.live = None
         self._live_paused = True
 
     def resume_live(self):
@@ -128,7 +142,8 @@ class Dashboard:
         3. screen=True 失败时降级到 screen=False，再降级到静态渲染
         """
         if not getattr(self, "_live_paused", False):
-            return  # 如果没有暂停过，无需恢复
+            # 如果没有暂停过，无需恢复
+            return
 
         # 第一步：彻底清理旧实例
         if self.live is not None:
@@ -169,7 +184,8 @@ class Dashboard:
                     self.layout.get_layout(),
                     console=self.console,
                     refresh_per_second=self.refresh_rate,
-                    screen=False,  # 不使用备用屏幕，避免 VT 兼容性问题
+                    # 不使用备用屏幕，避免 VT 兼容性问题
+                    screen=False,
                     vertical_overflow="crop",
                 )
                 self.live.__enter__()
@@ -361,7 +377,8 @@ class Dashboard:
         self._input_locked_message = ""
         self.is_running = False
         self.start_time = time()
-        self.update()  # 使用 update() 而不是 _render_all()，确保重置后立即刷新
+        # 使用 update() 而不是 _render_all()，确保重置后立即刷新
+        self.update()
 
     def select_agent(self, agent_name: str | None) -> None:
         """选中 Agent，更新面板并切换输出视图"""
@@ -527,7 +544,8 @@ def _wait_for_input_fallback(dashboard: Dashboard) -> str:
                             f"ch2={repr(ch2)}, ord2={ord(ch2) if ch2 else 'N/A'}",
                             "info",
                         )
-                    if ch2 == "S":  # Delete 键：清空输入
+                    # Delete 键：清空输入
+                    if ch2 == "S":
                         dashboard.clear_input()
                     # 其余扩展键（方向键、Home/End 等）直接忽略，避免被当作可打印字符
                     continue
@@ -537,10 +555,12 @@ def _wait_for_input_fallback(dashboard: Dashboard) -> str:
                     dashboard.backspace_input()
                 elif ch in ("\r", "\n"):
                     _handle_enter()
-                elif ch == "\x1b":  # Esc
+                # Esc
+                elif ch == "\x1b":
                     dashboard.cancel_input()
                     raise KeyboardInterrupt("用户取消输入")
-                elif ch == "\x03":  # Ctrl+C
+                # Ctrl+C
+                elif ch == "\x03":
                     dashboard.cancel_input()
                     raise KeyboardInterrupt("用户取消输入")
                 elif ch.isprintable():
@@ -606,8 +626,10 @@ def wait_for_input(
         session_kwargs["output"] = _output
 
     # 状态
-    agent_mode = [False]       # True 表示当前处于 Agent 选择模式
-    selected_idx = [0]         # Agent 列表高亮位置
+    # True 表示当前处于 Agent 选择模式
+    agent_mode = [False]
+    # Agent 列表高亮位置
+    selected_idx = [0]
 
     agent_mode_filter = Condition(lambda: agent_mode[0])
 
@@ -730,7 +752,8 @@ def wait_for_input(
             return _wait_for_input_fallback(dashboard)
         raise
     finally:
-        dashboard.resume_live()  # 重新进入 Rich Live 备用缓冲区
+        # 重新进入 Rich Live 备用缓冲区
+        dashboard.resume_live()
 
     if result is not None:
         dashboard.input_buffer = result
