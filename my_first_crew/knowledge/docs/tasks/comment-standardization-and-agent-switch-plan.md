@@ -21,7 +21,7 @@
 | 注释规范化 — 批次 4b（js/bootstrap + js 根 + js/editor） | ✅ 已完成 | 24 / 24 |
 | 注释规范化 — 批次 4c（js/admin） | ✅ 已完成 | 28 / 28 |
 | 注释规范化 — 批次 5（backend/，Node CJS） | ✅ 已完成 | 27 / 28（1 个 0 字节空文件无法改造） |
-| 注释规范化 — 批次 6（my_first_crew/，Python，不含 tests） | [>] 进行中 | 14 / 17 |
+| 注释规范化 — 批次 6（my_first_crew/，Python，不含 tests） | ✅ 已完成 | 17 / 17 |
 | 注释规范化 — 批次 7（config / tests / scripts） | ⏸ 未开始 | — |
 | **目录树三缺陷修复** | ✅ 已完成 | 2 修复 + 1 误判 |
 | **Agent 启停开关体系** | ✅ 已完成 | 全栈落地 |
@@ -366,6 +366,11 @@
 | `1bbc493` | `style(flows): 注释规范化为回放面板与暂存区三层结构` | 2 文件 +29/-1 |
 | `115c143` | `style(my_first_crew): 注释规范化为单模型测试工具三层结构` | 1 文件 +13/-11 |
 | `6b04bea` | `style(my_first_crew): 注释规范化为 Flow 入口三层结构` | 1 文件 +2/-8 |
+| `efd103c` | `docs(plan): 同步批次 6 进展至 14/17 与 Python docstring 决策` | 1 文件 |
+| `9e41594` | `style(flows): 注释规范化为核心状态机三层结构` | 1 文件 +14/-14 |
+| `f3f0d4e` | `style(ui): 注释规范化为主仪表盘三层结构` | 1 文件 |
+| `a418c8c` | `style(my_first_crew): 注释规范化为多 Agent 构建脚本三层结构` | 1 文件 +25/-37 |
+| `939943b` | `style(ui): 去除主仪表盘中 3 处注释的 ===== 装饰` | 1 文件 |
 
 **注意 1**：`directory-*` 与 `drag-drop.js` 的 diff 同时含批次 3b 注释改写（已获批）与功能修复，在文件粒度**无法分离**，已整体提交并在 commit message 末尾注明。后续若需严格分离，需手工切分 hunk。
 
@@ -517,3 +522,6 @@
 | 2026-09-13 | 工具：新增 `codecmp_py.py`（ast 比对）与 `trailing_check.py`（行尾注释检测）。后者初版用手写引号状态机，把 docstring 内部以 `#` 开头的正文误判为行尾注释（`test_single_model.py` 虚报 8 处实为 1 处），已改用 `tokenize` 修正（`115c143`） |
 | 2026-09-13 | 例外登记：`# noqa` 一类的 lint 工具指令必须与代码同行才生效，属「不用行尾注释」的合理例外，保持原样 |
 | 2026-09-13 | 批次 6 进行中：已完成 14/17（`4ec67c5`…`6b04bea`）。`state.py` 的 22 处行尾注释已全部改为前置说明；剩余 `document_review_flow.py`(697) / `ui/dashboard.py`(739) / `run_revachol_crew.py`(1511) |
+| 2026-09-13 | 工具：新增 `move_trailing.py`（行尾注释转前置，注释取自 tokenize 词法单元）。起因是 hand-written 字面量在多层编码中被折叠，证明该做法不可靠；新工具保证 `""` 等转义逐字不变 |
+| 2026-09-13 | **批次 6 完成 17/17**（`9e41594`/`f3f0d4e`/`a418c8c`/`939943b`）。全 17 文件 AST 全等价、模块头覆盖 17/17、分隔线与装饰性注释归 0、行尾注释仅余 25 处 `# noqa`（工具指令，属规则例外）；pytest 52 passed |
+| 2026-09-13 | 已知边界：`trailing_check.py` 与 `move_trailing.py` 依赖 Python 的 `tokenize`，仅适用于 `.py`；JS 侧仍由 `audit.mjs` 覆盖 |
