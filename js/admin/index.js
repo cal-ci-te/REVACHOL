@@ -5,6 +5,7 @@ import { AppState } from '../core/app-state.js';
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
 import { Utils } from '../utils.js';
+import { UI } from '../utils/ui-strings.js';
 
 import { AdminAuth } from './auth.js';
 import { AdminUI } from './ui.js';

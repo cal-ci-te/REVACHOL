@@ -1,6 +1,7 @@
 // ！移动端长按菜单
 // 为目录树容器启用长按触发上下文菜单，与触摸拖拽共用同一套节点识别约定（.tree-node-content / .tree-node）
 // 长按期间移动或抬手立即取消，避免与页面滚动冲突。
+import { Utils } from '../utils.js';
 import { UI } from '../utils/ui-strings.js';
 
 // 当前长按计时器与目标

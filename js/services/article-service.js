@@ -10,6 +10,7 @@ import { NotificationService } from './notification-service.js';
 import { StorageAdapter } from './storage-adapter.js';
 import { ApiClient } from './api-client.js';
 import { UI } from '../utils/ui-strings.js';
+import { Utils } from '../utils.js';
 
 export const ArticleService = {
     _data: [],
