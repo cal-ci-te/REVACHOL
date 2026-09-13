@@ -105,9 +105,19 @@ const TAGS = [/@author/i, /@param/i, /@returns?/i, /@typedef/i, /@internal/i, /@
 function checkComments(files) {
   let violations = 0;
   let warnings = 0;
+  const skipped = [];
   for (const f of files) {
     const src = readFileSync(f, 'utf8');
-    const comments = parseComments(src);
+    // 解析失败的文件不计为违规：可能是编码异常（如 UTF-16 无 BOM）或非 JS 内容。
+    // 单独列出而非抛出，避免一个坏文件中断整批检查。
+    let comments;
+    try {
+      comments = parseComments(src);
+    } catch (err) {
+      skipped.push(f);
+      console.log(`  - ${relative(CWD, f)} 跳过（无法解析：${err.message.split('\n')[0]}）`);
+      continue;
+    }
     const issues = [];
     const warns = [];
 
@@ -155,7 +165,8 @@ function checkComments(files) {
     }
     if (!issues.length && !warns.length) console.log(`\u2713 ${relative(CWD, f)}`);
   }
-  console.log(`\n[注释规范] 违规 ${violations} 项，提示 ${warnings} 项`);
+  const tail = skipped.length ? `，跳过 ${skipped.length} 个不可解析文件` : '';
+  console.log(`\n[注释规范] 违规 ${violations} 项，提示 ${warnings} 项${tail}`);
   return violations;
 }
 
@@ -182,10 +193,20 @@ function checkImports() {
   const dir = join(CWD, 'js');
   const files = walkFiles(dir);
 
+  // 读取并解析；解析失败的返回 null，由调用方跳过（与注释审查保持同一容错口径）
+  const readAst = (f) => {
+    try {
+      return parse(readFileSync(f, 'utf8'));
+    } catch {
+      return null;
+    }
+  };
+
   // 第一遍：收集全项目被导入的具名符号
   const candidates = new Set();
   for (const f of files) {
-    const ast = parse(readFileSync(f, 'utf8'));
+    const ast = readAst(f);
+    if (!ast) continue;
     for (const n of ast.body || []) {
       if (n.type !== 'ImportDeclaration') continue;
       // 仅统计项目内相对路径导入，外部依赖不参与
@@ -199,9 +220,14 @@ function checkImports() {
 
   // 第二遍：逐文件比对「被引用」与「已声明」
   const findings = [];
+  const skipped = [];
   for (const f of files) {
     const src = readFileSync(f, 'utf8');
-    const ast = parse(src);
+    const ast = readAst(f);
+    if (!ast) {
+      skipped.push(f);
+      continue;
+    }
 
     // 已声明：必须全树遍历。`export const X = {}` 是 ExportNamedDeclaration 包着
     // VariableDeclaration，只看顶层节点会漏掉所有导出符号，把模块自身的导出对象
@@ -239,7 +265,8 @@ function checkImports() {
 
   if (!findings.length) {
     console.log(`\u2713 js/ 下 ${files.length} 个文件均无「未导入即引用」问题`);
-    console.log('\n[导入完整性] 违规 0 项');
+    const skipTail = skipped.length ? `（跳过 ${skipped.length} 个不可解析文件）` : '';
+    console.log(`\n[导入完整性] 违规 0 项${skipTail}`);
     return 0;
   }
 
