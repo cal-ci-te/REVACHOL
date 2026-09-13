@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# ！单模型连通性测试工具
+# 独立于 Crew/Flow 单独调用某个模型，用于验证 API Key 有效性与端点连通性。
 """
 test_single_model.py — 单模型独立测试工具
 
@@ -28,16 +30,12 @@ from typing import Optional
 from dotenv import load_dotenv
 from crewai import LLM
 
-# ============================================================================
 # 0. 环境加载（复用 run_revachol_crew.py 的配置）
-# ============================================================================
 
 _ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 load_dotenv(_ENV_PATH)
 
-# ============================================================================
 # 1. 模型配置（与 run_revachol_crew.py 保持一致）
-# ============================================================================
 
 # 各 Agent 对应的模型配置
 # 与 run_revachol_crew.py 中的 _AGENT_ENV 完全一致
@@ -63,7 +61,8 @@ _MODEL_CONFIGS = {
         "api_key_env": "KIMI_API_KEY",
         "base_url_env": "KIMI_BASE_URL",
         "base_url": "https://api.moonshot.cn/v1",
-        "temperature": 1.0,  # Kimi 强制要求 1.0
+        # Kimi 仅接受 temperature=1.0，故此处固定而不随调用方变化
+        "temperature": 1.0,
         "description": "Kimi K2.7 Code — 代码审查员",
     },
     "document_admin": {
@@ -201,9 +200,7 @@ def interactive_mode(model_key: str = "planner") -> None:
             print(f"[错误] {e}")
 
 
-# ============================================================================
 # 2. 主入口
-# ============================================================================
 
 def main():
     parser = argparse.ArgumentParser(
