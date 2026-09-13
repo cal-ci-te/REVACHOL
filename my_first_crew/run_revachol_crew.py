@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# ！多 Agent 直接构建脚本
+# 绕过 JSONC 配置，直接在 Python 中读取环境变量并构建 Agent / Task / Crew。
 """
 run_revachol_crew.py — REVACHOL 多 Agent 直接构建脚本（绕过 JSONC 配置）
 
@@ -108,17 +110,13 @@ from crewai.events.event_bus import crewai_event_bus
 
 from ui.dashboard import Dashboard, wait_for_input
 
-# ============================================================================
 # 0. 环境加载
-# ============================================================================
 
 # 显式定位 .env：无论从哪个目录执行脚本，都能加载到 my_first_crew/.env
 _ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 load_dotenv(_ENV_PATH)
 
-# ============================================================================
 # 1. 结构化输出模型（Pydantic v2，Task.output_pydantic 使用）
-# ============================================================================
 
 
 class PlanningOutput(BaseModel):
@@ -162,9 +160,7 @@ class DocOutput(BaseModel):
     docs_written: List[str] = Field(description="产出/更新的文档路径列表（无则空数组）")
 
 
-# ============================================================================
 # 1.5 结构化输出后处理（替代 output_pydantic：Prompt 约束 + 后处理校验）
-# ============================================================================
 # 背景：CrewAI 的 output_pydantic/output_json 会通过 instructor 注入
 # `response_format`（JSON Schema），DeepSeek 兼容 API 未实现该参数 → HTTP 400。
 # 因此改为：描述中给 Schema 示例 → LLM 输出 JSON → 这里提取/校验/落盘。
@@ -350,9 +346,7 @@ def write_parsed_output(
         _emit(f"[WARN] {task_name}: 写入解析文件失败 - {exc}", "warning")
 
 
-# ============================================================================
 # 1.8 暂存区：Reviewer 拒绝合入时保留代码
-# ============================================================================
 
 STAGING_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "staging")
 
@@ -400,9 +394,7 @@ def _save_to_staging(
     return session_dir
 
 
-# ============================================================================
 # 2. LLM 工厂：直接从 os.getenv() 读取，绕过 JSONC ${VAR} 解析 Bug
-# ============================================================================
 
 # 各 Agent 的环境变量配置表：<key 前缀> -> <模型名>
 # 模型名读取顺序：环境变量 *_MODEL -> 默认值
@@ -410,17 +402,20 @@ _AGENT_ENV = {
     "planner": {
         "prefix": "DEEPSEEK_PRO",
         "default_model": "deepseek-v4-pro",
-        "temperature": 0.3,  # 稳定严谨，适合架构决策
+        # 稳定严谨，适合架构决策
+        "temperature": 0.3,
     },
     "coder": {
         "prefix": "DEEPSEEK_FLASH",
         "default_model": "deepseek-v4-flash",
-        "temperature": 0.1,  # 确定性高，适合代码生成
+        # 确定性高，适合代码生成
+        "temperature": 0.1,
     },
     "reviewer": {
         "prefix": "KIMI",
         "default_model": "kimi-k2.7-code",
-        "temperature": 1.0,  # kimi的强制温度
+        # kimi的强制温度
+        "temperature": 1.0,
     },
     "document_admin": {
         "prefix": "MIMO",
@@ -437,7 +432,8 @@ _AGENT_ENV = {
     "csser": {
         "prefix": "GLM",
         "default_model": "glm-5.3-flash",
-        "temperature": 0.2,  # 样式生成需确定性，温度适中偏低
+        # 样式生成需确定性，温度适中偏低
+        "temperature": 0.2,
     },
 }
 
@@ -518,9 +514,7 @@ def validate_env() -> None:
         )
 
 
-# ============================================================================
 # 3. Agent 定义（role / goal / backstory 与 agents/*.jsonc 保持一致）
-# ============================================================================
 
 
 def build_git_mcp_config() -> list:
@@ -705,9 +699,7 @@ def build_csser_agent() -> Agent:
     )
 
 
-# ============================================================================
 # 4. Task 定义（体现协作：reviewer 依赖 coder 输出，doc 汇总全链路）
-# ============================================================================
 
 
 def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
@@ -758,7 +750,8 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
             "与 overall_summary。"
         ),
         agent=agents["coder"],
-        context=[planning_task],  # 协作：编码依赖规划输出
+        # 协作：编码依赖规划输出
+        context=[planning_task],
         output_file=_output_file("coding"),
         create_directory=True,
     )
@@ -778,7 +771,8 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
             "suggestions、review_standard。"
         ),
         agent=agents["reviewer"],
-        context=[coding_task],  # 协作：审查依赖编码输出
+        # 协作：审查依赖编码输出
+        context=[coding_task],
         output_file=_output_file("review"),
         create_directory=True,
     )
@@ -807,7 +801,8 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
             "docs_written 应包含本次 Git 变更中涉及的文件路径列表。"
         ),
         agent=agents["document_admin"],
-        context=[planning_task, review_task],  # 协作：汇总规划与审查
+        # 协作：汇总规划与审查
+        context=[planning_task, review_task],
         output_file=_output_file("documentation"),
         create_directory=True,
     )
@@ -815,9 +810,7 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
     return [planning_task, coding_task, review_task, doc_task]
 
 
-# ============================================================================
 # 5. Crew 编排
-# ============================================================================
 
 
 def build_crew(
@@ -852,9 +845,7 @@ def build_crew(
     )
 
 
-# ============================================================================
 # 5.5 仪表盘事件钩子（基于 CrewAI 事件总线，保持 crew.kickoff() 原有语义）
-# ============================================================================
 
 # Task 名 -> Agent 面板显示名
 _TASK_AGENT_NAMES = {
@@ -964,9 +955,7 @@ def _uninstall_dashboard_handlers(
         crewai_event_bus.off(event_type, handler)
 
 
-# ============================================================================
 # 6. 调试与日志
-# ============================================================================
 
 
 def setup_logging(debug: bool, quiet: bool = False) -> None:
@@ -1024,9 +1013,7 @@ def check_uvx_available() -> bool:
     return shutil.which("uvx") is not None
 
 
-# ============================================================================
 # 7. 主入口
-# ============================================================================
 
 
 def parse_args() -> argparse.Namespace:
@@ -1141,11 +1128,12 @@ def _run_crew(
 
         print_team_summary(agents, tasks, dashboard=dashboard)
 
-        # ===== 执行：注册事件钩子，保持 crew.kickoff() 原有语义 =====
+        # 执行：注册事件钩子，保持 crew.kickoff() 原有语义
         handlers, completed_tasks = _install_dashboard_handlers(dashboard)
         dashboard.log("▶ 开始执行 kickoff()", "info")
         result = crew.kickoff()
-        crewai_event_bus.flush(timeout=10)  # 等待事件钩子完成，避免 stop 前丢更新
+        # 等待事件钩子完成，避免 stop 前丢更新
+        crewai_event_bus.flush(timeout=10)
 
         # ---- Token 消耗统计 ----
         for agent_id, agent in agents.items():
@@ -1251,9 +1239,7 @@ def _run_crew(
         dashboard.unlock_input()
 
 
-# ============================================================================
 # 6.5 Web Dashboard 无头模式：NDJSON 结构化事件流
-# ============================================================================
 # 供 backend/routes/crew.cjs 通过 child_process.spawn 调用：
 #   python run_revachol_crew.py --once --json-logs --requirement "..."
 # 脚本不再启动 Rich/prompt_toolkit TUI，而是向 stdout 逐行输出 JSON 事件：
@@ -1367,7 +1353,7 @@ def main() -> None:
     setup_logging(args.debug, quiet=args.json_logs)
     validate_env()
 
-    # ===== Web Dashboard 无头模式：--json-logs 隐含 --once =====
+    # Web Dashboard 无头模式：--json-logs 隐含 --once
     if args.json_logs:
         args.once = True
 
@@ -1423,9 +1409,10 @@ def main() -> None:
                 pass
         return
 
-    # ===== 初始化仪表盘（只启动一次，持续复用）=====
+    # 初始化仪表盘（只启动一次，持续复用）
     dashboard = Dashboard()
-    dashboard.debug_mode = args.debug  # --debug 时打印按键调试日志
+    # --debug 时打印按键调试日志
+    dashboard.debug_mode = args.debug
 
     # --dry-run 或首轮提供 --requirement 时不需要交互式输入面板
     if args.dry_run or args.requirement:
@@ -1485,7 +1472,8 @@ def main() -> None:
                 continue
 
             dashboard.log("✅ 需求执行完成，准备接受下一个需求", "success")
-            time.sleep(2)  # 短暂停留让用户看到完成状态
+            # 短暂停留让用户看到完成状态
+            time.sleep(2)
 
     except KeyboardInterrupt:
         # 在输入界面按 Esc / Ctrl+C 时退出程序
