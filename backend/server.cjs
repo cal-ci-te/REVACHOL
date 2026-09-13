@@ -1,26 +1,31 @@
+// ！后端服务入口
+// 组装路由、中间件与 WebSocket，并负责启动 HTTP 服务与优雅关闭。
+// 路由注册集中在文件上半部分，请求分发统一在一次 match 查找中完成。
 const http = require('http');
 const dbModule = require('./db.cjs');
-const { initWebSocket, clients } = require('./websocket.cjs'); // [MODIFIED] 健康检查需要 clients 统计连接数
+// 健康检查需要 clients 统计当前连接数，故一并引入
+const { initWebSocket, clients } = require('./websocket.cjs');
 const { ensureUploadDir } = require('./utils.cjs');
 const { handleDecoUpload } = require('./upload.cjs');
 
-// 认证模块：Token 生成/验证/撤销 + requireAuth 包装器
+// 认证模块：Token 的生成 / 校验 / 撤销，以及 requireAuth 包装器
 const { requireAuth, generateToken, revokeToken } = require('./auth.cjs');
 
-// 管理员凭据：优先从环境变量读取，未设置时回退到默认值（开发环境兼容）
-// 生产部署时通过 .env 或 docker-compose.yml 注入 ADMIN_PASSWORD 环境变量
+// 管理员凭据：优先取环境变量，未设置时回退默认值（便于开发环境直接启动）
+// 生产部署应通过 .env 或 docker-compose.yml 注入 ADMIN_PASSWORD
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
-// 存储层：通过适配器模式在本地文件系统 / S3 兼容存储之间切换，业务代码无感知
+// 存储层：以适配器模式在本地文件系统与 S3 兼容存储之间切换，业务代码无感知
 const { storage } = require('./storage/index.cjs');
 console.log('[Server] 存储服务已初始化:', storage.isLocal() ? '本地' : 'RustFS');
 
-// 自研路由层（enhance.cjs）：因项目仅 ~15 个 API 端点，引入 Express 会导致工具代码超过业务代码。
-// 若后续 API 增长至 50+，可无缝迁移至 Express/k 的控制器结构。
-const { GET, POST, PUT, DELETE, match, routes, send } = require('./enhance.cjs'); // [MODIFIED] 健康检查需要 send 函数返回 JSON
+// 自研路由层（enhance.cjs）：项目仅约 15 个端点，引入 Express 会使框架代码多于业务代码
+// 若 API 增长到 50 个以上，可迁移到 Express 的控制器结构
+// 健康检查需要 send 直接返回 JSON，故一并引入
+const { GET, POST, PUT, DELETE, match, routes, send } = require('./enhance.cjs');
 
 const { init } = require('@errpulse/node');
-// ErrPulse 后端采集已禁用。需启用时改为 enabled: true 并启动 errpulse-server。
+// ErrPulse 后端采集默认关闭：需启用时改为 enabled: true 并另行启动 errpulse-server
 init({ serverUrl: 'http://localhost:3800', projectId: 'revachol-backend', enabled: false });
 
 const { registerArticleRoutes } = require('./routes/articles.cjs');
@@ -39,11 +44,9 @@ registerCrewRoutes(GET, POST);
 registerCrewUsageRoutes(GET);
 registerIconPackRoutes(GET, POST, PUT, DELETE);
 
-// [MONITOR] [MODIFIED] 健康检查端点 — 供 Docker/K8s 容器编排探活使用
-// 数据库：执行 SELECT 1 验证 SQLite 可用，记录延迟
-// 存储：写入临时文件验证读写能力，记录延迟
-// WebSocket：统计当前连接数
-// 内存：计算 heapUsed / heapTotal 百分比
+// 健康检查端点，供 Docker / K8s 探活
+// 四项检查：数据库执行 SELECT 1、存储写入并删除临时文件、WebSocket 连接数、内存占比
+// 前两项各记录延迟，便于定位是「不可用」还是「变慢」
 GET('/api/health', async (req, res) => {
   const checks = {
     database: { status: 'ok', latency: 0 },
@@ -63,6 +66,7 @@ GET('/api/health', async (req, res) => {
   }
 
   // 存储检查（含响应延迟）
+  // 用「写入后立即删除」验证读写两端，临时文件名固定且会被清理，不留残余
   const storageStart = Date.now();
   try {
     const testFile = 'health-check.tmp';
@@ -74,7 +78,6 @@ GET('/api/health', async (req, res) => {
     checks.storage.latency = Date.now() - storageStart;
   }
 
-  // WebSocket 连接数
   checks.websocket.connections = clients ? clients.size : 0;
 
   // 内存使用率（heapUsed / heapTotal 百分比）
@@ -83,10 +86,10 @@ GET('/api/health', async (req, res) => {
 
   const healthy = checks.database.status === 'ok' && checks.storage.status === 'ok';
 
-  // [MODIFIED] 添加 X-Health-Status 自定义响应头，方便 Docker 解析
+  // 额外写入 X-Health-Status 响应头，便于容器编排直接解析而无需读 body
   res.setHeader('X-Health-Status', healthy ? 'healthy' : 'unhealthy');
 
-  // [MODIFIED] 健康检查失败时上报 ErrPulse
+  // 健康检查失败时上报 ErrPulse
   if (!healthy) {
     try {
       const { capture } = require('@errpulse/node');
@@ -95,7 +98,9 @@ GET('/api/health', async (req, res) => {
         tags: { service: 'revachol-backend' },
         extra: { checks },
       });
-    } catch (_) { /* ErrPulse 未安装或不可用，静默忽略 */ }
+    } catch (_) {
+      // ErrPulse 未安装或不可用，静默忽略：上报失败不应影响健康检查本身的响应
+    }
   }
 
   send(res, {
@@ -113,6 +118,7 @@ console.log('[Server] 已注册路由 — GET:', Object.keys(routes.GET || {}),
 
 ensureUploadDir();
 
+// 启动 3 秒后再跑一次草稿清理：避开初始化高峰，也确保库已就绪
 const { cleanExpiredDrafts, enforceDraftLimit } = require('./cleanup-drafts.cjs');
 setTimeout(() => { cleanExpiredDrafts(); enforceDraftLimit(); }, 3000);
 
@@ -120,37 +126,39 @@ const server = http.createServer(async (req, res) => {
     const parsedUrl = new URL(req.url, 'http://localhost');
     const pathname = parsedUrl.pathname;
     const method = req.method;
-    // 路由层读取 req.query（如 /api/crew/usage/timeline?groupBy=day）
+    // 预先解析查询串到 req.query，供路由层直接使用（如 /api/crew/usage/timeline?groupBy=day）
     req.query = Object.fromEntries(parsedUrl.searchParams.entries());
 
-    // CORS：开发环境 Vite 端口 (3000) 与后端 (9999) 不同源
+    // CORS：开发环境 Vite 端口 3000 与后端 9999 不同源
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
-    // 贴图上传需要手动处理请求体（FormData / base64 JSON），不走通用 json() 解析
-    // requireAuth 包装器：只有携带有效 Token 的管理员可上传贴纸
+    // 贴图上传需手动处理请求体（base64 JSON），不走通用 json() 解析
+    // 经 requireAuth 包装：仅持有效 Token 的管理员可上传
     if (pathname === '/api/decos' && method === 'POST') {
         await requireAuth(handleDecoUpload)(req, res);
         return;
     }
 
-    // ---- 认证路由：登录 / 登出 / 当前用户 ----
-    // 登录：比对 ADMIN_PASSWORD（从环境变量读取，开发环境回退 'admin123'）
-    // 未来升级 bcrypt：将明文比对替换为 bcrypt.compare(password, hash)
+    // 认证路由：登录 / 登出 / 当前用户
+    // 登录比对 ADMIN_PASSWORD（环境变量，开发环境回退 admin123）
+    // 待办：升级为 bcrypt 时，把明文比对替换为 bcrypt.compare(password, hash)
     if (pathname === '/api/auth/login' && method === 'POST') {
         try {
             const body = await new Promise((resolve, reject) => {
                 let data = '';
                 req.on('data', chunk => data += chunk);
+                // 解析失败回退空对象：由下方凭据比对统一判为失败，无需单独分支
                 req.on('end', () => { try { resolve(JSON.parse(data)); } catch (e) { resolve({}); } });
                 req.on('error', reject);
             });
             const { username, password } = body;
             if (username === 'admin' && password === ADMIN_PASSWORD) {
                 const token = generateToken('admin', 'admin');
-                const expiresIn = 7 * 24 * 60 * 60; // 7 天，单位秒 — 前端可据此提前提示用户
+                // 7 天，单位秒；返回给前端以便提前提示用户重新登录
+                const expiresIn = 7 * 24 * 60 * 60;
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ token, userId: 'admin', role: 'admin', expiresIn }));
             } else {
@@ -164,11 +172,12 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // 登出：需携带有效 Token，成功后 Token 失效
+    // 登出：需携带有效 Token，成功后该 Token 失效
+    // slice(7) 即去掉 "Bearer " 前缀
     if (pathname === '/api/auth/logout' && method === 'POST') {
         await requireAuth(async (req, res) => {
             const authHeader = req.headers['authorization'];
-            const token = authHeader.slice(7); // 去掉 "Bearer "
+            const token = authHeader.slice(7);
             revokeToken(token);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
@@ -185,6 +194,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // 兜底分发给路由表；命中则执行，未命中返回 404
     const handler = match(method, pathname);
     if (handler) {
         try {
@@ -204,6 +214,7 @@ initWebSocket(server);
 
 server.on('error', (err) => { console.error('❌ 服务器错误:', err); });
 
+// 先初始化数据库再监听端口：避免端口已开但查询不可用的中间态
 const PORT = parseInt(process.env.PORT) || 9999;
 dbModule.initDb().then(() => {
     const host = process.env.HOST || '127.0.0.1';
@@ -218,6 +229,7 @@ dbModule.initDb().then(() => {
     process.exit(1);
 });
 
+// 优雅关闭：先停止接收新连接，再关闭数据库
 process.on('SIGINT', () => {
     console.log('\n🛑 正在关闭服务...');
     server.close(() => {
