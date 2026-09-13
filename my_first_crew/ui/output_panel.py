@@ -1,3 +1,5 @@
+# ！执行回放面板
+# 右上栏，按 Agent/Task 记录思考链与最终输出，便于事后回溯执行过程。
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
@@ -14,7 +16,8 @@ class AgentOutputBlock:
 
     agent_name: str
     task_name: str
-    status: str  # "running", "done", "failed"
+    # 取值仅 running / done / failed 三种
+    status: str
     thinking_lines: List[str] = field(default_factory=list)
     final_output: Optional[str] = None
     timestamp: str = field(
@@ -25,6 +28,7 @@ class AgentOutputBlock:
 class OutputPanel:
     """右上输出窗口：按 Agent/Task 记录思考链与最终输出，支持回溯。"""
 
+    # max_blocks 限制保留的块数，超出即从头部丢弃最旧的块
     def __init__(self, max_blocks: int = 20):
         self.blocks: List[AgentOutputBlock] = []
         self.current_block: Optional[AgentOutputBlock] = None
@@ -33,6 +37,7 @@ class OutputPanel:
         self.current_task = ""
         self.global_output = ""
 
+    # 重置全部可变态，使同一实例可继续服务下一轮
     def clear(self):
         """清空所有历史块与全局输出"""
         self.blocks = []
@@ -41,10 +46,12 @@ class OutputPanel:
         self.current_task = ""
         self.global_output = ""
 
+    # 只切换任务标签而不清空历史块，便于跨任务回溯
     def set_task(self, task_name: str):
         """切换当前任务标签（不清空历史块）"""
         self.current_task = task_name
 
+    # 块数超限时截断列表尾部保留最新的 max_blocks 个
     def start_agent(self, agent_name: str, task_name: str):
         """Agent 开始执行：新建输出块"""
         self.current_block = AgentOutputBlock(
@@ -56,11 +63,13 @@ class OutputPanel:
         if len(self.blocks) > self.max_blocks:
             self.blocks = self.blocks[-self.max_blocks:]
 
+    # 仅在存在当前块时记录，避免无归属的思考内容污染历史
     def append_thought(self, thought: str):
         """追加一条思考/推理内容到当前输出块"""
         if self.current_block and thought:
             self.current_block.thinking_lines.append(thought)
 
+    # 收尾时清空 current_block，使后续 append 自动落到全局输出
     def finish_agent(self, final_output: str, status: str = "done"):
         """Agent 执行结束：填充最终输出"""
         if self.current_block:
@@ -79,10 +88,12 @@ class OutputPanel:
         else:
             self.global_output = (self.global_output or "") + content
 
+    # 只保留指定 Agent 的块，用于聚焦单个 Agent 的回放
     def show_agent_block(self, agent_name: str):
         """只显示指定 Agent 的输出块"""
         self.filter_agent = agent_name
 
+    # 清除 Agent 过滤，回到全量视图
     def show_all_blocks(self):
         """显示所有输出块"""
         self.filter_agent = None
@@ -93,6 +104,7 @@ class OutputPanel:
         if self.filter_agent:
             blocks = [b for b in blocks if b.agent_name == self.filter_agent]
 
+        # 空态占位：既无块也无全局输出时给一行提示，保持面板高度稳定
         if not blocks and not self.global_output:
             return RichPanel(
                 "等待输出...",
@@ -118,12 +130,14 @@ class OutputPanel:
             # 思考过程：弱化 + 缩进
             if block.thinking_lines:
                 content.append(Text("  思考过程:", style="dim italic"))
+                # 只展示最近 10 条思考：面板高度有限，更早的过程已无参考价值
                 for line in block.thinking_lines[-10:]:
                     content.append(Text(f"    {line}", style="dim"))
 
             # 最终输出：醒目
             if block.final_output:
                 content.append(Text("  📋 最终输出:", style="bold green"))
+                # 形如 JSON 的正文改用语法高亮，其余按纯文本渲染
                 if block.final_output.strip().startswith("{"):
                     content.append(
                         Syntax(
@@ -134,6 +148,7 @@ class OutputPanel:
                         )
                     )
                 else:
+                    # 截断到 500 字符：避免超长输出撑爆固定高度的面板
                     content.append(
                         Text(f"  {block.final_output[:500]}", style="white")
                     )
@@ -143,6 +158,7 @@ class OutputPanel:
         # 全局最终输出（整轮 Crew 的 result.raw）
         if self.global_output:
             content.append(Text("📋 最终输出:", style="bold green"))
+            # 同上：整轮 Crew 的输出也按 JSON / 纯文本分流
             if self.global_output.strip().startswith("{"):
                 content.append(
                     Syntax(

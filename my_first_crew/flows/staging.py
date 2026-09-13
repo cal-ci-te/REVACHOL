@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# ！RFC-001 暂存区
+# 存放未通过审查的任务快照，并负责通知人工与超期清理。
 """RFC-001 D3/D4 暂存区：快照写入、自动通知人工、30 天清理。"""
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from typing import Any, Optional
 from .state import ReviewLoopState
 
 
+    # 目录按需创建，取用方无需先判断是否存在
 def staging_root() -> Path:
     """暂存区根目录：<output>/staging/（兼容 CREW_OUTPUT_DIR）。"""
     env = os.getenv("CREW_OUTPUT_DIR")
@@ -22,6 +25,7 @@ def staging_root() -> Path:
     return d
 
 
+    # 每个任务一个独立目录，避免不同任务的产物混在一处
 def staging_dir_for(task_id: str) -> Path:
     """单个任务的暂存区目录：<output>/staging/<task_id>/。"""
     d = staging_root() / task_id
@@ -29,6 +33,7 @@ def staging_dir_for(task_id: str) -> Path:
     return d
 
 
+    # 写入 RFC-001 要求的字段集合，供人工审阅未通过的任务
 def write_staging_snapshot(
     state: ReviewLoopState,
     base_dir: Optional[Path] = None,
@@ -62,6 +67,7 @@ def write_staging_snapshot(
     return path
 
 
+    # 通知人工并在状态上留痕；已有通知时间则直接返回，保证幂等
 def notify_human(state: ReviewLoopState, emitter: Any = None) -> str:
     """决议 D4：进入暂存区后自动通知人工。
 
@@ -96,6 +102,7 @@ def notify_human(state: ReviewLoopState, emitter: Any = None) -> str:
     return notified_at
 
 
+    # 仅保留扩展点：目前由命令行选项或外部 cron 触发，未内置定时器
 def schedule_cleanup(days: int = 30) -> None:
     """决议 D3：安排 30 天清理。
 
@@ -106,12 +113,14 @@ def schedule_cleanup(days: int = 30) -> None:
     return None
 
 
+    # 清理超期暂存目录并返回被删列表，供调用方记录
 def cleanup_expired_staging(
     days: int = 30,
     now: Optional[datetime] = None,
     root: Optional[Path] = None,
 ) -> list[Path]:
     """删除超过 retention_days 的暂存快照目录，返回被删除的目录列表。"""
+    # root 可注入，便于测试指向临时目录而不触碰真实 output/
     root = root or staging_root()
     if not root.exists():
         return []
@@ -121,11 +130,14 @@ def cleanup_expired_staging(
     for child in sorted(root.iterdir()):
         if not child.is_dir():
             continue
+        # stat 可能因权限或竞态失败，单独兜住，不让单个条目中断整轮清理
         try:
             mtime = datetime.fromtimestamp(child.stat().st_mtime)
         except OSError:
             continue
+        # 以目录自身 mtime 判定：目录即一个任务的全部产物，其时间即最后写入时间
         if mtime < deadline:
+            # ignore_errors：清理属尽力而为，个别文件删不掉也不应中断整轮
             shutil.rmtree(child, ignore_errors=True)
             removed.append(child)
     return removed
