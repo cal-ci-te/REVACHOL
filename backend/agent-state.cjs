@@ -133,10 +133,14 @@ function writeStateAtomic(state) {
     try {
       const fd = fs.openSync(tmp, 'r+');
       try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-    } catch (_) { /* 忽略：不影响原子性与内容完整性 */ }
+    } catch (_) {
+      // 忽略：不影响原子性与内容完整性
+    }
     fs.renameSync(tmp, STATE_FILE);
   } catch (err) {
-    try { fs.unlinkSync(tmp); } catch (_) { /* 清理失败不影响错误上报 */ }
+    try { fs.unlinkSync(tmp); } catch (_) {
+      // 临时文件清理失败不影响错误上报，仍抛出原始错误
+    }
     throw new AgentStateError('AGENT_STATE_UNAVAILABLE', '状态写入失败: ' + err.message);
   }
 }
