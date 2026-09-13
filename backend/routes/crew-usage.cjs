@@ -1,12 +1,12 @@
-// CrewAI Token 消耗仪表盘后端路由。
-//
-// 数据来源：crew:stats NDJSON 事件 → crew.cjs 写入 crew_usage 表。
-// 本模块提供总览 / 时间线 / Agent 排行 / Model 排行 / 筛选选项五个只读 API。
+// ！CrewAI 用量仪表盘路由
+// 提供 Token 用量仪表盘的五个只读接口：总览、时间线、Agent 排行、Model 排行与筛选选项。
+// 数据来源：crew:stats 的 NDJSON 事件经 crew.cjs 写入 crew_usage 表，本模块只读。
 // 路由统一由 server.cjs 通过 registerCrewUsageRoutes(GET) 注册。
 const { send, sendError } = require('../enhance.cjs');
 const db = require('../db.cjs');
 
-// GET /api/crew/usage/overview - 总览统计
+// 总览统计（GET /api/crew/usage/overview）
+// 全部字段走 COALESCE：空表时返回 0 而非 null，前端无需再做空值分支
 function getOverview(req, res) {
   try {
     const row = db.query(`
@@ -24,13 +24,15 @@ function getOverview(req, res) {
   }
 }
 
-// GET /api/crew/usage/timeline - 时间序列数据
+// 时间序列数据（GET /api/crew/usage/timeline）
+// 分组粒度由 groupBy 决定：day 按天、month 按月、total 汇总为单一区间
 function getTimeline(req, res) {
   try {
     const { startDate, endDate, agent, model, provider, groupBy } = req.query || {};
 
     let groupBySql = "DATE(created_at)";
     if (groupBy === 'month') groupBySql = "strftime('%Y-%m', created_at)";
+    // total 用字面量常量分组，使所有记录落入同一区间
     if (groupBy === 'total') groupBySql = "'total'";
 
     let sql = `
@@ -42,6 +44,7 @@ function getTimeline(req, res) {
       FROM crew_usage
       WHERE 1=1
     `;
+    // 以 WHERE 1=1 起头，使各可选条件都能以 AND 追加，无需判断是否首个条件
     const params = [];
     if (startDate) { sql += ' AND DATE(created_at) >= DATE(?)'; params.push(startDate); }
     if (endDate) { sql += ' AND DATE(created_at) <= DATE(?)'; params.push(endDate); }
@@ -52,7 +55,8 @@ function getTimeline(req, res) {
 
     const rows = db.queryAll(sql, params) || [];
 
-    // 转换为前端图表需要的格式
+    // 转成前端图表所需形态：横轴为时间区间，每个 Agent 一条序列
+    // 缺失区间补 0，保证各序列长度一致、与 periods 对齐
     const periods = [...new Set(rows.map(r => r.period))];
     const agents = [...new Set(rows.map(r => r.agent))];
     const series = agents.map(agentName => ({
@@ -69,7 +73,7 @@ function getTimeline(req, res) {
   }
 }
 
-// GET /api/crew/usage/agents - Agent 排行
+// Agent 排行（GET /api/crew/usage/agents）
 function getAgentRanking(req, res) {
   try {
     const rows = db.queryAll(`
@@ -88,7 +92,8 @@ function getAgentRanking(req, res) {
   }
 }
 
-// GET /api/crew/usage/models - Model 排行
+// Model 排行（GET /api/crew/usage/models）
+// 按 model 与 provider 联合分组：同名模型可能来自不同供应商，需分别统计
 function getModelRanking(req, res) {
   try {
     const rows = db.queryAll(`
@@ -108,7 +113,8 @@ function getModelRanking(req, res) {
   }
 }
 
-// GET /api/crew/usage/filters - 获取可用筛选值
+// 可用筛选值（GET /api/crew/usage/filters）
+// 供前端填充下拉选项，取当前表中实际出现过的值
 function getFilterOptions(req, res) {
   try {
     const agentRows = db.queryAll('SELECT DISTINCT agent FROM crew_usage ORDER BY agent') || [];

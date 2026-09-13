@@ -1,6 +1,6 @@
-// S3 兼容存储适配器（基于 @aws-sdk/client-s3）。
-// 支持 MinIO、Ceph RGW、AWS S3 等任何兼容 S3 协议的服务。
-// 构造函数中自动检测并创建 bucket（HeadBucket → CreateBucket）。
+// ！S3 兼容存储适配器
+// 基于 @aws-sdk/client-s3，可用于 MinIO、Ceph RGW、AWS S3 等一切兼容 S3 协议的服务。
+// 构造时自动探测并创建 bucket（HeadBucket 失败则 CreateBucket）。
 const {
     S3Client,
     PutObjectCommand,
@@ -31,6 +31,9 @@ class RustFSAdapter {
         this._ensureBucket();
     }
 
+    // 确保 bucket 存在
+    // 仅在确认 404 / NotFound 时才创建：其他错误（如鉴权失败）不应触发建桶
+    // 整体不 await：构造过程不阻塞启动，探测失败也只告警
     async _ensureBucket() {
         try {
             await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
@@ -45,9 +48,8 @@ class RustFSAdapter {
         }
     }
 
-    /**
-     * 上传文件
-     */
+    // 上传文件
+    // 捕获后重新抛出：此处只补日志，失败语义交由调用方处理
     async upload(buffer, originalName, contentType) {
     try {
         const id = 'deco_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
@@ -75,25 +77,24 @@ class RustFSAdapter {
             VersionId: response.VersionId,
         });
 
+        // endpoint 可能自带 http(s):// 前缀，拼 URL 前先剥离，避免出现双协议头
         const url = `${this.useSSL ? 'https' : 'http'}://${this.endpoint.replace(/^https?:\/\//, '')}/${this.bucket}/${key}`;
         return { id, url, key, filename: key };
     } catch (err) {
         console.error('[RustFS] 上传失败:', err);
-        throw err; // 重新抛出
+        throw err;
     }
 }
 
-    /**
-     * 获取文件URL
-     */
+    // 取文件 URL
+    // filename 缺省时按 id + .webp 推断，兼容调用方只传 id 的情况
     getUrl(_id, filename) {
         const key = filename || _id + '.webp';
         return `${this.useSSL ? 'https' : 'http'}://${this.endpoint.replace(/^https?:\/\//, '')}/${this.bucket}/${key}`;
     }
 
-    /**
-     * 删除文件
-     */
+    // 删除文件
+    // 失败一律返回 false：删除不存在的键在 S3 语义下不算错误，调用方无需区分
     async delete(filename) {
         try {
             await this.client.send(new DeleteObjectCommand({
@@ -106,9 +107,7 @@ class RustFSAdapter {
         }
     }
 
-    /**
-     * 检查文件是否存在
-     */
+    // 检查文件是否存在
     async exists(filename) {
         try {
             await this.client.send(new HeadObjectCommand({
@@ -121,9 +120,8 @@ class RustFSAdapter {
         }
     }
 
-    /**
-     * 读取文件
-     */
+    // 读取文件
+    // Body 先转字节数组再包成 Buffer：SDK 返回的是流，需消费后才能落为 Buffer
     async read(filename) {
         try {
             const response = await this.client.send(new GetObjectCommand({
