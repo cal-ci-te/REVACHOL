@@ -1,3 +1,5 @@
+# ！三栏布局管理
+# 按固定比例切分终端区域，并把各面板内容装入对应槽位。
 from rich.layout import Layout
 from rich.panel import Panel
 from rich.console import Console, Group
@@ -16,7 +18,7 @@ class LayoutManager:
     
     def _build_layout(self):
         """构建三栏式布局（含顶部输入区域）"""
-        # 主体：顶部状态栏(1) + 输入区(3) + 主区域 + 底部日志(6)
+        # 主体：状态栏(1) + 输入区(3) + 主区域(弹性) + 日志栏(6)，括号内为行高
         self.layout.split(
             Layout(name="header", size=1),
             Layout(name="input", size=3),
@@ -24,13 +26,13 @@ class LayoutManager:
             Layout(name="footer", size=6)
         )
         
-        # Body: 左侧30% + 右侧70%
+        # Body：左侧 30% + 右侧 70%
         self.layout["body"].split_row(
             Layout(name="left_panel", ratio=30),
             Layout(name="right_panel", ratio=70)
         )
         
-        # Right panel: 上80% + 下20%
+        # Right panel：上 70% + 下 30%（与下方 ratio 取值一致）
         self.layout["right_panel"].split(
             Layout(name="output_panel", ratio=70),
             Layout(name="stats_panel", ratio=30)
@@ -72,5 +74,6 @@ class LayoutManager:
         """更新底部日志栏"""
         self.layout["footer"].update(content)
     
+    # 取出布局对象，供调用方直接交给 Live 渲染
     def get_layout(self) -> Layout:
         return self.layout

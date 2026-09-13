@@ -1,3 +1,5 @@
+# ！Stats 统计面板
+# 右下栏展示各 Agent 的 Token 消耗与累计成本。
 from rich.panel import Panel
 from rich.table import Table
 from typing import Dict
@@ -9,15 +11,18 @@ class StatsPanel:
         self.tokens: Dict[str, int] = {}
         self.cost: float = 0.0
     
+    # Token 数按 Agent 覆盖，成本却累加——两者语义不同，勿一并当作覆盖处理
     def update_tokens(self, agent: str, tokens: int, cost: float = 0.0):
         self.tokens[agent] = tokens
         self.cost += cost
 
+    # 清空以复用同一实例开启新一轮会话，避免上一轮的成本残留
     def reset(self):
         """重置统计面板，准备新一轮会话"""
         self.tokens = {}
         self.cost = 0.0
     
+    # 渲染为 Rich 表格：逐 Agent 一行，末行给出合计
     def render(self) -> Panel:
         """渲染统计面板"""
         table = Table(show_header=True, box=None, padding=(0, 1))
@@ -32,6 +37,7 @@ class StatsPanel:
         table.add_row("─" * 10, "─" * 10)
         table.add_row("📊 Total", f"{total:,}", style="bold green")
         
+        # 仅在产生成本时显示该行：免费模型跑完不必占一行 0 成本
         if self.cost > 0:
             table.add_row("💰 Cost", f"${self.cost:.4f}", style="yellow")
         
