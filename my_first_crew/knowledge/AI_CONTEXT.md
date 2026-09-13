@@ -102,7 +102,7 @@ text
 - **模式**：对象字面量（`const ModuleName = { ... }`）
 - **缩进**：2 空格
 - **变量声明**：`const` 优先，`let` 次之，避免 `var`
-- **注释**：JSDoc 风格（`/** ... */`）
+- **注释**：行注释三层结构（`// ！模块定位` + 成员动宾标签 + `做法：理由` 决策说明），禁止 JSDoc/块注释，详见 `docs/development/code-style.md`
 - **命名**：camelCase（变量/函数），PascalCase（类）
 - **文案**：所有 UI 文案统一在 `js/utils/ui-strings.js`
 - **事件**：所有事件常量统一在 `js/core/event-constants.js`
