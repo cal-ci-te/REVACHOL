@@ -1,3 +1,7 @@
+// ！管理面板内容渲染
+// 生成管理面板的完整 HTML，并在渲染后装配全部交互（贴图库、色卡、图标包与各文件上传）。
+// 首次渲染构建全部结构并绑定事件；之后再次进入只刷新动态列表——
+// 整体重建 DOM 会丢失已绑定的事件与用户的输入，代价远高于局部刷新。
 import { AdminPanel } from './index.js';
 import { AdminAvatar } from '../avatar.js';
 import { AdminPosition } from '../position.js';
@@ -20,16 +24,19 @@ import { UIIcon, UI_ICON_SLOTS } from '../../services/ui-icon.js';
 import { IconPackService } from '../../services/icon-pack-service.js';
 import { ICON_PACK_THEME_IDS } from '../../services/icon-pack-keys.js';
 
-// 标志：是否已完成首次完整渲染
+// 是否已完成首次完整渲染
 AdminPanel._rendered = false;
 
-/** 将 "emoji 文本" 拆分为 emoji 与文本，便于图标包替换前置 emoji */
+// 把 "emoji 文本" 拆分为 emoji 与文本两段
+// 拆开是为了让图标包能单独替换 emoji，而不影响其后的文字标签
 function splitEmojiLabel(label) {
   const idx = String(label || '').indexOf(' ');
   if (idx === -1) return { emoji: String(label || ''), text: '' };
   return { emoji: label.slice(0, idx), text: label.slice(idx + 1) };
 }
 
+// 渲染面板内容
+// 已渲染过则只刷新动态部分（贴图库、色卡、图标包）后返回，不做整体重建
 AdminPanel.renderContent = function () {
     const panel = DOMRefs.get(DOMRefs.admin.content);
     if (!panel) {
@@ -55,6 +62,7 @@ AdminPanel.renderContent = function () {
 
     const savedAvatar = AdminAvatar.getAvatarForUser() || 'images/default-avatar.png';
     const siteIconDataUrl = SiteIcon.getIcon() || 'images/site-icon.png';
+    // 预览块先以占位符渲染，随后由 refreshIconPreviews 按实际图标替换内容
     const directoryCollapsedPreviewHtml = `<div id="directoryCollapsedPreview">${DirectoryIcon.renderPreviewHtml(DIRECTORY_ICON_SLOTS.folderCollapsed, '📂')}</div>`;
     const directoryExpandedPreviewHtml = `<div id="directoryExpandedPreview">${DirectoryIcon.renderPreviewHtml(DIRECTORY_ICON_SLOTS.folderExpanded, '📁')}</div>`;
     const directoryHeaderPreviewHtml = `<div id="directoryHeaderPreview">${DirectoryIcon.renderPreviewHtml(DIRECTORY_ICON_SLOTS.header, '📜')}</div>`;
@@ -62,6 +70,8 @@ AdminPanel.renderContent = function () {
     const toolbarExpandedPreviewHtml = `<div id="toolbarExpandedPreview">${UIIcon.renderPreviewHtml(UI_ICON_SLOTS.toolbarExpanded, '◀')}</div>`;
     const adminPanelPreviewHtml = `<div id="adminPanelPreview">${UIIcon.renderPreviewHtml(UI_ICON_SLOTS.adminPanel, '▶')}</div>`;
     const currentMaxOpacity = Utils.storage.get('video_max_opacity');
+    // 透明度取值三级回落：存档值（夹到 0–1）→ 服务当前值 → 1
+    // 服务未加载时用 1 兜底，避免滑块落到非法区间
     const opacityValue =
         currentMaxOpacity !== null && typeof currentMaxOpacity === 'number'
             ? Math.max(0, Math.min(1, currentMaxOpacity))
@@ -403,43 +413,39 @@ AdminPanel.renderContent = function () {
 
     console.log('[AdminPanel] 面板内容渲染完成（首次渲染）');
 
-    // 初始化贴图库 UI
+    // 初始化依赖已存在 DOM 的子系统，顺序即依赖顺序
     const container = document.getElementById('assetListContainer');
     if (container) {
         DecoShelfUI.init(container);
         DecoShelfUI.render();
     }
 
-    // 初始化图标包列表
     IconPackService.loadPacks().then(AdminPanel.renderIconPackList).catch(() => {});
     IconPackService.refreshCurrent();
 
-    // 渲染色卡
     if (typeof AdminPanel.renderPalettes === 'function') {
         AdminPanel.renderPalettes();
     }
 
-    // 绑定事件委托器（仅首次）
     if (typeof AdminPanel.bindEvents === 'function') {
         AdminPanel.bindEvents();
     }
 
-    // 文章编辑器按钮 → 内联编辑模式
+    // 文章编辑器按钮：不直接打开编辑器，而是引导用户从目录树右键进入
     const editorBtn = document.getElementById('openArticleEditorBtn');
     if (editorBtn) {
         editorBtn.addEventListener('click', function () {
-            // 提示用户在目录树中右键选择文章进行编辑
             Utils.showToast('请在左侧目录树中右键点击文章 → "✏️ 编辑内容" 进入编辑器', false);
         });
     }
 
-    // 绑定折叠按钮
     AdminPanel._bindToggleIconDirect();
 
-    // 绑定图标上传整合区（展开/收缩 + 预览刷新）
     AdminPanel._bindIconSection();
     AdminPanel.refreshIconPreviews();
 
+    // 贴图库上传
+    // 处理器一律先存字段再摘旧引用：面板可被反复渲染，不摘会累积多份监听
     const uploadBtn = document.getElementById('assetUploadBtn');
     const assetFileInput = document.getElementById('assetFileInput');
 
@@ -465,14 +471,17 @@ AdminPanel.renderContent = function () {
             fileInput.value = '';
             if (!file) return;
 
+            // 按 MIME 白名单校验：仅靠 accept 属性不可靠，用户可切换为「所有文件」
             const validTypes = ['image/png', 'image/webp', 'image/jpeg'];
             if (!validTypes.includes(file.type)) {
                 Utils.showToast(UI.toast.imageFormatInvalid, true);
                 return;
             }
 
+            // 默认名去掉扩展名，贴图名不带后缀
             const defaultName = file.name.replace(/\.[^.]+$/, '');
             const name = prompt('请输入贴图名称（不含扩展名）：', defaultName);
+            // 区分取消（null）与空串：取消则不新增
             if (name === null) return;
 
             try {
@@ -487,10 +496,9 @@ AdminPanel.renderContent = function () {
         console.log('[Upload] 上传事件绑定完成');
     }
 
-    // 拼图图片上传绑定（PuzzleCustomizer）
     bindPuzzleFileUpload();
 
-    // 箱盖外观文件上传绑定
+    // 箱盖、箱体、物品三类图片上传：逻辑同构，延迟导入处理器以免进主包
     const lidImgInput = document.getElementById('boxLidImageFileInput');
     if (lidImgInput) {
       if (AdminPanel._boxLidHandler) lidImgInput.removeEventListener('change', AdminPanel._boxLidHandler);
@@ -504,7 +512,6 @@ AdminPanel.renderContent = function () {
       lidImgInput.addEventListener('change', AdminPanel._boxLidHandler);
     }
 
-    // 箱体外观文件上传绑定
     const bodyImgInput = document.getElementById('boxBodyImageFileInput');
     if (bodyImgInput) {
       if (AdminPanel._boxBodyHandler) bodyImgInput.removeEventListener('change', AdminPanel._boxBodyHandler);
@@ -518,7 +525,6 @@ AdminPanel.renderContent = function () {
       bodyImgInput.addEventListener('change', AdminPanel._boxBodyHandler);
     }
 
-    // 箱子物品贴图文件上传绑定
     const boxItemImgInput = document.getElementById('boxItemImageFileInput');
     if (boxItemImgInput) {
       if (AdminPanel._boxItemImageHandler) boxItemImgInput.removeEventListener('change', AdminPanel._boxItemImageHandler);
@@ -535,6 +541,8 @@ AdminPanel.renderContent = function () {
     AdminPanel._rendered = true;
 };
 
+// 直接绑定折叠按钮
+// 折叠按钮由 render 注入且可能晚于事件委托建立，故单独直绑一次以保证可点
 AdminPanel._bindToggleIconDirect = function () {
     const toggleIcon = document.getElementById('panelToggleIcon');
     if (!toggleIcon) return;
@@ -551,17 +559,19 @@ AdminPanel._bindToggleIconDirect = function () {
     toggleIcon.addEventListener('click', AdminPanel._directToggleHandler);
 };
 
-// ===== 图标上传整合区：预览刷新 + 展开/收缩 =====
-
+// 刷新图标预览
+// 站点图标单独处理（无槽位概念），其余六个槽位走同一套刷新逻辑
 AdminPanel.refreshIconPreviews = function () {
     const sitePreview = document.getElementById('siteIconPreview');
     if (sitePreview) {
         sitePreview.src = SiteIcon.getIcon() || 'images/site-icon.png';
     }
     const siteReset = document.getElementById('siteIconResetBtn');
+    // 仅有自定义图标时才显示「恢复默认」按钮
     if (siteReset) siteReset.hidden = !SiteIcon.getIcon();
 
     // 通用刷新：目录图标（收起/展开/目录本身）+ 顶部工具栏 + 控制台折叠箭头
+    // 用 image 或 fallback 文本整体替换内容，避免残留上一个图标节点
     const refreshSlot = function (slot, previewId, resetBtnId, fallbackText, getIconFn) {
         const container = document.getElementById(previewId);
         const resetBtn = document.getElementById(resetBtnId);
@@ -585,11 +595,12 @@ AdminPanel.refreshIconPreviews = function () {
     refreshSlot(UI_ICON_SLOTS.toolbarExpanded, 'toolbarExpandedPreview', 'toolbarExpandedIconResetBtn', '◀', (s) => UIIcon.getIcon(s));
     refreshSlot(UI_ICON_SLOTS.adminPanel, 'adminPanelPreview', 'adminPanelIconResetBtn', '▶', (s) => UIIcon.getIcon(s));
 
-    // 同步应用到工具栏/控制台/目录树实际 DOM
+    // 预览更新后同步应用到工具栏、控制台与目录树的实际 DOM
     UIIcon.applyAll();
     DirectoryIcon.applyAll();
 };
 
+// 渲染图标包列表
 AdminPanel.renderIconPackList = function (packs) {
     const container = document.getElementById('iconPackList');
     if (!container) return;
@@ -603,6 +614,7 @@ AdminPanel.renderIconPackList = function (packs) {
         const themes = Array.isArray(pack.themes) ? pack.themes : [];
         const themeCheckboxes = ICON_PACK_THEME_IDS.map((themeId) => {
             const label = themeId === 'dark' ? UI.iconPack.docTabDark : themeId === 'light' ? UI.iconPack.docTabLight : UI.iconPack.docTabLofi;
+            // 包 id 与名称来自上传，拼入 HTML 前统一转义
             return `<label style="font-size:11px;"><input type="checkbox" data-id="${Utils.escapeHtml(pack.id)}" data-theme="${themeId}" data-action="icon-pack-theme-change" ${themes.includes(themeId) ? 'checked' : ''}> ${label}</label>`;
         }).join('');
         return `
@@ -617,6 +629,8 @@ AdminPanel.renderIconPackList = function (packs) {
     }).join('');
 };
 
+// 切换图标整合区展开/收起
+// 折叠态写入本地存储：该偏好跨会话保留，避免每次打开都要手动收起
 AdminPanel.toggleIconSection = function () {
     const body = document.getElementById('iconUploadSectionBody');
     const toggleBtn = document.getElementById('iconUploadSectionToggle');
@@ -629,12 +643,14 @@ AdminPanel.toggleIconSection = function () {
     Utils.storage.set('admin_icon_section_collapsed', !collapsed);
 };
 
+// 绑定图标整合区的展开/收起交互
 AdminPanel._bindIconSection = function () {
     const header = document.getElementById('iconUploadSectionHeader');
     const body = document.getElementById('iconUploadSectionBody');
     const toggleBtn = document.getElementById('iconUploadSectionToggle');
     if (!header || !body) return;
 
+    // 点标题栏整行也能展开/收起，但点在按钮上时交给按钮自己的处理器，避免触发两次
     if (AdminPanel._iconSectionHeaderHandler) {
         header.removeEventListener('click', AdminPanel._iconSectionHeaderHandler);
     }
@@ -655,7 +671,7 @@ AdminPanel._bindIconSection = function () {
         toggleBtn.addEventListener('click', AdminPanel._iconSectionToggleHandler);
     }
 
-    // 恢复上次折叠状态（默认展开）
+    // 恢复上次折叠状态，默认展开
     const collapsed = Utils.storage.get('admin_icon_section_collapsed');
     if (collapsed === true) {
         body.style.display = 'none';
@@ -666,6 +682,8 @@ AdminPanel._bindIconSection = function () {
     }
 };
 
+// 解绑本模块绑定的事件后，转交原 unbindEvents
+// 用包装而非覆盖：panel/events 先挂载的委托器清理逻辑不能被本模块丢掉
 const originalUnbind = AdminPanel.unbindEvents;
 AdminPanel.unbindEvents = function () {
     const toggleIcon = document.getElementById('panelToggleIcon');
@@ -697,4 +715,3 @@ AdminPanel.unbindEvents = function () {
         originalUnbind.call(this);
     }
 };
-

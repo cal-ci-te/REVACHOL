@@ -1,11 +1,16 @@
-// 管理面板 — 超现实箱子自定义处理器（双部件：箱盖 + 箱体）
+// ！超现实箱子自定义处理
+// 管理面板中箱子外观的定制：箱盖图、箱体图与单个物件图的替换与移除。
+// 三类图片流程一致（校验类型 → 读为 dataUrl → 交给箱子实例），仅落点不同。
 import { getMagicBox } from '../../../ui/components/magic-box/index.js';
 import { ITEMS } from '../../../ui/components/magic-box/BoxItemPool.js';
 import { Utils } from '../../../utils.js';
 import { UI } from '../../../utils/ui-strings.js';
 
+// 提示文案取 handleLidImage 的短别名：本文件提示密集，逐处写全路径会显著拉长代码
 const T = UI.magicBox.toast;
 
+// 打开箱盖图选择框
+// 先清空 input 值：否则连续选择同一文件不会触发 change 事件
 export function uploadLidImage() {
   const input = document.getElementById('boxLidImageFileInput');
   if (!input) { Utils.showToast(T.uploadNotReady, true); return; }
@@ -13,6 +18,8 @@ export function uploadLidImage() {
   input.click();
 }
 
+// 读取并应用箱盖图
+// 先按 MIME 前缀校验再读取：非图片文件读成 dataUrl 会得到无法渲染的长字符串
 export function handleLidImageFile(file) {
   if (!file || !file.type.startsWith('image/')) { Utils.showToast(T.imageFormatOnly, true); return; }
   const reader = new FileReader();
@@ -24,11 +31,13 @@ export function handleLidImageFile(file) {
   reader.readAsDataURL(file);
 }
 
+// 移除箱盖图，恢复默认外观
 export function removeLidImage() {
   const box = getMagicBox();
   if (box) { box.setCustomLidImage(null); Utils.showToast(T.lidImageRemoved, false); }
 }
 
+// 打开箱体图选择框
 export function uploadBodyImage() {
   const input = document.getElementById('boxBodyImageFileInput');
   if (!input) { Utils.showToast(T.uploadNotReady, true); return; }
@@ -36,6 +45,7 @@ export function uploadBodyImage() {
   input.click();
 }
 
+// 读取并应用箱体图
 export function handleBodyImageFile(file) {
   if (!file || !file.type.startsWith('image/')) { Utils.showToast(T.imageFormatOnly, true); return; }
   const reader = new FileReader();
@@ -47,11 +57,14 @@ export function handleBodyImageFile(file) {
   reader.readAsDataURL(file);
 }
 
+// 移除箱体图，恢复默认外观
 export function removeBodyImage() {
   const box = getMagicBox();
   if (box) { box.setCustomBodyImage(null); Utils.showToast(T.bodyImageRemoved, false); }
 }
 
+// 打开物件图选择框
+// 需先选中物件：图片要挂到具体物件上，未选则无从落点
 export function uploadItemImage() {
   const select = document.getElementById('boxItemSelect');
   const input = document.getElementById('boxItemImageFileInput');
@@ -61,6 +74,8 @@ export function uploadItemImage() {
   input.click();
 }
 
+// 读取并应用指定物件的图片
+// 提示文案带上物件名称：该操作针对下拉框中选中的那一项，需让用户确认改对了目标
 export function handleItemImageFile(file) {
   if (!file || !file.type.startsWith('image/')) { Utils.showToast(T.imageFormatOnly, true); return; }
   const select = document.getElementById('boxItemSelect');
@@ -79,6 +94,7 @@ export function handleItemImageFile(file) {
   reader.readAsDataURL(file);
 }
 
+// 移除指定物件的图片，回落到默认图形
 export function removeItemImage() {
   const select = document.getElementById('boxItemSelect');
   const itemId = select ? select.value : null;

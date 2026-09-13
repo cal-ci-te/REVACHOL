@@ -1,3 +1,6 @@
+// ！后台界面控制
+// 管理面板的显隐、登录态文案与头像展示，并负责面板打开时的渲染编排。
+// 只处理表现层，鉴权判断在 auth.js，本模块按传入的登录态渲染。
 import { DOMRefs } from '../core/dom-refs.js';
 import { AdminPosition } from './position.js';
 import { AdminDrag } from './drag.js';
@@ -7,6 +10,8 @@ import { UIController } from '../ui/ui-controller.js';
 import { Utils } from '../utils.js';
 
 export const AdminUI = {
+  // 按登录态切换登录入口文案
+  // 登出时把头像复位为默认图：否则会残留上一位登录者的头像
   updateLoginUI: function (isLoggedIn) {
     const loginLabel = DOMRefs.get(DOMRefs.login.label);
     const welcomeText = DOMRefs.get(DOMRefs.login.welcomeText);
@@ -22,6 +27,7 @@ export const AdminUI = {
     }
   },
 
+  // 同步头像到登录入口与面板预览两处
   updateAvatarDisplay: function (dataUrl) {
     const loginAvatar = DOMRefs.get(DOMRefs.login.avatar);
     if (loginAvatar && dataUrl) {
@@ -33,6 +39,9 @@ export const AdminUI = {
     }
   },
 
+  // 显示面板并完成一次完整渲染
+  // 先 unbindEvents 再重绑：面板内容每次都会重建，不先摘除旧委托会重复触发
+  // 折叠按钮在 100ms 与 300ms 各绑一次，覆盖 render 内异步插入图标的两种时序
   showPanel: function () {
     const panel = DOMRefs.get(DOMRefs.admin.panel);
     if (!panel) {
@@ -79,7 +88,8 @@ export const AdminUI = {
       }
     }, 300);
 
-    // 刷新文章可见性列表（通过 UIController）
+    // 刷新文章可见性列表：面板打开才需要展示，故延迟到渲染之后
+    // 单独 try-catch：刷可见性属附加能力，失败不应阻断面板其余部分
     setTimeout(function () {
       if (UIController && typeof UIController.refreshDisplay === 'function') {
         try {
@@ -93,6 +103,8 @@ export const AdminUI = {
     console.log('[AdminUI] 面板已显示');
   },
 
+  // 隐藏面板并摘除事件委托
+  // 必须解绑：面板隐藏后事件委托仍在，会捕获到不该响应的点击
   hidePanel: function () {
     const panel = DOMRefs.get(DOMRefs.admin.panel);
     if (!panel) return;
@@ -104,6 +116,8 @@ export const AdminUI = {
     console.log('[AdminUI] 面板已隐藏');
   },
 
+  // 切换显隐
+  // 以 hidden 类或内联 display 任一为据判断当前状态，兼容两种隐藏方式
   togglePanel: function () {
     const panel = DOMRefs.get(DOMRefs.admin.panel);
     if (!panel) return;
@@ -125,4 +139,3 @@ export const AdminUI = {
     }
   },
 };
-

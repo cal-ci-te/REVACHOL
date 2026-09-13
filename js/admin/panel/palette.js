@@ -1,3 +1,6 @@
+// ！色卡列表渲染
+// 把已保存的色卡（纯色或渐变）渲染为可应用、可删除的列表项。
+// 以副作用方式为 AdminPanel 挂载 renderPalettes，避免与 panel/index.js 形成循环依赖。
 import { AdminPanel } from './index.js';
 import { Texture } from '../../services/texture.js';
 import { NotificationService } from '../../services/notification-service.js';
@@ -17,11 +20,13 @@ AdminPanel.renderPalettes = function () {
 
   let html = '';
   palettes.forEach((p) => {
+    // 按模式生成不同预览：纯色直接填色，渐变按方向与色标生成 linear-gradient
     const colorPreview =
       p.mode === 'solid'
         ? `<span style="display:inline-block;width:20px;height:20px;background:${p.colors[0]};border:1px solid var(--color-border);border-radius:4px;vertical-align:middle;"></span>`
         : `<span style="display:inline-block;width:20px;height:20px;background:linear-gradient(${p.direction}, ${p.colors.join(', ')});border:1px solid var(--color-border);border-radius:4px;vertical-align:middle;"></span>`;
 
+    // 色卡名可能由用户输入，故转义后再拼入 HTML
     html += `
             <div style="display:flex; align-items:center; padding:4px 0; border-bottom:1px solid var(--color-danger);">
                 ${colorPreview}
@@ -33,13 +38,15 @@ AdminPanel.renderPalettes = function () {
   });
   container.innerHTML = html;
 
+  // 事件在渲染后逐个绑定：列表用 innerHTML 整体重建，旧节点上的监听随节点一并丢弃
   container.querySelectorAll('.apply-palette').forEach((btn) => {
     btn.addEventListener('click', function () {
       const id = this.dataset.id;
       if (Texture && Texture.applyPalette) {
         Texture.applyPalette(id);
 
-        // 更新 UI 中的颜色选择器以反映当前状态
+        // 应用色卡后把面板控件同步到该色卡的实际配置
+        // 否则界面仍显示上一次的选择，用户无法据界面判断当前背景从何而来
         const palette = Texture.palettes.find((p) => p.id === id);
         if (palette) {
           const solidRadio = document.querySelector('input[name="bgMode"][value="solid"]');
@@ -63,6 +70,7 @@ AdminPanel.renderPalettes = function () {
 
             if (c1 && palette.colors[0]) c1.value = palette.colors[0];
             if (c2 && palette.colors[1]) c2.value = palette.colors[1];
+            // 第三个取色器按色卡是否含第三色决定显隐：隐藏时它不参与渐变计算
             if (c3) {
               if (palette.colors[2]) {
                 c3.value = palette.colors[2];
@@ -96,6 +104,7 @@ AdminPanel.renderPalettes = function () {
   container.querySelectorAll('.delete-palette').forEach((btn) => {
     btn.addEventListener('click', function () {
       const id = this.dataset.id;
+      // 删除不可撤销，故二次确认；确认后重新渲染列表以反映最新状态
       if (confirm(NotificationService.messages.paletteDeleteConfirm)) {
         if (Texture && Texture.deletePalette) {
           Texture.deletePalette(id);
@@ -109,4 +118,3 @@ AdminPanel.renderPalettes = function () {
     });
   });
 };
-

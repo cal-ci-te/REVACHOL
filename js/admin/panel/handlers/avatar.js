@@ -1,8 +1,11 @@
+// ！头像上传处理
+// 面板内上传头像按钮的处理器，转发到 AdminAvatar 并统一兜底异常。
 import { AdminAvatar } from '../../avatar.js';
 import { Utils } from '../../../utils.js';
 
 export function uploadAvatar() {
   console.log('[AdminPanel] 点击上传头像按钮');
+  // 整体 try-catch：文件选择涉及浏览器权限与读取，异常需转为提示而非中断事件流
   try {
     if (AdminAvatar && typeof AdminAvatar.openUpload === 'function') {
       AdminAvatar.openUpload();
