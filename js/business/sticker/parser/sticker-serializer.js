@@ -1,17 +1,10 @@
-/**
- * 贴纸序列化器 — 将 StickerObject 序列化为占位标记。
- *
- * 统一提供 serializeOne / serializeAll；字段顺序固定便于阅读，但解析不依赖顺序。
- *
- * @internal 仅供 js/business/sticker 内部使用，不对外导出。
- */
+// ！贴纸标记序列化
+// 将 StickerObject 序列化为占位标记；字段顺序固定便于阅读，但解析侧不依赖顺序。
+// 内部模块，不对外导出。
 import { DEFAULT_STICKER } from './sticker-parser.js';
 
-/**
- * 转义标记属性值，防止 `-->` 与引号破坏注释边界。
- * @param {string} value
- * @returns {string}
- */
+// 转义标记属性值
+// 连字符也必须转义：属性值里出现 `-->` 会提前闭合注释，导致后续内容被当成 HTML 解析
 export function escapeAttrValue(value) {
   if (value === null || value === undefined) return '';
   let result = String(value)
@@ -20,7 +13,7 @@ export function escapeAttrValue(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/--/g, '&#45;&#45;');
-  // 转义控制字符（避免 no-control-regex 规则报警）
+  // 逐个转义控制字符：写进注释后无法原样还原，且可能破坏标记结构
   for (let i = 0; i < result.length; i++) {
     const code = result.charCodeAt(i);
     if (code < 0x20 || code === 0x7f) {
@@ -30,22 +23,14 @@ export function escapeAttrValue(value) {
   return result;
 }
 
-/**
- * 序列化单个贴纸为标记字符串。
- *
- * options schema：
- * - `includeDefaults`（boolean，默认 false）：是否显式写出与默认值相同的 x/y/w/h/margin 字段。
- *   当前实现始终写出全部字段（保持向后兼容），该选项保留为后续行为开关。
- *
- * @param {object} sticker - StickerObject { id, x, y, width, height, align, margin, anchor }
- * @param {{ includeDefaults?: boolean }} [options]
- * @returns {string} 如 "<!-- sticker:deco_abc x=50 y=50 w=120 h=120 align=left margin=20 -->"
- */
+// 序列化单个贴纸
+// includeDefaults 当前恒为「写出全部字段」（保持向后兼容），该选项保留为后续行为开关
 export function serializeOne(sticker, options = {}) {
   if (!sticker || !sticker.id) {
     throw new Error('StickerSerializeError: 缺少必填字段 id');
   }
-  void options; // 保留 options 形参（由 serializeAll 传入）
+  // options 由 serializeAll 透传，当前实现不读取，保留形参以固定调用签名
+  void options;
   const id = escapeAttrValue(sticker.id);
   // 数值守卫：非有限数一律回退默认值，避免 x=NaN 等非法输出落库
   const num = (v, fallback) => {
@@ -60,6 +45,7 @@ export function serializeOne(sticker, options = {}) {
   const margin = num(sticker.margin, DEFAULT_STICKER.margin);
 
   let marker = `<!-- sticker:${id} x=${x} y=${y} w=${w} h=${h} align=${align} margin=${margin}`;
+  // anchor 为空时整段省略而非输出 anchor=undefined：空值字段会污染解析结果
   if (sticker.anchor) {
     marker += ` anchor=${escapeAttrValue(String(sticker.anchor))}`;
   }
@@ -67,12 +53,7 @@ export function serializeOne(sticker, options = {}) {
   return marker;
 }
 
-/**
- * 批量序列化贴纸列表。
- * @param {Array<object>} stickers - StickerObject[]（逐项透传 serializeOne 的 options）
- * @param {{ includeDefaults?: boolean }} [options] - 同 serializeOne options schema
- * @returns {string[]} 标记字符串数组
- */
+// 批量序列化贴纸列表
 export function serializeAll(stickers, options) {
   if (!Array.isArray(stickers)) return [];
   return stickers.map((s) => serializeOne(s, options));

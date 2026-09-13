@@ -1,16 +1,16 @@
-// 存储抽象层 — 可插拔：默认使用 localStorage，可注入任意实现。
+// ！拼图存储适配层
+// 可插拔存储抽象：默认 localStorage，也可注入任意实现（需实现 getItem/setItem/removeItem）。
 // 每实例持有独立 storageKey，避免多实例互相覆盖。
 export class StorageAdapter {
-    /**
-     * @param {object} options
-     * @param {string} options.storageKey - localStorage 键名
-     * @param {object} [options.backend] - 自定义存储后端（需实现 getItem/setItem/removeItem）
-     */
+    // 构造适配器
+    // backend 允许测试注入内存实现；无 localStorage 环境（SSR）时为 null，由各方法短路返回
     constructor(options = {}) {
         this._key = options.storageKey || 'rv_puzzle_state';
         this._backend = options.backend || (typeof localStorage !== 'undefined' ? localStorage : null);
     }
 
+    // 序列化并保存
+    // 失败返回 false 而非抛错：存储不可用（隐私模式、配额满）不应中断拼图交互
     save(data) {
         if (!this._backend) return false;
         try {
@@ -22,6 +22,8 @@ export class StorageAdapter {
         }
     }
 
+    // 读取并反序列化
+    // 解析失败返回 null：旧数据损坏时降级为「无存档」而非抛错，便于上层重新初始化
     load() {
         if (!this._backend) return null;
         try {
@@ -33,14 +35,17 @@ export class StorageAdapter {
         }
     }
 
+    // 删除存档
     remove() {
         if (!this._backend) return;
         try {
             this._backend.removeItem(this._key);
-        } catch (e) { /* silent */ }
+        } catch (e) {
+            // 删除失败静默忽略：键本就可能不存在，且不影响后续流程
+        }
     }
 
-    /** 动态切换键名（多实例支持） */
+    // 动态切换键名（多实例支持）
     setKey(key) {
         this._key = key;
     }

@@ -1,20 +1,15 @@
-/**
- * 贴纸解析器 — 单一解析实现。
- *
- * 负责从文章内容（或 DOM 注释）解析贴纸标记为统一的 StickerObject。
- * 标记格式（字段顺序无关，兼容新旧格式与 anchor）：
- *   <!-- sticker:{id} x=.. y=.. w=.. h=.. align=left|right margin=.. anchor=.. -->
- *
- * @internal 仅供 js/business/sticker 内部使用，不对外导出。
- */
+// ！贴纸标记解析
+// 从文章内容或 DOM 注释解析贴纸标记为统一的 StickerObject，是全项目唯一的解析实现。
+// 标记格式（字段顺序无关）：<!-- sticker:{id} x=.. y=.. w=.. h=.. align=left|right margin=.. anchor=.. -->
+// 内部模块，不对外导出。
 
-/** 贴纸占位标记正则（统一数据源）。 */
+// 贴纸占位标记正则（统一数据源）
 export const MARKER_REGEX = /<!--\s*sticker:(.*?)-->/g;
 
-/** 字段解析正则（顺序无关）。 */
+// 字段解析正则（顺序无关）
 const FIELD_REGEX = /(\w+)=(\S+)/g;
 
-/** 默认值。 */
+// 字段缺失时的兜底值
 export const DEFAULT_STICKER = Object.freeze({
   width: 120,
   height: 120,
@@ -24,11 +19,8 @@ export const DEFAULT_STICKER = Object.freeze({
   y: 50,
 });
 
-/**
- * 解析单个标记字段串为对象。
- * @param {string} raw - 注释内部文本，如 "deco_abc x=10 y=20 w=120 h=120 align=left"
- * @returns {object}
- */
+// 解析单个标记的字段串
+// 首个 token 视为 id，其余按 key=value 逐个提取（不依赖字段顺序）
 export function parseMarkerFields(raw) {
   const fields = {};
   const parts = raw.trim().split(/\s+/);
@@ -36,16 +28,14 @@ export function parseMarkerFields(raw) {
   for (const token of parts.slice(1)) {
     const m = FIELD_REGEX.exec(token);
     if (m) fields[m[1]] = m[2];
+    // 共享正则带 g 标志，每次使用后必须重置 lastIndex，否则下次 exec 会从上一次位置继续
     FIELD_REGEX.lastIndex = 0;
   }
   return fields;
 }
 
-/**
- * 将解析到的字段归一化为 StickerObject。
- * @param {object} f - parseMarkerFields 的结果
- * @returns {object} StickerObject
- */
+// 归一化为 StickerObject
+// 尺寸与坐标逐项兜底而非整体判空：缺一个字段不应让其余有效字段一起被丢弃
 export function normalizeMarkerFields(f) {
   const w = Number.parseInt(f.w, 10) || DEFAULT_STICKER.width;
   const h = Number.parseInt(f.h, 10) || DEFAULT_STICKER.height;
@@ -66,14 +56,11 @@ export function normalizeMarkerFields(f) {
   };
 }
 
-/**
- * 从文章内容解析贴纸标记。
- * @param {string} content - 文章 Markdown/HTML 内容
- * @returns {Array<object>} StickerObject[]
- */
+// 从文章内容解析全部贴纸标记
 export function parseMarkers(content) {
   if (typeof content !== 'string' || !content) return [];
   const stickers = [];
+  // 复制一份新正则而非复用 MARKER_REGEX：共享实例的 lastIndex 会被并发调用互相污染
   const regex = new RegExp(MARKER_REGEX.source, 'g');
   let match;
   while ((match = regex.exec(content)) !== null) {
@@ -84,11 +71,7 @@ export function parseMarkers(content) {
   return stickers;
 }
 
-/**
- * 从 DOM 容器遍历注释节点解析贴纸标记。
- * @param {HTMLElement} container
- * @returns {Array<object>} StickerObject[]
- */
+// 从 DOM 注释节点解析贴纸标记
 export function parseMarkersFromDom(container) {
   if (!container || typeof document === 'undefined') return [];
   const stickers = [];

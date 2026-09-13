@@ -1,47 +1,33 @@
-/**
- * 贴纸数据模型 — 权威数据源与状态管理。
- *
- * 职责：
- * - 持有贴纸数据（StickerObject[]），提供 CRUD 与查询；
- * - 维护 id 集合，确保 id 唯一性；
- * - 对外提供 backfillContent（旧数据兼容补齐）、releaseIds（生命周期清理）；
- * - 内部使用 id-generator 生成新 id。
- *
- * @internal 仅供 js/business/sticker 内部使用，不对外导出。
- */
-import { generateId } from './id-generator.js';
+// ！贴纸数据模型
+// 贴纸数据的权威源与状态管理：持有 StickerObject[]、提供 CRUD 与查询、维护 id 唯一性。
+// 对外提供 backfillContent（旧数据兼容补齐）与 releaseIds（生命周期清理）；新 id 一律经 id-generator 生成。
+// 内部模块，不对外导出：仅供 js/business/sticker 内部使用。
 
-/**
- * @typedef {object} StickerObject
- * @property {string} id - 贴纸唯一标识
- * @property {number} [x] - 左边缘相对容器左侧百分比
- * @property {number} [y] - 上边缘相对容器顶部百分比
- * @property {number} [width] - 宽度（px）
- * @property {number} [height] - 高度（px）
- * @property {'left'|'right'} [align] - 浮动方向
- * @property {number} [margin] - 文字间距（px）
- * @property {string} [src] - 图片资源地址
- * @property {string} [anchor] - 锚点序列化字符串
- */
+// StickerObject 字段（此处为唯一权威定义，避免各处重复 typedef）
+// id 贴纸唯一标识；x/y 相对容器左上角的百分比；width/height 尺寸（px）；
+// align left|right 浮动方向；margin 文字间距（px）；src 图片资源地址；anchor 锚点序列化字符串。
+import { generateId } from './id-generator.js';
 
 export class StickerModel {
   constructor() {
-    /** @type {Map<string, StickerObject>} */
     this._data = new Map();
   }
 
-  /** 获取全部贴纸（按添加顺序）。 */
+  // 获取全部贴纸（按添加顺序）
   getAll() {
     return [...this._data.values()];
   }
 
-  /** 获取单个贴纸。 */
+  // 获取单个贴纸
+  // 查询键统一转字符串：调用方须保证写入时的 id 也是字符串，否则数字 id 会查不到
   get(id) {
     if (!id) return undefined;
     return this._data.get(String(id));
   }
 
-  /** 设置（替换）全部贴纸。 */
+  // 设置（替换）全部贴纸
+  // 逐条浅拷贝：避免外部持有的对象引用在之后被修改而污染模型内部数据
+  // 丢弃无 id 项而非报错：模型以 id 为唯一键，单条缺 id 不应拖垮整批导入
   setAll(stickers) {
     this._data.clear();
     if (Array.isArray(stickers)) {
@@ -51,7 +37,8 @@ export class StickerModel {
     }
   }
 
-  /** 添加贴纸（若 id 已存在则覆盖）。 */
+  // 添加贴纸（id 已存在则覆盖）
+  // 缺 id 直接抛错：静默丢弃会让调用方误以为添加成功
   add(sticker) {
     if (!sticker || !sticker.id) {
       throw new Error('StickerModel: add 需要带 id 的 StickerObject');
@@ -59,13 +46,14 @@ export class StickerModel {
     this._data.set(sticker.id, { ...sticker });
   }
 
-  /** 移除贴纸。 */
+  // 移除贴纸
   remove(id) {
     if (!id) return false;
     return this._data.delete(String(id));
   }
 
-  /** 更新贴纸（部分更新，合并到现有数据）。 */
+  // 更新贴纸（部分更新，合并到现有数据）
+  // 未知 id 返回 false 而非抛错：便于调用方按返回值处理，保持操作幂等
   update(id, patch) {
     if (!id || !patch || typeof patch !== 'object') return false;
     const existing = this._data.get(String(id));
@@ -74,31 +62,25 @@ export class StickerModel {
     return true;
   }
 
-  /** 清空所有贴纸。 */
+  // 清空所有贴纸
   clear() {
     this._data.clear();
   }
 
-  /** 当前贴纸数量。 */
+  // 当前贴纸数量
   get size() {
     return this._data.size;
   }
 
-  /**
-   * 生成唯一 id（基于已有 id 集合确保不冲突）。
-   * @param {{ prefix?: string, maxAttempts?: number }} [options]
-   * @returns {string}
-   */
+  // 生成不冲突的新 id
+  // 以模型内已有 id 作为去重集合，避免与现存贴纸撞号
   generateId(options) {
     return generateId(this._data.keys(), options);
   }
 
-  /**
-   * 兼容旧数据：补齐缺失字段，返回归一化后的 StickerObject[]。
-   * 不修改 content，只返回归一化后的 stickers 数组。
-   * @param {Array<object>} rawStickers - 原始 stickeres 数据（可能来自文章或旧标记解析）
-   * @returns {Array<StickerObject>}
-   */
+  // 兼容旧数据：补齐缺失字段，返回归一化后的 StickerObject[]
+  // 不改动 content，只返回数组；逐项兜底而非整体判空，缺一个字段不应丢弃其余有效字段
+  // 兼容旧字段别名：id|decoId、width|w、height|h、src|dataUrl
   backfillContent(rawStickers) {
     if (!Array.isArray(rawStickers)) return [];
     const generatedIds = new Set();
@@ -122,11 +104,9 @@ export class StickerModel {
     });
   }
 
-  /**
-   * 释放指定 id 集合（生命周期清理）。仅移除不在提供的 ids 或 predicate 不匹配的 id。
-   * @param {string[]|Function} idsOrPredicate - id 数组，或 (id) => boolean 谓词
-   * @throws {TypeError} 参数类型非法时抛出
-   */
+  // 释放 id（生命周期清理）
+  // 入参语义：传数组时保留数组内 id、删除其余；传谓词时删除 predicate 返回 true 的 id
+  // 传空数组等价于清空全部，调用方须自行确认；非数组非函数一律抛 TypeError，避免误操作静默清库
   releaseIds(idsOrPredicate) {
     let predicate;
     if (typeof idsOrPredicate === 'function') {

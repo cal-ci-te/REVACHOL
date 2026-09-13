@@ -1,13 +1,8 @@
-/**
- * 贴纸安全工具 — MIME 校验、SSRF 限制、SVG 清洗、CSS URL 转义。
- *
- * - MIME 校验拆分：同步 `validateDataUrlMimeType` 与可选异步 `fetchAndValidateMimeType`。
- * - `assertSafeStickerData` 仅同步，不发起任何网络请求。
- * - 普通 http/https URL 默认不触发 fetch，仅做同步白名单/语法检查。
- * - 异步校验遵守 SSRF 限制（禁止重定向、拒绝私网/元地址、超时）。
- *
- * @internal 仅供 js/business/sticker/security 内部使用，不对外导出。
- */
+// ！贴纸安全工具
+// MIME 校验、SSRF 限制、SVG 清洗、CSS URL 转义。
+// MIME 校验拆同步与异步两条路径：assertSafeStickerData 与普通 http/https URL 默认不发起网络请求，仅做同步白名单/语法检查；
+// 只有显式 allowFetch 的异步校验才受 SSRF 约束（禁止重定向、拒绝私网/元地址、超时）。
+// 内部模块，不对外导出。
 import {
   ALLOWED_IMAGE_PROTOCOLS,
   DATA_URL_MIME_TYPES,
@@ -22,11 +17,9 @@ import {
   isBlockedIp,
 } from './security-constants.js';
 
-/**
- * 解析 data URL，返回 { mime, isBase64, data }；非法返回 null。
- * @param {string} src
- * @returns {{ mime: string, isBase64: boolean, data: string } | null}
- */
+// 解析 data URL
+// 手工切分 header 而不依赖 URL 解析：data URL 内容可能极长且含特殊字符，URL 构造易抛错
+// 非法（非字符串、缺 data: 前缀、缺逗号）返回 null，交由调用方决定拒绝或放行
 export function parseDataUrl(src) {
   if (typeof src !== 'string' || !src.startsWith('data:')) return null;
   const comma = src.indexOf(',');
@@ -41,11 +34,8 @@ export function parseDataUrl(src) {
   return { mime, isBase64, data };
 }
 
-/**
- * 同步校验 data URL 的 MIME 类型与长度（无任何网络请求）。
- * @param {string} src
- * @returns {boolean}
- */
+// 同步校验 data URL 的 MIME 类型与长度
+// 全程无网络请求：可在渲染前安全调用，不会引入 IO 延迟或外部依赖
 export function validateDataUrlMimeType(src) {
   const parsed = parseDataUrl(src);
   if (!parsed) return false;
@@ -53,47 +43,34 @@ export function validateDataUrlMimeType(src) {
   return DATA_URL_MIME_TYPES.includes(parsed.mime);
 }
 
-/**
- * 从 URL 文本中提取主机名（不含端口）。
- * @param {URL} url
- * @returns {string}
- */
+// 从 URL 文本中提取主机名（不含端口）
+// 剥掉 IPv6 字面量的方括号：`[::1]` 与 `::1` 需归一为同一形式才能命中前缀黑名单
 function extractHostname(url) {
   return url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
 }
 
-/**
- * 判断 URL 是否命中 SSRF 拦截规则（基于字面 IP/特殊地址，最佳努力）。
- * @param {URL} url
- * @returns {string | null} 返回拦截原因，null 表示未拦截
- */
+// 判断 URL 是否命中 SSRF 拦截规则
+// 只做字面量判断，不解 DNS：前端无法完全阻止 DNS rebinding，故拦截为最佳努力而非保证
+// 返回拦截原因字符串，null 表示未拦截（便于上层记录，也避免与 false 混淆）
 function checkSsrfLiteral(url) {
   const hostname = extractHostname(url);
-  // 特殊地址（云元数据、保留主机名）
   if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
     return 'blocked-metadata-address';
   }
-  // 字面 IP：直接按前缀判断
   if (/^[0-9.]+$/.test(hostname)) {
     if (isBlockedIp(hostname)) return 'blocked-private-ip';
   }
-  // IPv6 字面量
   if (hostname.includes(':')) {
     if (isBlockedIp(hostname)) return 'blocked-private-ipv6';
   }
   return null;
 }
 
-/**
- * 异步校验 http/https 资源的 MIME 类型（遵守 SSRF 限制）。
- *
- * 注意：前端无法完全阻止 DNS rebinding，私有 IP 拦截为最佳努力；
- * 默认不自动跟随重定向，拒绝私网/元地址，设置超时。
- *
- * @param {string} src - 贴纸资源地址（http/https）
- * @param {{ timeoutMs?: number, fetchImpl?: typeof fetch }} [options]
- * @returns {Promise<boolean>}
- */
+// 异步校验 http/https 资源的 MIME 类型（遵守 SSRF 限制）
+// 默认不发请求：allowFetch 未显式为 true 时，http/https 仅视为语法通过，
+// 避免渲染路径意外触发外部请求（隐私与性能）
+// 重定向策略由 SSRF_MAX_REDIRECTS 派生：为 0 时用 manual，靠 opaqueredirect 识别并拒绝跳转
+// 超时兜底防止挂起的请求占住校验流程；异常与超时统一返回 false，不向上抛
 export async function fetchAndValidateMimeType(src, options = {}) {
   const allowFetch = options.allowFetch === true;
   const timeoutMs = options.timeoutMs ?? SSRF_REQUEST_TIMEOUT_MS;
@@ -110,7 +87,6 @@ export async function fetchAndValidateMimeType(src, options = {}) {
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
 
-  // 默认不发起任何网络请求：仅做同步协议/语法检查（http/https 视为语法通过）
   if (!allowFetch) return true;
 
   const fetchImpl = options.fetchImpl || globalThis.fetch;
@@ -128,7 +104,7 @@ export async function fetchAndValidateMimeType(src, options = {}) {
       redirect: SSRF_MAX_REDIRECTS === 0 ? 'manual' : 'follow',
       signal: controller.signal,
     });
-    if (res.type === 'opaqueredirect') return false; // 重定向被拒绝
+    if (res.type === 'opaqueredirect') return false;
     if (!res.ok) return false;
     const contentType = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     return contentType === '' || DATA_URL_MIME_TYPES.includes(contentType);
@@ -139,16 +115,9 @@ export async function fetchAndValidateMimeType(src, options = {}) {
   }
 }
 
-/**
- * 同步安全断言；不发起任何网络请求。
- *
- * 校验：协议白名单、data URL MIME 白名单、危险协议拒绝。
- * 普通 http/https URL 仅做协议与语法检查，不触发 fetch。
- *
- * @param {unknown} data - 待校验的贴纸数据（含 src）
- * @returns {boolean}
- * @throws {Error} 数据不安全时抛出异常
- */
+// 同步安全断言（不发起任何网络请求）
+// 校验协议白名单、data URL MIME 白名单与危险协议；普通 http/https 只做协议与语法检查
+// 不安全时抛错而非返回 false：调用方若漏判返回值就会渲染未校验内容，抛错无法被忽略
 export function assertSafeStickerData(data) {
   const src = data && typeof data === 'object' ? data.src : data;
   if (typeof src !== 'string' || src.length === 0) {
@@ -159,9 +128,8 @@ export function assertSafeStickerData(data) {
   try {
     url = new URL(src);
   } catch {
-    // 兼容同源相对路径（如 /api/decos/...）与协议相对路径（//host/...）
-    // 浏览器中 new URL('/api/x') 通常可解析，但某些环境（jsdom/无 base）会失败；
-    // 统一用占位 origin 解析，仅用于协议白名单校验。
+    // 同源相对路径（/api/...）与协议相对路径（//host/...）在部分环境（jsdom、无 base）无法直接解析；
+    // 统一用占位 origin 解析，仅为完成协议白名单校验，不做任何请求
     if (typeof src === 'string' && (src.startsWith('/') || src.startsWith('//'))) {
       try {
         url = new URL(src, 'http://sticker-local.invalid');
@@ -177,7 +145,7 @@ export function assertSafeStickerData(data) {
     throw new Error(`Sticker security: 不支持的协议 ${url.protocol}`);
   }
 
-  // 拒绝危险协议（即使在 data: 下）
+  // 危险协议单独判定：data:text/html 之类即便落在 data: 分支也必须拦下
   if (SVG_FORBIDDEN_PROTOCOLS.some((p) => src.toLowerCase().startsWith(p))) {
     throw new Error('Sticker security: 危险协议被拒绝');
   }
@@ -191,16 +159,9 @@ export function assertSafeStickerData(data) {
   return true;
 }
 
-/**
- * 从序列化的 SVG 字符串中去除危险元素/属性/协议。
- *
- * 默认使用 DOMParser 解析并按黑名单清洗；若 DOMParser 不可用则返回空串（拒绝）。
- * 可选用 DOMPurify 作为后端（options.backend），后端需提供 sanitize(input) 接口。
- *
- * @param {string} svg - SVG 字符串
- * @param {{ backend?: { sanitize: (input: string) => string } }} [options]
- * @returns {string} 清洗后的 SVG；非法输入返回 ''
- */
+// 清洗序列化 SVG：按黑名单移除危险元素、属性与协议
+// 默认用 DOMParser 解析；DOMParser 不可用时返回空串（拒绝）而非放行，安全默认失败
+// 允许 options.backend 注入 DOMPurify 等实现，接口只需 sanitize(input)
 export function sanitizeSvg(svg, options = {}) {
   if (typeof svg !== 'string' || !svg.trim()) return '';
   if (options.backend && typeof options.backend.sanitize === 'function') {
@@ -216,7 +177,7 @@ export function sanitizeSvg(svg, options = {}) {
     return '';
   }
 
-  // DOMParser 解析 XML 错误时会生成 <parsererror>
+  // XML 解析失败时 DOMParser 不抛错而是生成 <parsererror>，必须显式识别
   if (doc.querySelector('parsererror')) return '';
 
   const root = doc.documentElement;
@@ -243,7 +204,7 @@ export function sanitizeSvg(svg, options = {}) {
           node.removeAttribute(attr.name);
           return;
         }
-        // 协议白名单校验：非 # 开头且协议不在白名单 → 移除
+        // 非 # 开头的引用必须落在协议白名单内，否则移除
         if (!value.startsWith('#')) {
           const colon = value.indexOf(':');
           if (colon >= 0) {
@@ -257,7 +218,7 @@ export function sanitizeSvg(svg, options = {}) {
     });
   });
 
-  // 移除指向外部资源的 <use>
+  // 移除指向外部资源的 <use>（仅保留文档内 # 引用）
   root.querySelectorAll('use').forEach((node) => {
     const href = node.getAttribute('href') || node.getAttribute('xlink:href') || '';
     if (href && !href.startsWith('#')) {
@@ -265,7 +226,7 @@ export function sanitizeSvg(svg, options = {}) {
     }
   });
 
-  // 移除外联 <style>（内部 #id 引用保留，外链 url(...) 移除）
+  // 移除 <style> 中的外链 url(...)，保留内部 #id 引用
   root.querySelectorAll('style').forEach((node) => {
     node.textContent = (node.textContent || '').replace(/url\(\s*["']?(?!\s*#)[^)"']+["']?\s*\)/gi, '');
   });
@@ -273,12 +234,9 @@ export function sanitizeSvg(svg, options = {}) {
   return new XMLSerializer().serializeToString(root);
 }
 
-/**
- * 清洗 SVG data URL：解码 → sanitizeSvg → 重新编码。
- * 非 SVG data URL 原样返回；清洗结果为空时返回 ''（拒绝）。
- * @param {string} src - data:image/svg+xml;base64,... 或 ;utf8,...
- * @returns {string} 清洗后的 data URL；非法/清洗失败返回 ''
- */
+// 清洗 SVG data URL：解码 → sanitizeSvg → 重新编码
+// 非 SVG 的 data URL 原样返回（不在本函数职责内）；解码或清洗失败返回 '' 表示拒绝
+// 保留原有编码形态（base64 仍 base64、utf8 仍 utf8），避免改变调用方后续处理方式
 export function sanitizeSvgDataUrl(src) {
   const parsed = parseDataUrl(src);
   if (!parsed || parsed.mime !== SVG_MIME_TYPE) return src;
@@ -302,22 +260,15 @@ export function sanitizeSvgDataUrl(src) {
   }
 }
 
-/**
- * 转义 CSS url(...) token 中的特殊字符，防止 CSS 注入。
- *
- * 已存在的合法百分号编码（%xx）不会二次转义。
- * 输出始终建议配合引号使用：url("<escaped>")。
- *
- * @param {string} url
- * @returns {string}
- */
+// 转义 CSS url(...) token 中的特殊字符，防止 CSS 注入
+// 已存在的合法百分号编码（%xx）不二次转义，否则会破坏原有编码
+// 控制字符、空白、引号、反斜杠、括号一律百分号编码；输出须配合引号使用（url("<escaped>")）
 export function escapeCssUrl(url) {
   if (typeof url !== 'string') return '';
   const hex = '0123456789ABCDEF';
   let out = '';
   for (let i = 0; i < url.length; i++) {
     const ch = url[i];
-    // 保留合法百分号编码
     if (
       ch === '%' &&
       i + 2 < url.length + 1 &&
@@ -328,7 +279,6 @@ export function escapeCssUrl(url) {
       continue;
     }
     const code = url.charCodeAt(i);
-    // 控制字符与空白、引号、反斜杠、括号等一律百分号编码
     if (
       code < 0x20 ||
       code === 0x7f ||
