@@ -1,14 +1,16 @@
-// 贴纸统一编辑管理器：移动 + 缩放合并在同一编辑模式下。
-// 进入编辑模式后贴纸可拖拽移动 + 拖拽右下角控制点缩放，
-// 底部工具栏提供「确认更改」「重置」「取消」三个按钮。
-// 未放置的贴纸点击编辑时自动渲染到屏幕正中。
+// ！贴纸位置编辑
+// 统一的「移动 + 缩放」编辑器：高亮边框 + 右下角控制点 + 底部工具栏（确认/重置/取消）。
+// 未放置的贴纸进入编辑时自动创建元素到屏幕正中，确认后才真正落位。
+// 移动与缩放共用一套拖拽流程，避免两套坐标换算逻辑互相覆盖。
+
 import { DecoShelf } from './deco.js';
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
 import { Utils } from '../utils.js';
 import { UI } from '../utils/ui-strings.js';
 
-// ---- 初始化：监听贴纸库变更，自动退出已删除贴纸的编辑模式 ----
+// 初始化：监听贴纸库变更，自动退出已删除贴纸的编辑模式
+// 贴纸在别处被删除后编辑态会悬空，此处兜底回收，避免操作到已不存在的实例
 EventBus.on(EVENTS.DECO_LIBRARY_CHANGED, () => {
     if (!DecoEdit._activeDecoId) return;
     const item = DecoShelf.get(DecoEdit._activeDecoId);
@@ -19,24 +21,27 @@ EventBus.on(EVENTS.DECO_LIBRARY_CHANGED, () => {
 });
 
 export const DecoEdit = {
-    // ----- 配置 -----
     CONFIG: {
-        useTransform: false,   // CSS transform 缩放方案（GPU 加速）
-        minSize: 40,           // 最小尺寸（px）
-        maxSizeRatio: 0.8,     // 最大尺寸 = 视口 * 0.8
+        // 关闭时直接改写 width/height：编辑结果即真实占位，与未缩放贴纸的布局表现一致
+        useTransform: false,
+        minSize: 40,
+        maxSizeRatio: 0.8,
     },
 
-    // ----- 内部状态 -----
     _activeDecoId: null,
     _activeElement: null,
-    _handle: null,             // 缩放控制点 DOM
-    _toolbar: null,            // 底部工具栏 DOM
-    _snapshot: null,           // { top, left, width, height, scaleX, scaleY, transform, transformOrigin, position }
-    _wasUnplaced: false,       // 贴纸原本未放置（enterEditMode 时动态创建了 DOM）
+    // 缩放控制点 DOM
+    _handle: null,
+    // 底部工具栏 DOM
+    _toolbar: null,
+    // 编辑前状态快照，字段为 top/left/width/height/scaleX/scaleY/transform/transformOrigin/position
+    _snapshot: null,
+    // 贴纸原本未放置（enterEditMode 时动态创建了 DOM）
+    _wasUnplaced: false,
     _rafId: null,
-    _pendingResize: null,      // 缩放待更新值
+    // 缩放待更新值
+    _pendingResize: null,
 
-    // ----- 缩放拖拽状态 -----
     _resizeStartX: 0,
     _resizeStartY: 0,
     _resizeStartWidth: 0,
@@ -48,7 +53,6 @@ export const DecoEdit = {
     _handleDownHandler: null,
     _handleTouchHandler: null,
 
-    // ----- 移动拖拽状态 -----
     _isDragging: false,
     _dragStartX: 0,
     _dragStartY: 0,
@@ -56,28 +60,23 @@ export const DecoEdit = {
     _dragStartTop: 0,
     _decoDownHandler: null,
 
-    // ----- 键盘事件 -----
     _escHandler: null,
 
-    // ============================
-    //  生命周期
-    // ============================
-
-    /** 进入编辑模式：快照 + 高亮 + 控制点 + 移动拖拽 + 工具栏 */
+    // 进入编辑模式
     enterEditMode(decoId) {
-        // 移动端禁用
+        // 移动端不支持拖拽编辑
         if (window.innerWidth <= 768 || ('ontouchstart' in window)) {
             Utils.showToast(UI.toast.decoMobileNotSupported, true);
             return;
         }
 
-        // 已有其他贴纸在编辑模式则强制退出
+        // 同一时刻只允许一个贴纸处于编辑态，否则控制点与工具栏会互相抢占
         if (this._activeDecoId && this._activeDecoId !== decoId) {
             this.exitEditMode(false);
             console.log('[DecoEdit] 强制退出上一个贴纸编辑:', this._activeDecoId);
         }
 
-        // 同一贴纸已处于编辑模式则跳过（幂等）
+        // 重复进入同一贴纸直接返回
         if (this._activeDecoId === decoId) return;
 
         const item = DecoShelf.get(decoId);
@@ -86,49 +85,42 @@ export const DecoEdit = {
         let el = document.getElementById('deco-' + decoId);
 
         if (!el) {
-            // 贴纸未放置 → 动态创建元素到屏幕正中
+            // 未放置 → 动态创建元素到屏幕正中
             el = this._createDecoElement(decoId, item);
             this._wasUnplaced = true;
         } else {
             this._wasUnplaced = false;
         }
 
-        // 拍摄快照（如果原本未放置则记录 null position 以便取消时恢复）
+        // 拍摄快照（原本未放置则 position 记 null，取消时才能正确还原）
         this._snapshot = this._captureSnapshot(el, item);
 
         this._activeDecoId = decoId;
         this._activeElement = el;
 
-        // 记录原始尺寸
         const currentW = parseFloat(el.style.width) || el.offsetWidth || 100;
         const currentH = parseFloat(el.style.height) || el.offsetHeight || 100;
         this._originalWidth = isNaN(currentW) ? 100 : currentW;
         this._originalHeight = isNaN(currentH) ? 100 : currentH;
 
-        // 高亮边框
         el.classList.add('deco-editing');
         el.style.cursor = 'grab';
 
-        // 创建右下角缩放控制点
         this._createHandle(el);
 
-        // 绑定缩放拖拽（控制点）
         this._bindResizeDrag(el);
 
-        // 绑定移动拖拽（贴纸主体）
         this._bindDecoDrag(el);
 
-        // 显示底部工具栏
         this._showToolbar();
 
-        // 绑定 ESC 键
         this._bindEscKey();
 
         EventBus.emit('deco:edit-mode-started', { decoId });
         console.log('[DecoEdit] 进入编辑模式，贴纸:', decoId, this._wasUnplaced ? '(原未放置，已创建)' : '');
     },
 
-    /** 退出编辑模式 */
+    // 退出编辑模式
     exitEditMode(save = true) {
         if (!this._activeDecoId) return;
 
@@ -144,11 +136,10 @@ export const DecoEdit = {
         if (save) {
             this._saveChanges();
         } else if (this._wasUnplaced) {
-            // 取消且原本未放置 → 移除元素，恢复 position=null
+            // 取消且原本未放置 → 移除元素并把 position 复位为 null
             el.remove();
             DecoShelf.setPosition(decoId, null);
         } else {
-            // 取消 → 恢复快照样式
             this._applySnapshot(el);
         }
 
@@ -158,7 +149,7 @@ export const DecoEdit = {
         console.log('[DecoEdit] 退出编辑模式，save:', save);
     },
 
-    /** 重置到快照状态（保持编辑模式，继续调整） */
+    // 重置到快照（保持编辑态，便于继续调整）
     resetToSnapshot() {
         const el = this._activeElement || document.getElementById('deco-' + this._activeDecoId);
         if (!el || !this._snapshot) return;
@@ -169,20 +160,17 @@ export const DecoEdit = {
         console.log('[DecoEdit] 已重置到快照');
     },
 
-    /** 是否处于编辑模式 */
+    // 是否处于编辑模式
     isActive() {
         return !!this._activeDecoId;
     },
 
-    /** 获取当前激活的贴纸 ID */
+    // 获取当前激活的贴纸 ID
     getActiveDecoId() {
         return this._activeDecoId;
     },
 
-    // ============================
-    //  贴纸元素创建（未放置时）
-    // ============================
-
+    // 创建未放置贴纸的元素
     _createDecoElement(id, item) {
         const el = document.createElement('div');
         el.id = 'deco-' + id;
@@ -208,10 +196,8 @@ export const DecoEdit = {
         return el;
     },
 
-    // ============================
-    //  快照
-    // ============================
-
+    // 拍摄快照
+    // 同时记录 style 与 position 两处状态：取消编辑需把两者都还原才行
     _captureSnapshot(el, item) {
         return {
             top: el.style.top || '',
@@ -226,6 +212,7 @@ export const DecoEdit = {
         };
     },
 
+    // 应用快照
     _applySnapshot(el) {
         if (!this._snapshot) return;
         el.style.top = this._snapshot.top;
@@ -240,10 +227,7 @@ export const DecoEdit = {
         else delete el._scaleY;
     },
 
-    // ============================
-    //  控制点
-    // ============================
-
+    // 创建右下角缩放控制点
     _createHandle(el) {
         this._removeHandle();
         const handle = document.createElement('div');
@@ -269,6 +253,7 @@ export const DecoEdit = {
         this._handle = handle;
     },
 
+    // 移除控制点
     _removeHandle() {
         this._removeHandleListeners();
         if (this._handle) {
@@ -277,14 +262,13 @@ export const DecoEdit = {
         }
     },
 
+    // 补齐控制点
+    // 重置快照时控制点可能已被移除，此处按需重建，避免拖拽失效
     _syncHandle(el) {
         if (!this._handle && el) this._createHandle(el);
     },
 
-    // ============================
-    //  缩放拖拽
-    // ============================
-
+    // 绑定缩放拖拽
     _bindResizeDrag(el) {
         const self = this;
         this._resizeStartWidth = parseFloat(el.style.width) || el.offsetWidth || 100;
@@ -316,6 +300,7 @@ export const DecoEdit = {
         this._handle.addEventListener('touchstart', onDown, { passive: false });
     },
 
+    // 解绑控制点监听
     _removeHandleListeners() {
         if (!this._handle) return;
         if (this._handleDownHandler) {
@@ -326,6 +311,8 @@ export const DecoEdit = {
         }
     },
 
+    // 缩放移动
+    // 尺寸写回走 requestAnimationFrame：mousemove 高频触发，逐帧写入即可，避免同步布局抖动
     _onResizeMove(e, el) {
         const clientX = (e.touches && e.touches.length) ? e.touches[0].clientX : e.clientX;
         const clientY = (e.touches && e.touches.length) ? e.touches[0].clientY : e.clientY;
@@ -336,6 +323,7 @@ export const DecoEdit = {
         let newWidth = Math.max(this.CONFIG.minSize, this._resizeStartWidth + dx);
         let newHeight = Math.max(this.CONFIG.minSize, this._resizeStartHeight + dy);
 
+        // 按住 Shift 等比缩放：避免贴纸被拉变形
         if (e.shiftKey) {
             const ratio = this._resizeStartWidth / this._resizeStartHeight;
             newHeight = newWidth / ratio;
@@ -362,6 +350,8 @@ export const DecoEdit = {
         }
     },
 
+    // 缩放结束
+    // 先取消排队帧再补写最后一次待处理尺寸：否则末次移动会丢失，尺寸停在倒数第二帧
     _onResizeUp(el) {
         if (this._resizeMoveHandler) {
             document.removeEventListener('mousemove', this._resizeMoveHandler);
@@ -384,6 +374,8 @@ export const DecoEdit = {
         }
     },
 
+    // 应用尺寸
+    // transform 模式下基于 _originalWidth 换算比例，故被缩放的贴纸 width/height 始终保持原始值
     _applySize(el, width, height) {
         if (this.CONFIG.useTransform) {
             const scaleX = this._originalWidth > 0 ? width / this._originalWidth : 1;
@@ -401,10 +393,7 @@ export const DecoEdit = {
         }
     },
 
-    // ============================
-    //  位置拖拽
-    // ============================
-
+    // 绑定位置拖拽
     _bindDecoDrag(el) {
         const self = this;
 
@@ -416,6 +405,7 @@ export const DecoEdit = {
             self._isDragging = true;
             self._dragStartX = e.clientX;
             self._dragStartY = e.clientY;
+            // left/top 为空串时回退 getBoundingClientRect：元素可能刚创建尚未写内联坐标
             self._dragStartLeft = parseFloat(el.style.left) || el.getBoundingClientRect().left;
             self._dragStartTop = parseFloat(el.style.top) || el.getBoundingClientRect().top;
             el.style.cursor = 'grabbing';
@@ -461,6 +451,7 @@ export const DecoEdit = {
         this._decoDownHandler = onDown;
     },
 
+    // 解绑位置拖拽
     _unbindDecoDrag(el) {
         if (this._decoDownHandler && el) {
             el.removeEventListener('mousedown', this._decoDownHandler);
@@ -469,10 +460,8 @@ export const DecoEdit = {
         }
     },
 
-    // ============================
-    //  保存与清理
-    // ============================
-
+    // 保存编辑结果
+    // transform 模式把缩放折算回真实宽高再入库：否则刷新后 transform 丢失，贴纸会回到原始尺寸
     _saveChanges() {
         const el = this._activeElement || document.getElementById('deco-' + this._activeDecoId);
         const item = DecoShelf.get(this._activeDecoId);
@@ -517,6 +506,7 @@ export const DecoEdit = {
             newPos.scaleX = Math.round(scaleX * 100) / 100;
             newPos.scaleY = Math.round(scaleY * 100) / 100;
         } else {
+            // 关闭 transform 后遗留的 scale 字段需清掉，否则渲染仍会按旧比例缩放
             delete newPos.scaleX;
             delete newPos.scaleY;
         }
@@ -524,6 +514,8 @@ export const DecoEdit = {
         DecoShelf.setPosition(this._activeDecoId, newPos);
     },
 
+    // 清理编辑态
+    // 集中在此解绑全部全局监听：拖拽监听挂在 document 上，漏解会使下次编辑叠加多份回调
     _cleanup() {
         if (this._rafId) {
             cancelAnimationFrame(this._rafId);
@@ -559,10 +551,7 @@ export const DecoEdit = {
         this._wasUnplaced = false;
     },
 
-    // ============================
-    //  工具栏
-    // ============================
-
+    // 显示工具栏
     _showToolbar() {
         this._hideToolbar();
 
@@ -597,6 +586,8 @@ export const DecoEdit = {
         });
     },
 
+    // 隐藏工具栏
+    // 同时清掉旧版遗留的 .deco-resize-control，避免升级后残留元素挡在页面上
     _hideToolbar() {
         if (this._toolbar) {
             this._toolbar.remove();
@@ -606,10 +597,7 @@ export const DecoEdit = {
         document.querySelectorAll('.deco-resize-control').forEach(el => el.remove());
     },
 
-    // ============================
-    //  ESC 键
-    // ============================
-
+    // 绑定 ESC 键
     _bindEscKey() {
         this._escHandler = (e) => {
             if (e.key === 'Escape') {
@@ -620,6 +608,7 @@ export const DecoEdit = {
         document.addEventListener('keydown', this._escHandler);
     },
 
+    // 解绑 ESC 键
     _unbindEscKey() {
         if (this._escHandler) {
             document.removeEventListener('keydown', this._escHandler);

@@ -1,6 +1,8 @@
-// 代理模式：Article 是 ArticleService 的只读视图。历史原因——早期代码直接使用 Article 对象，
-// 重构为 ArticleService 单一数据源后保留此代理层，避免修改 20+ 处引用。
-// [TODO] 后续可逐步替换所有 Article.xxx 为 ArticleService.xxx 后移除此文件。
+// ！文章只读视图
+// Article 是 ArticleService 的只读代理。早期代码直接使用 Article 对象，重构为 ArticleService 单一数据源后
+// 保留此代理层，避免改动 20+ 处调用点；写入被静默忽略，读取始终反映 Service 的当前数据。
+// TODO(待指派): 全部调用点改用 ArticleService 后移除此文件，触发条件为 Article.xxx 引用清零。
+
 import { ArticleService } from '../services/article-service.js';
 
 export const Article = {
@@ -9,7 +11,7 @@ export const Article = {
         return ArticleService.getAllArticles();
     },
     set allArticles(value) {
-        // 只读，忽略设置
+        // 忽略写入：保持只读视图语义，避免外部绕过 Service 改数据
     },
     get visibility() {
         const all = ArticleService.getAllArticles();

@@ -1,22 +1,21 @@
+// ！本地存储适配器
+// 在 localStorage 之上统一加前缀并做 JSON 序列化，实现存储后端可替换（本地 ↔ S3/RustFS）。
+
+// 前缀隔离项目键与外站/第三方写入的键，clear 时可只清自有键
 const PREFIX = 'rv_';
 
 export const StorageAdapter = {
-  /**
-   * 获取存储值（自动反序列化 JSON）
-   * @param {string} key - 原始键名
-   * @param {*} defaultValue - 默认值
-   * @returns {*}
-   */
+  // 读取存储值
+  // 兼容历史裸字符串：JSON.parse 失败时原样返回，避免旧数据读不出
   get(key, defaultValue = null) {
     try {
       const fullKey = PREFIX + key;
       const value = localStorage.getItem(fullKey);
       if (value === null) return defaultValue;
-      // 尝试解析 JSON
       try {
         return JSON.parse(value);
       } catch {
-        return value; // 如果不是 JSON，原样返回
+        return value;
       }
     } catch (error) {
       console.warn('[StorageAdapter] 读取失败:', key, error);
@@ -24,11 +23,7 @@ export const StorageAdapter = {
     }
   },
 
-  /**
-   * 设置存储值（自动序列化 JSON）
-   * @param {string} key - 原始键名
-   * @param {*} value - 要存储的值
-   */
+  // 写入存储值
   set(key, value) {
     try {
       const fullKey = PREFIX + key;
@@ -38,10 +33,7 @@ export const StorageAdapter = {
     }
   },
 
-  /**
-   * 删除存储项
-   * @param {string} key - 原始键名
-   */
+  // 删除存储项
   remove(key) {
     try {
       const fullKey = PREFIX + key;
@@ -51,9 +43,8 @@ export const StorageAdapter = {
     }
   },
 
-  /**
-   * 清空所有带前缀的存储项（谨慎使用）
-   */
+  // 清空全部带前缀的存储项
+  // 只按前缀删除：不触碰其他应用共享同一域时的数据
   clear() {
     try {
       const keys = Object.keys(localStorage);

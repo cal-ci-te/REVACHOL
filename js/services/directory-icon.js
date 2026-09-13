@@ -1,10 +1,7 @@
-// 侧边栏目录自定义图标单例
-//
-// 管理三个图标槽位：
-//   - folderCollapsed  文件夹收起状态（默认 📂）
-//   - folderExpanded   文件夹展开状态（默认 📁）
-//   - header           侧边栏目录本身图标（默认 📜）
-// 旧版本单槽位 `directory_icon` 作为 folderExpanded 的向后兼容回退。
+// ！目录图标单例
+// 管理三个图标槽位：folderCollapsed（文件夹收起，默认 📂）、folderExpanded（展开，默认 📁）、
+// header（侧边栏目录标题，默认 📜）。旧版单槽位 `directory_icon` 作为 folderExpanded 的向后兼容回退。
+
 import { Utils } from '../utils.js';
 
 export const DIRECTORY_ICON_SLOTS = {
@@ -24,11 +21,12 @@ const LEGACY_FOLDER_ICON_KEY = 'directory_icon';
 
 class DirectoryIconManager {
   constructor() {
-    // 图标包外部覆盖（不写 localStorage；包删除/切主题后自动回退旧数据）
+    // 图标包外部覆盖：不写 localStorage，包删除/切主题后自动回退旧数据
     this._external = {};
   }
 
-  /** 读取指定槽位的图标 dataUrl（外部包覆盖优先，其次 localStorage） */
+  // 读取指定槽位图标
+  // 外部包覆盖优先，其次 localStorage
   getIcon(slot) {
     if (this._external && this._external[slot]) return this._external[slot];
     const dataUrl = Utils.storage.get(STORAGE_KEYS[slot]);
@@ -40,7 +38,8 @@ class DirectoryIconManager {
     return null;
   }
 
-  /** 设置外部 URL 覆盖（图标包）；url 为空时清除覆盖并回退旧逻辑 */
+  // 设置外部覆盖
+  // url 为空时清除覆盖并回退旧逻辑
   setExternalIcon(slot, url) {
     if (url) {
       this._external[slot] = url;
@@ -50,13 +49,14 @@ class DirectoryIconManager {
     this.applyAll();
   }
 
-  /** 是否已设置自定义图标 */
+  // 判断是否已设置自定义图标
   hasIcon(slot) {
     return !!this.getIcon(slot);
   }
 
-  /** 保存并应用指定槽位图标 */
+  // 保存并应用图标
   setIcon(slot, dataUrl) {
+    // 空值等价于移除，避免存下空串导致回退判断失效
     if (!dataUrl) {
       this.removeIcon(slot);
       return;
@@ -65,13 +65,13 @@ class DirectoryIconManager {
     this.applyAll();
   }
 
-  /** 移除指定槽位图标，恢复默认 */
+  // 移除图标并恢复默认
   removeIcon(slot) {
     Utils.storage.remove(STORAGE_KEYS[slot]);
     this.applyAll();
   }
 
-  /** 生成文件上传处理器（FileReader → dataUrl） */
+  // 生成上传处理器
   createUploadHandler(slot) {
     return (file) => {
       if (!file || !file.type.startsWith('image/')) return;
@@ -81,7 +81,8 @@ class DirectoryIconManager {
     };
   }
 
-  /** 渲染文件夹节点图标 HTML：按收起/展开状态选择对应自定义图标 */
+  // 渲染文件夹节点图标 HTML
+  // 按收起/展开状态选择对应槽位
   renderIconHtml(collapsed = false) {
     const slot = collapsed ? DIRECTORY_ICON_SLOTS.folderCollapsed : DIRECTORY_ICON_SLOTS.folderExpanded;
     const dataUrl = this.getIcon(slot);
@@ -91,7 +92,7 @@ class DirectoryIconManager {
     return `<span class="node-icon">${collapsed ? '📂' : '📁'}</span>`;
   }
 
-  /** 管理员面板预览 HTML */
+  // 渲染预览 HTML
   renderPreviewHtml(slot, fallbackText) {
     const dataUrl = this.getIcon(slot);
     if (dataUrl) {
@@ -100,7 +101,8 @@ class DirectoryIconManager {
     return `<span class="admin-icon-preview-fallback">${fallbackText}</span>`;
   }
 
-  /** 更新单个 .node-icon 元素（折叠/展开时切换对应图标） */
+  // 更新单个节点图标
+  // 用新元素替换旧元素而非改 innerHTML：保留事件委托绑定的父级结构
   applyToElement(el, collapsed = false) {
     if (!el) return;
     const slot = collapsed ? DIRECTORY_ICON_SLOTS.folderCollapsed : DIRECTORY_ICON_SLOTS.folderExpanded;
@@ -119,7 +121,8 @@ class DirectoryIconManager {
     }
   }
 
-  /** 刷新当前目录树中所有文件夹节点图标 */
+  // 刷新目录树全部文件夹图标
+  // 收起状态取自 .children 的 display：展开与否由目录树模块控制，此处只读取不推断
   applyToTree() {
     document.querySelectorAll('.tree-node.folder > .tree-node-content > .node-icon').forEach((el) => {
       const nodeLi = el.closest('.tree-node.folder');
@@ -129,13 +132,14 @@ class DirectoryIconManager {
     });
   }
 
-  /** 应用侧边栏“目录”标题图标（默认 📜） */
+  // 应用目录标题图标
   applyHeaderIcon() {
     const titleEl = document.querySelector('#sidebarTitle') || document.querySelector('.sidebar-header h3');
     if (!titleEl) return;
     const dataUrl = this.getIcon(DIRECTORY_ICON_SLOTS.header);
     const sidebar = document.getElementById('sidebar');
     const isCollapsed = sidebar ? sidebar.classList.contains('collapsed') : false;
+    // 收起状态下省略「目录」文字，仅留图标
     const label = isCollapsed ? '' : ' 目录';
 
     if (dataUrl) {
@@ -145,13 +149,13 @@ class DirectoryIconManager {
     }
   }
 
-  /** 应用所有目录图标（文件夹树 + 目录标题） */
+  // 应用全部目录图标
   applyAll() {
     this.applyToTree();
     this.applyHeaderIcon();
   }
 
-  /** 初始化：应用已保存的自定义图标 */
+  // 初始化
   init() {
     this.applyAll();
   }

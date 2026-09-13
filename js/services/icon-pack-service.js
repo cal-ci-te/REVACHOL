@@ -1,5 +1,8 @@
-// 图标包服务：API 状态、上传/删除/改主题、应用到全站图标槽位。
-// 优先级：主题包图标（当前主题的生效包） > 旧版单槽位 localStorage 图标 > 默认 emoji/CSS 默认。
+// ！图标包服务
+// 负责图标包的 API 状态、上传/删除/改主题，以及把包内图标应用到全站各图标槽位。
+// 图标优先级：主题包（当前主题的生效包）> 旧版单槽位 localStorage 图标 > 默认 emoji/CSS 默认。
+// 选择「外部覆盖不写 localStorage」：包删除或切主题后可无损回退用户自传图标。
+
 import { ApiClient } from './api-client.js';
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
@@ -13,7 +16,7 @@ import { getMagicBox } from '../ui/components/magic-box/index.js';
 import { debounce } from '../utils/function.js';
 import { UI } from '../utils/ui-strings.js';
 
-// 统一箭头：旋转类 → 默认 emoji（用于无包时还原）
+// 统一箭头：旋转类 → 默认 emoji，用于无包时还原
 const ARROW_DEFAULT_EMOJI = {
   'arrow-r0': '▶',
   'arrow-r90': '▼',
@@ -31,14 +34,14 @@ const DECO_ACTION_CONFIG = {
   delete:    { selector: '.asset-delete-btn .asset-btn-emoji',    ctxAction: 'delete-lib',   emoji: '🗑️' },
 };
 
-/** 取元素上的旋转类（arrow-rX），无则返回 arrow-r0 */
+// 取元素上的旋转类，无则返回 arrow-r0
 function getArrowClass(el) {
   if (!el) return 'arrow-r0';
   const cls = Array.from(el.classList).find((c) => /^arrow-r(0|90|180|270)$/.test(c));
   return cls || 'arrow-r0';
 }
 
-/** 获取默认 emoji 标签的前置 emoji（"🌙 暗色" → "🌙"） */
+// 取默认标签的前置 emoji（"🌙 暗色" → "🌙"）
 function emojiOf(label) {
   const s = String(label || '');
   return s.indexOf(' ') === -1 ? s : s.slice(0, s.indexOf(' '));
@@ -50,6 +53,7 @@ export const IconPackService = {
   _pendingMagicBox: false,
   _visibilityUrls: { visible: null, hidden: null },
 
+  // 读取状态
   async loadStatus(force = false) {
     if (!force && this._statusCache) return this._statusCache;
     const status = await ApiClient.get('/api/icon-packs/status');
@@ -57,10 +61,13 @@ export const IconPackService = {
     return status;
   },
 
+  // 读取图标包列表
   async loadPacks() {
     return ApiClient.get('/api/icon-packs');
   },
 
+  // 上传图标包
+  // 先本地校验再上传：把非法包拦在客户端，避免大体积 zip 白跑一次网络
   async uploadPack(file, name, themeIds) {
     if (!name || !name.trim()) throw new Error(UI.iconPack.nameRequired);
     if (!themeIds || themeIds.length === 0) throw new Error(UI.iconPack.themeRequired);
@@ -77,6 +84,7 @@ export const IconPackService = {
     const normalizedZip = await buildNormalizedZip(file);
     const zipBase64 = await normalizedZip.generateAsync({ type: 'base64' });
 
+    // 上传超时放宽到 60s：压缩包经 base64 后体积膨胀约 1/3，默认 10s 不足以传完
     const result = await ApiClient.post('/api/icon-packs', {
       name: name.trim(),
       themeIds,
@@ -88,6 +96,7 @@ export const IconPackService = {
     return result;
   },
 
+  // 更新包关联主题
   async updatePackThemes(id, themeIds) {
     if (!themeIds || themeIds.length === 0) throw new Error(UI.iconPack.themeRequired);
     const result = await ApiClient.put(`/api/icon-packs/${id}/themes`, { themeIds });
@@ -96,6 +105,7 @@ export const IconPackService = {
     return result;
   },
 
+  // 删除图标包
   async deletePack(id) {
     const result = await ApiClient.delete(`/api/icon-packs/${id}`);
     this._statusCache = null;
@@ -103,7 +113,7 @@ export const IconPackService = {
     return result;
   },
 
-  /** 应用当前主题的生效包（全量覆盖） */
+  // 应用当前主题的生效包（全量覆盖）
   async applyActivePack(themeId) {
     try {
       const status = await this.loadStatus(true);
@@ -116,17 +126,19 @@ export const IconPackService = {
         this._applyKey(def, url);
       });
 
+      // 可见性图标需成对应用：分开处理会因两次遍历导致状态图标错配
       this._applyDirectoryVisibility(this._visibilityUrls.visible, this._visibilityUrls.hidden);
     } catch (e) {
       console.warn('[IconPackService] 应用图标包失败:', e);
     }
   },
 
+  // 按槽位分发图标
   _applyKey(def, url) {
     const slot = def.slot;
 
     if (slot === 'site') {
-      // 有包用包 URL；无包清除 external 后回退旧单槽位 localStorage / 默认图片
+      // 无包时传 null 清除外部覆盖，回退到旧单槽位 localStorage 或默认图片
       SiteIcon.setExternalIcon(url || null);
       return;
     }
@@ -197,17 +209,20 @@ export const IconPackService = {
     }
   },
 
-  /** 统一箭头：面板箭头走 UIIcon 通道；其余 .icon-pack-arrow 遍历注入/清除 img */
+  // 应用统一箭头
+  // 面板箭头走 UIIcon 通道；其余 .icon-pack-arrow 原地替换为 img/span
   _applyArrow(url) {
     UIIcon.setExternalIcon(UI_ICON_SLOTS.adminPanel, url || null);
 
     document.querySelectorAll('.icon-pack-arrow').forEach((el) => {
       if (url) {
+        // 已是同一张图则跳过：避免每次应用都重建 DOM 触发重排
         if (el.tagName === 'IMG' && el.src === url) return;
         const img = document.createElement('img');
         img.className = `icon-pack-arrow ${getArrowClass(el)}`;
         img.src = url;
         img.alt = '';
+        // 把默认 emoji 存进 data-fallback：无包还原时不依赖当时 DOM 上残留的文字
         img.dataset.fallback = el.dataset.fallback || el.textContent || '';
         el.replaceWith(img);
       } else if (el.tagName === 'IMG') {
@@ -220,7 +235,7 @@ export const IconPackService = {
     });
   },
 
-  /** 替换按钮/标题前置 emoji 为包图标（或还原） */
+  // 替换按钮/标题前置 emoji
   _applyLabelIcon(selector, url, defaultLabel) {
     const defaultEmoji = emojiOf(defaultLabel);
     document.querySelectorAll(selector).forEach((el) => {
@@ -232,10 +247,13 @@ export const IconPackService = {
     });
   },
 
+  // 用 img/span 互换 emoji 元素
+  // 保留原 className：替换元素需继承定位/尺寸样式，否则图标会跳位
   _replaceEmojiElement(emojiEl, url, defaultEmoji) {
     if (!emojiEl) return;
     const cls = emojiEl.className || '';
     if (url) {
+      // 已是同一张图则跳过，避免无谓的 DOM 重建
       if (emojiEl.tagName === 'IMG' && emojiEl.src === url) return;
       const img = document.createElement('img');
       img.className = cls;
@@ -251,7 +269,7 @@ export const IconPackService = {
     // span 且无 url：保留现有默认 emoji
   },
 
-  /** 主题按钮图标：替换 .theme-btn-emoji 为 <img class="theme-btn-icon"> */
+  // 应用主题按钮图标
   _applyThemeIcon(themeId, url) {
     document.querySelectorAll(`.theme-btn[data-theme="${themeId}"]`).forEach((btn) => {
       const emojiEl = btn.querySelector('.theme-btn-emoji');
@@ -264,6 +282,7 @@ export const IconPackService = {
           img.alt = '';
           emojiEl.replaceWith(img);
         } else {
+          // 已是 img 时只换 src：避免重复替换导致按钮内元素被重建
           const img = btn.querySelector('.theme-btn-icon');
           if (img) img.src = url;
         }
@@ -279,7 +298,8 @@ export const IconPackService = {
     });
   },
 
-  /** 目录树可见性图标（按 data-visible 分别显示可见/不可见包图标） */
+  // 应用目录树可见性图标
+  // 按 data-visible 分别取可见/不可见包图标
   _applyDirectoryVisibility(visibleUrl, hiddenUrl) {
     document.querySelectorAll('.visibility-toggle').forEach((btn) => {
       const isVisible = btn.dataset.visible === 'true';
@@ -298,7 +318,7 @@ export const IconPackService = {
     });
   },
 
-  /** 目录树文章节点图标 */
+  // 应用目录树文章节点图标
   _applyDirectoryArticleIcon(url) {
     document.querySelectorAll('.tree-node.article .node-icon').forEach((el) => {
       if (url) {
@@ -317,7 +337,8 @@ export const IconPackService = {
     });
   },
 
-  /** 贴纸库六个功能图标：同时刷新管理列表按钮与右键菜单 */
+  // 应用贴纸库功能图标
+  // 同时刷新管理列表按钮与右键菜单两处入口
   _applyDecoActionIcon(action, url) {
     const cfg = DECO_ACTION_CONFIG[action];
     if (!cfg) return;
@@ -333,7 +354,8 @@ export const IconPackService = {
     }
   },
 
-  /** 超现实箱子：外部覆盖（不写 localStorage）；组件未挂载时标记待补应用 */
+  // 应用箱子贴图
+  // 组件未挂载时置 _pendingMagicBox：等 COMPONENT_MOUNTED 事件到来后补应用
   _applyMagicBox(key, url) {
     const mb = getMagicBox();
     if (!mb) {
@@ -350,13 +372,14 @@ export const IconPackService = {
     }
   },
 
-  /** 防抖刷新：主题/图标包变更可能短时间内连续触发 */
+  // 防抖刷新当前主题
+  // 主题切换与图标包变更可能连续触发，300ms 内合并为一次全量应用
   refreshCurrent: debounce(async function () {
     const theme = ThemeService.getCurrentTheme();
     await this.applyActivePack(theme);
   }, 300),
 
-  /** 初始化：订阅事件并应用当前主题 */
+  // 初始化
   init() {
     if (this._initialized) return;
     this._initialized = true;
@@ -367,6 +390,7 @@ export const IconPackService = {
     EventBus.on(EVENTS.ICON_PACKS_CHANGED, () => {
       this.refreshCurrent();
     });
+    // 箱子组件挂载后才可应用待补贴图，故监听挂载事件
     EventBus.on(EVENTS.COMPONENT_MOUNTED, (payload) => {
       if (payload && payload.name === 'magic-box' && this._pendingMagicBox) {
         this._pendingMagicBox = false;

@@ -1,6 +1,6 @@
-// 图标包键名注册表 — 全站统一（文章编辑器模块除外）
-// 键名 = 压缩包内文件名去后缀（支持任意层子目录，取 basename）。
-// 注意：此文件与 backend/routes/icon-packs.cjs 中的 ICON_PACK_KEYS 数组保持同步。
+// ！图标包键名注册表
+// 键名 = 压缩包内文件名去后缀（支持任意层子目录，取 basename），全站统一，文章编辑器模块除外。
+// ICON_PACK_KEYS 必须与 backend/routes/icon-packs.cjs 中的同名数组保持同步，改一处需同步另一处。
 
 export const ICON_PACK_KEYS = [
   // 基础 UI 键
@@ -10,7 +10,7 @@ export const ICON_PACK_KEYS = [
   { key: 'directory-header', label: '目录标题图标', slot: 'directory:header' },
   { key: 'toolbar-collapsed', label: '顶部工具栏（收起）', slot: 'ui:toolbarCollapsed' },
   { key: 'toolbar-expanded', label: '顶部工具栏（展开）', slot: 'ui:toolbarExpanded' },
-  // 统一箭头（单键 + CSS 旋转，见 1.1.1）；标签/主题图标（替换前置 emoji）
+  // 统一箭头（单键 + CSS 旋转）；标签/主题图标（替换前置 emoji）
   { key: 'arrow', label: '统一展开/收起箭头', slot: 'arrow' },
   { key: 'avatar-upload', label: '上传头像按钮图标', slot: 'admin-label:avatarUpload' },
   { key: 'custom-texture', label: '自定义贴图区标题图标', slot: 'admin-label:customTexture' },
@@ -43,7 +43,10 @@ export const ICON_PACK_KEYS = [
 ];
 export const ICON_PACK_KEY_MAP = Object.fromEntries(ICON_PACK_KEYS.map(k => [k.key, k]));
 export const ICON_PACK_KEY_SET = new Set(ICON_PACK_KEYS.map(k => k.key));
-export const ICON_PACK_SIZE_RANGE = { min: 64, max: 512 };   // 推荐范围（像素）
-export const ICON_PACK_MAX_DIM = 512;                        // 压缩目标最大边长
+// 推荐尺寸范围（像素）
+export const ICON_PACK_SIZE_RANGE = { min: 64, max: 512 };
+// 压缩目标最大边长
+export const ICON_PACK_MAX_DIM = 512;
+// 单包条目数与体积上限
 export const ICON_PACK_LIMITS = { maxEntries: 200, maxFileBytes: 5 * 1024 * 1024, maxTotalBytes: 50 * 1024 * 1024 };
 export const ICON_PACK_THEME_IDS = ['dark', 'light', 'lofi'];

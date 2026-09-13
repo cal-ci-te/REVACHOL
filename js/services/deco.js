@@ -1,5 +1,8 @@
-// WebP 压缩（quality 0.6）：前端上传时即压缩为 WebP，减少存储和传输体积约 40-60%。
-// 移动端禁用位置编辑（触摸拖拽冲突），仅桌面端可调整贴图位置。
+// ！贴纸货架
+// 贴纸的渲染、位置编辑与库管理；数据读写全部委托 DecoRepository，本模块只管 DOM 与交互。
+// 上传时即压成 WebP（quality 0.6）：前端压缩比后端二次转码省一次上传流量，体积约省 40-60%。
+// 位置编辑仅开放给桌面端：移动端拖拽与页面滚动冲突，且长按已被右键菜单占用。
+
 import { Utils } from '../utils.js';
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
@@ -13,18 +16,16 @@ export const DecoShelf = {
   _editingId: null,
   _clipboardId: null,
 
-  /**
-   * 检测是否为移动端（仅用于功能禁用，不用于渲染控制）
-   */
+  // 检测移动端
+  // 仅用于功能禁用，不参与渲染分支：渲染分支若也判移动端，会与 CSS 媒体查询产生两套真相
   _isMobile() {
     return window.innerWidth <= 768 || 
            ('ontouchstart' in window) || 
            navigator.maxTouchPoints > 0;
   },
 
-  /**
-   * 标准化贴图对象：确保有 dataUrl 字段
-   */
+  // 补全 dataUrl
+  // 旧数据只存 url 字段：统一到 dataUrl 后，渲染分支无需再兼容两种字段
   _normalizeItem(item) {
     if (!item) return item;
     if (!item.dataUrl && item.url) {
@@ -33,6 +34,7 @@ export const DecoShelf = {
     return item;
   },
 
+  // 批量补全 dataUrl
   _normalizeItems(items) {
     if (!items) return items;
     if (Array.isArray(items)) {
@@ -41,9 +43,7 @@ export const DecoShelf = {
     return this._normalizeItem(items);
   },
 
-  /**
-   * 加载贴图库：从仓库加载
-   */
+  // 载入贴纸库
   async loadLibrary() {
     const items = await DecoRepository.load();
     this._library = this._normalizeItems(items);
@@ -60,7 +60,8 @@ export const DecoShelf = {
     return this._library;
   },
 
-  // 窗口 resize 时重新钳制所有已放置贴纸的位置，变化时自动保存。
+  // 窗口尺寸变化后重新钳制位置
+  // 仅在实际被钳制时写库：否则每次 resize 都会触发一轮保存请求
   _handleResize() {
     this._library.forEach(item => {
       if (!item.position) return;
@@ -79,9 +80,7 @@ export const DecoShelf = {
     });
   },
 
-  /**
-   * 同步仓库数据到本地（重新加载）
-   */
+  // 强制从仓库重载
   async refreshFromRepo() {
     const items = await DecoRepository.load(true);
     this._library = this._normalizeItems(items);
@@ -89,32 +88,35 @@ export const DecoShelf = {
     EventBus.emit(EVENTS.DECO_LIBRARY_CHANGED);
   },
 
-  /**
-   * 获取所有贴图（同步）
-   */
+  // 获取全部贴纸
   getAll() {
     const items = DecoRepository.getAll();
     return this._normalizeItems(items);
   },
 
+  // 获取单个贴纸
   get(id) {
     const item = DecoRepository.get(id);
     return this._normalizeItem(item);
   },
 
+  // 生成贴纸 ID
   _generateId() {
     return 'deco_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
   },
 
-  // 贴纸位置钳制：左右在页面范围内，上方不超标签栏，下方允许较大值。
+  // 位置钳制
+  // 统一为 left/top 后再判断：right/bottom 需结合视口尺寸换算，混用两套坐标会让钳制逻辑翻倍
   clampPositionToViewport(position, element) {
     if (!position || !element) return position;
     const w = element.offsetWidth || 0;
     const h = element.offsetHeight || 0;
     if (w === 0 && h === 0) return position;
     const MARGIN_H = 10;
-    const TOP_MIN = 36;       // 标签栏占位高度
-    const BOTTOM_MAX = 50000; // 下方允许的较大值
+    // 标签栏占位高度
+    const TOP_MIN = 36;
+    // 不设实际上限，仅防止坐标失控
+    const BOTTOM_MAX = 50000;
     const vw = window.innerWidth;
 
     let top = null, left = null;
@@ -125,7 +127,7 @@ export const DecoShelf = {
       left = parseFloat(position.left);
     }
 
-    // right/bottom → left/top 统一
+    // right/bottom 换算为 left/top
     if ((top === null || isNaN(top)) && position.bottom !== undefined && position.bottom !== null) {
       top = window.innerHeight - parseFloat(position.bottom) - h;
     }
@@ -145,9 +147,7 @@ export const DecoShelf = {
     return clamped;
   },
 
-  /**
-   * 上传贴图（压缩并保存）
-   */
+  // 上传贴纸
   async upload(file, name) {
     const validTypes = ['image/png', 'image/webp', 'image/jpeg'];
     if (!validTypes.includes(file.type)) {
@@ -175,6 +175,7 @@ export const DecoShelf = {
     return savedItem;
   },
 
+  // 压缩为 WebP dataURL
   _compressImageToDataUrl(file, quality = 0.6) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -205,6 +206,7 @@ export const DecoShelf = {
     });
   },
 
+  // 复制贴纸
   duplicate(id) {
     const original = this.get(id);
     if (!original) return null;
@@ -231,6 +233,7 @@ export const DecoShelf = {
     return newItem;
   },
 
+  // 重命名贴纸
   rename(id, newName) {
     const item = this.get(id);
     if (!item) return false;
@@ -242,6 +245,7 @@ export const DecoShelf = {
     return true;
   },
 
+  // 从库中删除
   deleteFromLibrary(id) {
     const item = this.get(id);
     if (!item) return false;
@@ -260,6 +264,7 @@ export const DecoShelf = {
     return true;
   },
 
+  // 从页面移除（保留在库中）
   removeFromPage(id) {
     const item = this.get(id);
     if (!item) return false;
@@ -280,6 +285,7 @@ export const DecoShelf = {
     return true;
   },
 
+  // 设置位置
   setPosition(id, pos) {
     const item = this.get(id);
     if (!item) return false;
@@ -300,6 +306,7 @@ export const DecoShelf = {
     return true;
   },
 
+  // 切换定位方式
   setStyle(id, newStyle) {
     const item = this.get(id);
     if (!item) return false;
@@ -325,7 +332,7 @@ export const DecoShelf = {
     item.style = newStyle;
     DecoRepository.save(item).then(() => {
       this._library = this._normalizeItems(DecoRepository.getAll());
-      // 原地更新 DOM 属性，跳过 remove+create 以避免入场动画重播
+      // 原地改样式而不重建元素：重建会重播入场动画
       if (el && item.position) {
         el.style.position = newStyle;
         el.style.top = item.position.top || 'auto';
@@ -341,8 +348,9 @@ export const DecoShelf = {
     return true;
   },
 
+  // 进入位置编辑
   startEditingPosition(id) {
-    // 移动端禁用贴纸位置编辑
+    // 移动端不支持位置编辑
     if (this._isMobile()) {
       Utils.showToast(UI.toast.decoMobileNotSupported, true);
       return;
@@ -377,11 +385,11 @@ export const DecoShelf = {
       el.style.boxShadow = '0 0 20px rgba(196,122,68,0.5)';
       el.dataset.decoId = id;
       document.body.appendChild(el);
-      // 记录原始样式用于保存时坐标转换（fixed 元素视口坐标 → absolute 则转文档坐标）
+      // 记下原定位方式：保存时 absolute 需把视口坐标换算成文档坐标
       el._origStyle = origStyle;
     } else {
       el._origStyle = origStyle;
-      // absolute 定位的元素需临时转为 fixed 以便拖拽在视口坐标下工作
+      // 临时改为 fixed：拖拽按视口坐标计算，absolute 元素在滚动后会整体漂移
       if (origStyle === 'absolute') {
         const rect = el.getBoundingClientRect();
         el.style.top = rect.top + 'px';
@@ -403,10 +411,11 @@ export const DecoShelf = {
     EventBus.emit(EVENTS.DECO_EDITING_STARTED, { id: id });
   },
 
+  // 退出位置编辑
   stopEditingPosition(save = true) {
-    // 移动端禁用（但保留清理逻辑以防万一）
+    // 移动端仍走清理分支：窗口从宽变窄时可能残留编辑态，需兜底回收
     if (this._isMobile()) {
-      // 如果有正在编辑的贴纸，清理它
+      // 清理残留编辑态
       if (this._editingId) {
         const id = this._editingId;
         const el = document.getElementById('deco-' + id);
@@ -460,8 +469,9 @@ export const DecoShelf = {
     this._editingId = null;
   },
 
+  // 确认位置
   confirmEditing: function () {
-    // 移动端禁用
+    // 移动端不支持位置编辑
     if (this._isMobile()) {
       Utils.showToast(UI.toast.decoMobileNotSupported, true);
       return;
@@ -474,8 +484,9 @@ export const DecoShelf = {
     Utils.showToast(UI.deco.positionConfirmed, false);
   },
 
+  // 取消编辑
   cancelEditing: function () {
-    // 移动端禁用
+    // 移动端不支持位置编辑
     if (this._isMobile()) {
       Utils.showToast(UI.toast.decoMobileNotSupported, true);
       return;
@@ -488,7 +499,8 @@ export const DecoShelf = {
     Utils.showToast(UI.deco.editCancelled, false);
   },
 
-  /** 应用贴纸自定义尺寸（width/height 或 scaleX/scaleY transform） */
+  // 应用自定义尺寸
+  // 有 scaleX/scaleY 时走 transform（GPU 合成），否则直接写 width/height
   _applyDecoSize: function (el, item) {
     const pos = item.position;
     if (!pos) {
@@ -517,12 +529,14 @@ export const DecoShelf = {
     }
   },
 
+  // 重绘全部贴纸
   _renderAllDecos: function () {
-    // 遍历贴纸，原地更新已有位置的元素，不需删除重建
+    // 原地更新而非全量重建：重建会让所有贴纸重播入场动画
     this._library.forEach((item) => {
       this._renderSingleDeco(item.id);
     });
-    // 清理孤儿元素：库中已不存在或已无位置的贴纸 DOM
+    // 清理孤儿 DOM
+    // 库中删除或取消位置后元素可能残留：在此统一回收，避免越积越多
     const validIds = new Set(
       this._library
         .filter(function (item) { return item.position; })
@@ -540,6 +554,7 @@ export const DecoShelf = {
     });
   },
 
+  // 渲染单个贴纸
   _renderSingleDeco: function (id) {
     const item = this.get(id);
     if (!item) return;
@@ -560,20 +575,21 @@ export const DecoShelf = {
     const posStyle = item.style || 'fixed';
 
     if (existing) {
-      // 元素已存在 → 原地更新 CSS，保留事件绑定，避免入场动画重播
+      // 原地更新：保留事件绑定，避免入场动画重播
       existing.style.position = posStyle;
       existing.style.top = item.position.top || 'auto';
       existing.style.left = item.position.left || 'auto';
       existing.style.bottom = item.position.bottom || 'auto';
       existing.style.right = item.position.right || 'auto';
-      // 支持自定义尺寸（贴纸缩放功能）
+      // 应用自定义尺寸
       this._applyDecoSize(existing, item);
       const imgSrc = item.dataUrl || item.url;
       if (imgSrc) {
         existing.style.backgroundImage = 'url(' + imgSrc + ')';
       }
       existing.title = item.name + ' (' + posStyle + ')';
-      // 确保 pointer-events 和右键菜单事件（修复首次放置/刷新后右键无响应）
+      // 强制 pointer-events 并补齐右键菜单绑定
+      // 首次放置或刷新后元素可能丢失菜单监听：在此兜底，避免右键无响应
       existing.style.pointerEvents = 'auto';
       if (!existing._contextMenuBound) {
         existing.addEventListener('contextmenu', function (e) {
@@ -594,7 +610,7 @@ export const DecoShelf = {
     el.style.left = item.position.left || 'auto';
     el.style.bottom = item.position.bottom || 'auto';
     el.style.right = item.position.right || 'auto';
-    // 支持自定义尺寸（贴纸缩放功能）
+    // 应用自定义尺寸
     this._applyDecoSize(el, item);
     const imgSrc = item.dataUrl || item.url;
     if (imgSrc) {
@@ -618,14 +634,14 @@ export const DecoShelf = {
       });
     }
 
-    // 右键菜单（PC）
+    // 右键菜单（桌面端）
     el.addEventListener('contextmenu', function (e) {
       e.preventDefault();
       e.stopPropagation();
       EventBus.emit(EVENTS.DECO_CONTEXT_MENU, { decoId: id, x: e.clientX, y: e.clientY });
     });
 
-    // 长按支持（移动端）
+    // 长按菜单（移动端）
     const cleanup = initLongPress(el, (touch, targetEl) => {
       const decoId = targetEl.dataset.decoId;
       EventBus.emit(EVENTS.DECO_CONTEXT_MENU, {
@@ -639,8 +655,9 @@ export const DecoShelf = {
     el._longPressCleanup = cleanup;
   },
 
+  // 启用拖拽
   _enableDragging: function (el) {
-    // 移动端禁用拖拽
+    // 移动端不支持拖拽
     if (this._isMobile()) return;
 
     el.style.cursor = 'grab';
@@ -678,6 +695,7 @@ export const DecoShelf = {
     el._dragHandler = onMouseDown;
   },
 
+  // 停用拖拽
   _disableDragging: function (el) {
     if (el._dragHandler) {
       el.removeEventListener('mousedown', el._dragHandler);
@@ -686,6 +704,7 @@ export const DecoShelf = {
     el.style.cursor = '';
   },
 
+  // 显示编辑工具栏
   _showEditingControls: function (id) {
     if (this._isMobile()) return;
 
@@ -723,6 +742,7 @@ export const DecoShelf = {
     document.body.appendChild(container);
   },
 
+  // 下载贴纸
   download: function (id) {
     const item = this.get(id);
     if (!item) return;
@@ -739,32 +759,43 @@ export const DecoShelf = {
     document.body.removeChild(a);
   },
 
+  // 获取编辑中的贴纸 ID
   getEditingId: function () {
     return this._editingId;
   },
 
+  // 载入位置（旧接口，转发到 loadLibrary）
   loadPositions: function () {
     return this.loadLibrary();
   },
+  // 已弃用
+  // 位置由 DecoRepository 自动落库，保留空实现仅为不破坏旧调用点
   savePositions: function () {
     console.log('[DecoShelf] savePositions 已弃用，数据由仓库自动保存');
   },
 };
 
+// 旧版入口别名
+// 全部转发到 DecoShelf，仅为兼容既有调用点
 export const Deco = {
+  // 提示改用贴纸库编辑
   enableEditing: function () {
     Utils.showToast(UI.deco.useLibraryEdit, true);
   },
+  // 取消编辑
   disableEditing: function () {
     DecoShelf.cancelEditing();
   },
+  // 重置位置（转发进入编辑）
   resetPosition: function (id) {
     DecoShelf.startEditingPosition(id);
   },
+  // 转发到 DecoShelf
   confirmEditing: DecoShelf.confirmEditing.bind(DecoShelf),
   cancelEditing: DecoShelf.cancelEditing.bind(DecoShelf),
   setStyle: DecoShelf.setStyle.bind(DecoShelf),
   loadPositions: DecoShelf.loadLibrary.bind(DecoShelf),
+  // 已弃用
   savePositions: function () {
     console.log('[Deco] savePositions 已弃用，数据由仓库自动保存');
   },

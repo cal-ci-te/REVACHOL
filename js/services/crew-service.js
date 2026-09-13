@@ -1,10 +1,8 @@
-// CrewAI Web Dashboard 服务层。
-// 职责：
-//   1. 封装 /api/crew/* REST 接口（status / run / stop）；
-//   2. 建立 WebSocket 连接（默认同源 /websocket/，经 Vite 代理转发到后端；
-//      可通过 VITE_WS_URL 覆盖，支持绝对或相对路径）；
-//   3. 将后端广播的 CREW_* 消息翻译为 EventBus 事件；
-//   4. WS 不可用时自动降级为 HTTP 轮询，保证页面不因握手失败而阻塞渲染。
+// ！CrewAI 控制台服务
+// 封装 /api/crew/* REST 接口，并将后端广播的 CREW_* 消息翻译为 EventBus 事件。
+// WebSocket 默认同源 /websocket/（经 Vite 代理转发后端），可用 VITE_WS_URL 覆盖。
+// 选择「WS 失败后降级为 HTTP 轮询」而非无限重连：保证页面不因握手失败而永久空白。
+
 import { AppState } from '../core/app-state.js';
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
@@ -12,19 +10,23 @@ import { MUTATIONS } from '../core/state-mutations.js';
 import { ApiClient } from './api-client.js';
 
 const DEFAULT_WS_PATH = '/websocket/';
-const WS_CONNECT_TIMEOUT = 5000;      // 单次握手超时
-const RECONNECT_INTERVAL = 3000;      // 基础重连间隔（指数退避基数）
-const MAX_RECONNECT_ATTEMPTS = 5;     // 超过后切换轮询降级
-const MAX_RECONNECT_DELAY = 30000;    // 指数退避上限
-const POLLING_INTERVAL = 3000;        // 轮询降级间隔
+// 单次握手超时
+const WS_CONNECT_TIMEOUT = 5000;
+// 基础重连间隔（指数退避基数）
+const RECONNECT_INTERVAL = 3000;
+// 超过后切换轮询降级
+const MAX_RECONNECT_ATTEMPTS = 5;
+// 指数退避上限
+const MAX_RECONNECT_DELAY = 30000;
+// 轮询降级间隔
+const POLLING_INTERVAL = 3000;
 
+// 构造 WebSocket 地址
+// 兼容 VITE_WS_URL 与 CREW_WS_URL 两种命名（后者需 vite envPrefix 含 CREW_）
 function buildWebSocketUrl() {
-  // 兼容 VITE_WS_URL 与 CREW_WS_URL 两种命名（后者需 vite envPrefix 含 CREW_）
   const explicit = import.meta.env.VITE_WS_URL || import.meta.env.CREW_WS_URL;
   if (explicit) {
-    // 绝对地址（ws:// / wss://）直接使用
     if (/^wss?:\/\//i.test(explicit)) return explicit;
-    // 相对路径（如 /websocket/）拼接当前 origin
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.host}${explicit.startsWith('/') ? explicit : '/' + explicit}`;
   }
@@ -43,7 +45,8 @@ export const CrewService = {
   isConnected: false,
   isPollingFallback: false,
 
-  /** 页面初始化：先拉取一次状态快照，再建立 WebSocket 实时流（不阻塞渲染） */
+  // 初始化
+  // 先拉一次状态快照再建实时流：不等待首条 WS 消息即可渲染，避免连接慢时页面空白
   init() {
     this.fetchStatus().catch((err) => {
       console.error('[CrewService] 拉取状态失败:', err);
@@ -52,14 +55,12 @@ export const CrewService = {
     this.connectWebSocket();
   },
 
+  // 销毁
   destroy() {
     this.disconnectWebSocket();
   },
 
-  // =========================================================================
-  // REST API
-  // =========================================================================
-
+  // 拉取运行状态
   async fetchStatus() {
     const data = await ApiClient.get('/api/crew/status');
     AppState.commit(MUTATIONS.SET_CREW_STATE, data);
@@ -67,34 +68,33 @@ export const CrewService = {
     return data;
   },
 
+  // 启动一次运行
   async startRun(payload) {
     const data = await ApiClient.post('/api/crew/run', payload);
     EventBus.emit(EVENTS.CREW_STARTED, data);
     return data;
   },
 
+  // 停止运行
   async stopRun() {
     const data = await ApiClient.post('/api/crew/stop', {});
     return data;
   },
 
-  // =========================================================================
-  // WebSocket
-  // =========================================================================
-
+  // 建立 WebSocket 连接
   connectWebSocket() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
-    // 已进入轮询降级时，WS 失败不再无限重试，避免后台空转
+    // 已进入轮询降级时不再重连：避免 WS 失败后仍在后台空转
     if (this.isPollingFallback) return;
 
     try {
       this.ws = new WebSocket(buildWebSocketUrl());
       this.isConnected = false;
 
-      // 握手超时保护：防止 ws 一直 CONNECTING 阻塞后续状态
+      // 握手超时保护：防止 ws 长期停留在 CONNECTING 而既不触发 onopen 也不触发 onclose
       this.connectionTimer = setTimeout(() => {
         this._handleConnectionTimeout();
       }, WS_CONNECT_TIMEOUT);
@@ -126,6 +126,7 @@ export const CrewService = {
     }
   },
 
+  // 断开并清理连接
   disconnectWebSocket() {
     this._clearConnectionTimer();
     if (this.reconnectTimer) {
@@ -134,16 +135,20 @@ export const CrewService = {
     }
     this._stopPolling();
     if (this.ws) {
+      // 先解除回调再 close：否则 close() 触发的 onclose 会再次安排重连
       this.ws.onclose = null;
       this.ws.onmessage = null;
       this.ws.onerror = null;
-      try { this.ws.close(); } catch { /* ignore */ }
+      try { this.ws.close(); } catch {
+        // 忽略：连接可能已进入 CLOSING/CLOSED，close() 抛错无害
+      }
       this.ws = null;
     }
     this.isConnected = false;
     this.reconnectAttempts = 0;
   },
 
+  // 安排重连
   scheduleReconnect() {
     if (this.isPollingFallback) return;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
@@ -164,27 +169,27 @@ export const CrewService = {
     this.reconnectTimer = setTimeout(() => this.connectWebSocket(), delay);
   },
 
-  // =========================================================================
-  // 降级与内部工具
-  // =========================================================================
-
+  // 处理握手超时
   _handleConnectionTimeout() {
     console.warn('[CrewService] WebSocket 握手超时');
     if (this.ws) {
-      try { this.ws.close(); } catch { /* ignore */ }
+      try { this.ws.close(); } catch {
+        // 忽略：连接可能已进入 CLOSING/CLOSED，close() 抛错无害
+      }
       this.ws = null;
     }
     this.isConnected = false;
     this.scheduleReconnect();
   },
 
+  // 降级为轮询
   _fallbackToPolling() {
     if (this.isPollingFallback) return;
     this.isPollingFallback = true;
     this.isConnected = false;
     console.warn('[CrewService] 已切换为 HTTP 轮询降级模式');
 
-    // 立即轮询一次，并周期刷新
+    // 立即轮询一次：降级瞬间界面可能已过期，不等一个轮询周期
     this.fetchStatus().catch(() => {});
     this.pollingTimer = setInterval(() => {
       this.fetchStatus().catch((err) => {
@@ -193,6 +198,7 @@ export const CrewService = {
     }, POLLING_INTERVAL);
   },
 
+  // 停止轮询
   _stopPolling() {
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer);
@@ -201,6 +207,7 @@ export const CrewService = {
     this.isPollingFallback = false;
   },
 
+  // 清除握手定时器
   _clearConnectionTimer() {
     if (this.connectionTimer) {
       clearTimeout(this.connectionTimer);
@@ -208,6 +215,7 @@ export const CrewService = {
     }
   },
 
+  // 翻译后端广播
   _handleMessage(event) {
     let data;
     try {
@@ -244,7 +252,7 @@ export const CrewService = {
         EventBus.emit(EVENTS.CREW_STOPPED, payload);
         break;
       case 'FLOW_STAGED':
-        // RFC-001 D4：Flow 任务进入暂存区，自动通知人工
+        // RFC-001 D4：Flow 任务进入暂存区，需自动通知人工
         EventBus.emit(EVENTS.CREW_FLOW_STAGED, payload);
         break;
       default:

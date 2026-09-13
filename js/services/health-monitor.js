@@ -1,47 +1,53 @@
-// 健康监控服务：定时轮询 /api/health 端点，检测后端服务状态。
-// 包含：指数退避、重试、非 JSON 响应、多标签页同步、
-// 内存泄漏防护、可见性自适应、细化降级 UI、并发锁、首次加载时序、超时控制。
-// 模式参考项目现有 Service（如 ArticleService），使用对象字面量 + EventBus。
+// ！后端健康监控
+// 定时探测 /api/health，把后端状态映射为顶部指示器与横幅，并广播给其他标签页。
+// 多标签页只由 leader 轮询，其余标签页被动接收：避免同一浏览器开 N 个页面就打 N 倍请求。
+// 状态机：ok → degraded → unreachable，任一状态均按指数退避调整下一次探测间隔。
+
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
 import { showToast } from '../utils/toast.js';
 import { UI } from '../utils/ui-strings.js';
 import { BroadcastHelper } from '../utils/broadcast-helper.js';
 
-// [MODIFIED] 集中配置常量
 const DEFAULTS = {
-  initialInterval: 5000,    // 初始轮询间隔 5s（指数退避起点）
-  maxInterval: 60000,       // 最大轮询间隔 60s
-  hiddenInterval: 300000,   // 页面不可见时 5min
-  maxRetries: 3,            // 单次检查最大重试次数
-  timeout: 5000,            // fetch 超时 5s
-  backoffFactor: 1.5,       // 退避因子
+  // 初始轮询间隔（指数退避起点）
+  initialInterval: 5000,
+  // 最大轮询间隔
+  maxInterval: 60000,
+  // 页面不可见时的间隔
+  hiddenInterval: 300000,
+  // 单次检查最大重试次数
+  maxRetries: 3,
+  // fetch 超时
+  timeout: 5000,
+  // 退避因子
+  backoffFactor: 1.5,
 };
 const BC_CHANNEL = 'revachol-health';
 const BANNER_ID = 'health-banner';
 
 export const HealthMonitor = {
-  _currentStatus: 'unreachable',  // 'ok' | 'degraded' | 'unreachable'
-  _currentChecks: null,           // 上次检查的详细数据（用于 UI 细化提示）
+  _currentStatus: 'unreachable',
+  // 上次检查的详细数据，用于 UI 细化提示
+  _currentChecks: null,
   _callbacks: [],
   _pollTimer: null,
   _pollInterval: DEFAULTS.initialInterval,
-  _consecutiveFailures: 0,       // [NEW] 连续失败计数 → 指数退避
-  _pendingCheck: false,          // [NEW] 并发锁
-  _isLeader: false,              // [NEW] 是否为轮询主导标签页
-  _bcUnlisten: null,             // [NEW] BroadcastChannel 监听取消函数
+  // 连续失败计数，驱动指数退避
+  _consecutiveFailures: 0,
+  // 并发锁：手动点击与自动轮询互斥
+  _pendingCheck: false,
+  // 是否为轮询主导标签页
+  _isLeader: false,
+  // BroadcastChannel 监听取消函数
+  _bcUnlisten: null,
   _banner: null,
   _indicator: null,
-  _started: false,               // [NEW] 是否已启动
+  // 是否已启动
+  _started: false,
 
-  // ================================================================
-  // 核心：带超时 + 非 JSON 防护 + 重试的 fetch
-  // ================================================================
-
-  /**
-   * [MODIFIED] 带超时的 fetch，AbortController 5s 超时。
-   * 解决边缘情况 #10：长时间无响应。
-   */
+  // 带超时的 fetch
+  // 用 AbortController 而非依赖外部超时：长时间无响应时能主动中断并走重试，而不是永久挂起
   async _fetchWithTimeout(url) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DEFAULTS.timeout);
@@ -54,14 +60,13 @@ export const HealthMonitor = {
       if (err.name === 'AbortError') {
         throw new Error(UI.monitor.checkTimeout);
       }
-      throw err;  // 网络错误，保留原始错误供重试判断
+      // 网络错误保留原始错误：重试判断依赖 err.name，换成超时文案会误判为不可重试
+      throw err;
     }
   },
 
-  /**
-   * [MODIFIED] 安全 JSON 解析。
-   * 解决边缘情况 #3：后端返回 HTML / 非 JSON 响应。
-   */
+  // 安全解析 JSON
+  // 后端异常时可能返回 HTML 错误页，直接 response.json() 会抛出难以归因的解析错误
   async _safeJsonParse(response) {
     const text = await response.text();
     try {
@@ -72,16 +77,13 @@ export const HealthMonitor = {
     }
   },
 
-  /**
-   * [MODIFIED] 带重试的检查。
-   * 解决边缘情况 #2：网络断开时自动重试（最多 maxRetries 次）。
-   */
+  // 带重试的检查
   async _checkWithRetry(retriesLeft) {
     for (let attempt = 0; attempt <= retriesLeft; attempt++) {
       try {
         const res = await this._fetchWithTimeout('/api/health');
         if (!res.ok) {
-          // 非 2xx → 尝试解析 payload 中的 status
+          // 非 2xx 仍尝试解析 payload 中的 status：后端降级时可能返回 503 + 结构化状态
           const data = await this._safeJsonParse(res);
           return this._classify(data);
         }
@@ -90,7 +92,8 @@ export const HealthMonitor = {
       } catch (err) {
         if (attempt < retriesLeft) {
           console.warn(`[HealthMonitor] 检查失败 (${attempt + 1}/${retriesLeft + 1}):`, err.message, '→ 重试...');
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // 递增延迟
+          // 递增延迟：连续失败时快速重试只会加重后端负担
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
         } else {
           console.error(`[HealthMonitor] 检查失败，已用尽 ${retriesLeft + 1} 次重试:`, err.message);
           return { status: 'unreachable', checks: null, error: err.message };
@@ -100,26 +103,19 @@ export const HealthMonitor = {
     return { status: 'unreachable', checks: null };
   },
 
-  /** 将原始响应归一化为 `{ status, checks }` */
+  // 归一化响应
+  // 统一收敛为 `{ status, checks }`，status 只保留 ok / degraded / unreachable 三态
   _classify(data) {
     if (!data || !data.status) {
       return { status: 'unreachable', checks: null };
     }
-    // status 可能是 "ok" 或 "degraded"
     return {
       status: data.status === 'ok' ? 'ok' : 'degraded',
       checks: data.checks || null,
     };
   },
 
-  // ================================================================
-  // 轮询（含指数退避 + 可见性自适应）
-  // ================================================================
-
-  /**
-   * [MODIFIED] 启动轮询。
-   * 解决边缘情况 #1 #5 #6：指数退避 + timer 防叠加 + 可见性自适应。
-   */
+  // 启动轮询
   startPolling(interval) {
     this.stopPolling();
     if (interval !== undefined) {
@@ -128,11 +124,11 @@ export const HealthMonitor = {
     this._scheduleNextPoll();
   },
 
-  /** [NEW] 调度下一次轮询（使用 setTimeout 链代替 setInterval，避免间隔漂移） */
+  // 调度下一次轮询
+  // 用 setTimeout 链代替 setInterval：请求耗时会计入间隔，setInterval 会在慢响应下堆积多个并发探测
   _scheduleNextPoll() {
     if (!this._started) return;
 
-    // [NEW] 边缘情况 #6 — 页面不可见时降低频率
     const interval = document.hidden ? DEFAULTS.hiddenInterval : this._pollInterval;
 
     this._pollTimer = setTimeout(async () => {
@@ -140,12 +136,12 @@ export const HealthMonitor = {
       if (this._isLeader) {
         await this._runCheck();
       }
-      // 链式调度下次
       this._scheduleNextPoll();
     }, interval);
   },
 
-  /** [NEW] 边缘情况 #1 — 指数退避：成功恢复默认间隔，失败逐步放大 */
+  // 应用指数退避
+  // 成功即复位到初始间隔，失败按因子放大并封顶
   _applyBackoff(success) {
     const prevFailures = this._consecutiveFailures;
 
@@ -160,12 +156,13 @@ export const HealthMonitor = {
       );
     }
 
-    // 仅在 failures 计数变化或达到 5 的倍数时输出
+    // 仅在计数变化或达到 5 的倍数时输出：否则长期离线会刷屏控制台
     if (this._consecutiveFailures !== prevFailures || this._consecutiveFailures % 5 === 0) {
       console.log(`[HealthMonitor] 退避: failures=${this._consecutiveFailures}, interval=${this._pollInterval / 1000}s`);
     }
   },
 
+  // 停止轮询
   stopPolling() {
     if (this._pollTimer) {
       clearTimeout(this._pollTimer);
@@ -173,17 +170,10 @@ export const HealthMonitor = {
     }
   },
 
-  // ================================================================
-  // 执行单次检查 + 状态变化处理
-  // ================================================================
-
-  /**
-   * [MODIFIED] 带并发锁的检查。
-   * 解决边缘情况 #8：防止手动点击 + 自动轮询同时触发。
-   */
+  // 执行单次检查
+  // 并发锁保护：手动点击与自动轮询可能同时触发，重复探测会放大后端压力
   async _runCheck() {
     if (this._pendingCheck) {
-      // 静默跳过：已有检查进行中（并发锁保护，非异常）
       return;
     }
     this._pendingCheck = true;
@@ -193,7 +183,6 @@ export const HealthMonitor = {
       const result = await this._checkWithRetry(DEFAULTS.maxRetries);
       const newStatus = result.status;
 
-      // [NEW] 指数退避
       this._applyBackoff(newStatus === 'ok');
       this._currentStatus = newStatus;
       this._currentChecks = result.checks;
@@ -201,17 +190,16 @@ export const HealthMonitor = {
       this._updateIndicator(newStatus, result.checks);
       this._notifyCallbacks(result);
 
-      // [NEW] 边缘情况 #4 — 广播状态到其他标签页
       this._broadcastStatus(newStatus, result.checks);
 
-      // 状态变化时触发事件
+      // 状态变化走跃迁处理（弹提示/横幅），未变化只静默发事件，避免每次轮询都打扰用户
       if (newStatus !== prevStatus) {
         this._handleTransition(prevStatus, newStatus, result.checks);
       } else {
         this._emitStatusEvent(newStatus, result);
       }
 
-      // [NEW] 成功恢复后重置轮询间隔
+      // 恢复成功后立即重置轮询节奏，让状态指示尽快回到高频探测
       if (newStatus === 'ok' && prevStatus !== 'ok') {
         this._pollInterval = DEFAULTS.initialInterval;
         if (this._started && this._isLeader) {
@@ -223,12 +211,12 @@ export const HealthMonitor = {
     }
   },
 
-  /** 状态跃迁处理 */
+  // 处理状态跃迁
   _handleTransition(from, to, checks) {
     console.log(`[HealthMonitor] 状态变化: ${from} → ${to}`);
 
     if (to === 'degraded') {
-      // [MODIFIED] 边缘情况 #7 — 细化提示：显示具体哪个服务降级
+      // 降级时列出具体服务名：只提示「部分服务异常」会让用户无从判断可否继续操作
       const failed = this._getFailedServices(checks);
       const msg = failed.length > 0
         ? UI.toast.monitorDegradedDetail(failed.join('、'))
@@ -243,6 +231,7 @@ export const HealthMonitor = {
       EventBus.emit(EVENTS.HEALTH_CHECK_FAILED, { status: to });
       this._toggleAdminControls(true);
     } else if (to === 'ok') {
+      // 仅在从异常恢复时提示：首次加载即为 ok 不需要弹「已恢复」
       if (from === 'degraded' || from === 'unreachable') {
         showToast(UI.toast.monitorRestored, false);
       }
@@ -252,13 +241,14 @@ export const HealthMonitor = {
     }
   },
 
+  // 广播状态事件
   _emitStatusEvent(status, result) {
     if (status === 'ok') EventBus.emit(EVENTS.HEALTH_CHECK_PASSED, result);
     else if (status === 'degraded') EventBus.emit(EVENTS.HEALTH_CHECK_DEGRADED, result);
     else EventBus.emit(EVENTS.HEALTH_CHECK_FAILED, result);
   },
 
-  /** [NEW] 边缘情况 #7 — 获取具体降级的服务名列表 */
+  // 获取降级的服务名列表
   _getFailedServices(checks) {
     if (!checks) return [];
     const failed = [];
@@ -267,40 +257,34 @@ export const HealthMonitor = {
     return failed;
   },
 
-  // ================================================================
-  // 多标签页同步（边缘情况 #4）
-  // ================================================================
-
-  /** [NEW] 建立 BroadcastChannel，选举 leader，同步状态 */
+  // 建立多标签页同步
+  // 用 tabId 字典序选举 leader，ID 最小者主导轮询；比时间戳选举更稳定，不受时钟漂移影响
   _setupTabSync() {
     BroadcastHelper.init(BC_CHANNEL);
 
-    // 监听其他标签页的状态广播
     this._bcUnlisten = BroadcastHelper.on('health-sync', (msg) => {
       const { status, checks, leaderId } = msg.payload || {};
       if (leaderId && leaderId !== this._tabId) {
-        // 收到其他标签页的检查结果，被动更新 UI
+        // 收到主导标签页的结果即被动更新 UI，本页不发起探测
         this._currentStatus = status;
         this._currentChecks = checks;
         this._updateIndicator(status, checks);
       }
     });
 
-    // Leader 选举：第一个连接的标签页成为 leader
     this._tabId = 'tab-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 
-    // 广播自己的存在
     BroadcastHelper.send('health-join', { tabId: this._tabId });
 
-    // 重新选举 leader：收到 join 消息时，ID 最小的成为 leader
+    // 收到 join 消息即重新选举：新标签页加入后可能取代当前 leader
     const unlistenJoin = BroadcastHelper.on('health-join', (msg) => {
       const otherId = msg.payload && msg.payload.tabId;
       if (otherId) {
-        this._isLeader = this._tabId <= otherId;  // 字典序最小者为主导
+        // 字典序最小者为主导
+        this._isLeader = this._tabId <= otherId;
       }
     });
 
-    // 主导标签页离开时重新选举
     BroadcastHelper.on('health-leave', (msg) => {
       const leftId = msg.payload && msg.payload.tabId;
       if (leftId && leftId < this._tabId) {
@@ -311,9 +295,9 @@ export const HealthMonitor = {
       }
     });
 
-    // 初始假设自己是 leader，等待接收其他标签页的 join 消息
+    // 初始假设自己是 leader，再等 500ms 看是否有更小的 tabId 出现
+    // 延迟窗口内若被替换则放弃轮询权，避免单开页面时无谓等待
     this._isLeader = true;
-    // 延迟 500ms 后若没有更小的 tabId 出现，则正式确认
     setTimeout(() => {
       if (this._isLeader) {
         console.log('[HealthMonitor] 确认为主导标签页 (tabId:', this._tabId, ')');
@@ -323,13 +307,12 @@ export const HealthMonitor = {
       }
     }, 500);
 
-    // 页面关闭时通知
     window.addEventListener('beforeunload', () => {
       BroadcastHelper.send('health-leave', { tabId: this._tabId });
     }, { once: true });
   },
 
-  /** [NEW] 广播当前状态到其他标签页 */
+  // 广播当前状态
   _broadcastStatus(status, checks) {
     BroadcastHelper.send('health-sync', {
       status,
@@ -338,11 +321,7 @@ export const HealthMonitor = {
     });
   },
 
-  // ================================================================
-  // UI 更新
-  // ================================================================
-
-  /** [MODIFIED] 细化 Tooltip 显示 */
+  // 更新状态指示器
   _updateIndicator(status, checks) {
     if (!this._indicator) {
       this._indicator = document.getElementById('healthIndicator');
@@ -363,7 +342,7 @@ export const HealthMonitor = {
 
     if (label) label.textContent = c.text;
 
-    // [MODIFIED] 边缘情况 #7 — 降级时显示具体服务名
+    // 降级时在指示器内展开具体服务名，无需悬停即可看到故障范围
     if (detail) {
       if (status === 'degraded' && checks) {
         const failed = this._getFailedServices(checks);
@@ -373,7 +352,6 @@ export const HealthMonitor = {
       }
     }
 
-    // Tooltip
     let tip = UI.monitor.noData;
     if (checks) {
       const db = checks.database ? `${checks.database.status} (${checks.database.latency}ms)` : '—';
@@ -385,7 +363,8 @@ export const HealthMonitor = {
     this._indicator.title = tip;
   },
 
-  /** [MODIFIED] 细化横幅文本 */
+  // 显示状态横幅
+  // 单例保护：_banner 已存在时直接返回，防止多次跃迁叠加出多条横幅
   _showBanner(level, failedServices = []) {
     if (this._banner) return;
     this._banner = document.createElement('div');
@@ -396,7 +375,6 @@ export const HealthMonitor = {
       this._banner.textContent = UI.monitor.bannerUnreachable;
     } else {
       this._banner.className = 'health-banner warning';
-      // [MODIFIED] 边缘情况 #7 — 细化横幅
       this._banner.textContent = failedServices.length > 0
         ? UI.monitor.bannerDegradedDetail(failedServices.join('、'))
         : UI.monitor.bannerDegraded;
@@ -404,6 +382,7 @@ export const HealthMonitor = {
     document.body.prepend(this._banner);
   },
 
+  // 隐藏横幅
   _hideBanner() {
     if (this._banner) {
       this._banner.remove();
@@ -411,6 +390,8 @@ export const HealthMonitor = {
     }
   },
 
+  // 禁用/恢复管理操作
+  // 后端不可达时禁用写入类控件，避免用户操作后才发现保存失败
   _toggleAdminControls(disable) {
     document.querySelectorAll('.tree-node-content .visibility-toggle, [data-action="delete-article"]')
       .forEach(el => { el.classList.toggle('disabled', disable); });
@@ -423,39 +404,28 @@ export const HealthMonitor = {
     }
   },
 
-  // ================================================================
-  // 公开 API
-  // ================================================================
-
-  /**
-   * [MODIFIED] 公开的 check() — 并发安全。
-   * 解决边缘情况 #8：用户快速点击指示器。
-   */
+  // 手动检查（并发安全）
+  // 已有检查进行中则返回上次结果：用户快速连点指示器时不重复探测
   async check() {
     if (this._pendingCheck) return { status: this._currentStatus, checks: this._currentChecks };
     return this._checkWithRetry(DEFAULTS.maxRetries);
   },
 
+  // 订阅状态变化
   onStatusChange(callback) {
     if (typeof callback === 'function') {
       this._callbacks.push(callback);
     }
   },
 
+  // 通知订阅者
   _notifyCallbacks(status) {
     this._callbacks.forEach(cb => {
       try { cb(status); } catch (e) { console.error('[HealthMonitor] 回调错误:', e); }
     });
   },
 
-  // ================================================================
-  // 生命周期
-  // ================================================================
-
-  /**
-   * [MODIFIED] 初始化 — 延迟到 DOM 就绪 + 多标签页同步。
-   * 解决边缘情况 #4 #9：BroadcastChannel + 启动时序。
-   */
+  // 初始化
   init() {
     this._indicator = document.getElementById('healthIndicator');
     if (this._indicator) {
@@ -464,19 +434,16 @@ export const HealthMonitor = {
       });
     }
 
-    // [NEW] 多标签页同步
     this._setupTabSync();
 
-    // [NEW] 可见性变化 — 切换频率（边缘情况 #6）
+    // 页面可见性切换时立即校准：后台期间定时器被节流，切回前台若仍是异常状态需马上复查
     this._visibleHandler = () => {
       if (!this._started) return;
-      // 切回可见时立即检查
       if (!document.hidden) {
         if (this._currentStatus !== 'ok') {
           this._runCheck();
         }
       }
-      // 重新调度（使用当前合适的间隔）
       if (this._isLeader) {
         this._scheduleNextPoll();
       }
@@ -486,13 +453,10 @@ export const HealthMonitor = {
     console.log('[HealthMonitor] 初始化完成');
   },
 
-  /**
-   * [MODIFIED] 启动 — 延迟执行首检，等待 AppState 就绪。
-   * 解决边缘情况 #9：首次加载时序。
-   */
+  // 启动
+  // 首检不等待 start 返回：由 _scheduleNextPoll 串起后续节奏
   start() {
     this._started = true;
-    // 首检用初始间隔
     this._pollInterval = DEFAULTS.initialInterval;
     if (this._isLeader) {
       this._runCheck().then(() => {
@@ -502,7 +466,7 @@ export const HealthMonitor = {
     console.log('[HealthMonitor] 已启动');
   },
 
-  /** 销毁 */
+  // 销毁
   destroy() {
     this._started = false;
     this.stopPolling();

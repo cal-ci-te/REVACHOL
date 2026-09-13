@@ -1,5 +1,7 @@
-// 图标包前端处理器 — 纯逻辑，可在浏览器与单元测试（jsdom）中运行。
+// ！图标包处理器
+// 纯逻辑模块，不依赖 DOM 之外的浏览器 API，可在 jsdom 单元测试中直接运行。
 // 职责：遍历 zip、安全性校验、尺寸检测、键名匹配、PNG 压缩、生成规范化 zip。
+
 import JSZip from 'jszip';
 import {
   ICON_PACK_KEY_SET,
@@ -21,34 +23,30 @@ const SVG_PATTERNS = [
   { label: '<object', regex: /<object/i },
 ];
 
-/** 从 entry 名提取图标键（basename 去扩展名，支持子目录） */
+// 提取图标键
+// 取 basename 去扩展名：包内允许任意层子目录，键名只认文件名
 function extractKey(entryName) {
   return entryName.split('/').pop().replace(/\.(png|svg)$/i, '');
 }
 
-/** 读取 File/Blob 为 ArrayBuffer（兼容无 arrayBuffer 的旧环境） */
+// 读取为 ArrayBuffer
+// 兼容无 arrayBuffer 的旧环境；字符串输入直接返回 null 由调用方判错
 async function fileToArrayBuffer(file) {
   if (file && typeof file.arrayBuffer === 'function') return file.arrayBuffer();
   if (file && typeof file === 'string') return null;
   return null;
 }
 
-/**
- * PNG 8 字节签名校验
- * @param {Uint8Array|ArrayBuffer|Buffer} bytes
- * @returns {boolean}
- */
+// 校验 PNG 8 字节签名
+// 仅看扩展名不足以防伪造：.png 后缀的任意二进制流会在后续解码环节报错
 export function checkPngMagic(bytes) {
   if (!bytes || bytes.length < 8) return false;
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   return PNG_SIGNATURE.every((byte, i) => view[i] === byte);
 }
 
-/**
- * SVG 安全扫描
- * @param {string} text
- * @returns {string[]} 命中项；空数组 = 安全
- */
+// 扫描 SVG 危险内容
+// 返回命中项；空数组 = 安全。图标最终以 img 标签渲染，需防范脚本/外部引用注入
 export function scanSvgSecurity(text) {
   if (typeof text !== 'string') return [];
   const hits = [];
@@ -58,11 +56,8 @@ export function scanSvgSecurity(text) {
   return hits;
 }
 
-/**
- * PNG 尺寸检测（浏览器 Image 解码）
- * @param {Blob} blob
- * @returns {Promise<{width:number,height:number}>}
- */
+// 检测 PNG 尺寸
+// 借浏览器 Image 解码读取 naturalWidth/naturalHeight：仅解析文件头无法覆盖 APNG 等变体
 export function detectPngSize(blob) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
@@ -79,11 +74,8 @@ export function detectPngSize(blob) {
   });
 }
 
-/**
- * SVG 尺寸检测：解析 width/height/viewBox
- * @param {string} text
- * @returns {{width:number,height:number}|null}
- */
+// 检测 SVG 尺寸
+// 优先 width/height，缺失时回退 viewBox
 export function detectSvgSize(text) {
   if (typeof text !== 'string') return null;
 
@@ -100,7 +92,7 @@ export function detectSvgSize(text) {
   const height = parseLen(heightRaw && heightRaw[1]);
   if (width && height) return { width, height };
 
-  // viewBox：min-x min-y width height
+  // 回退读 viewBox，其值为 min-x min-y width height 四段
   const vb = /<svg[^>]*\sviewBox=["']([^"']+)["']/i.exec(text);
   if (vb) {
     const parts = vb[1].trim().split(/[\s,]+/).map(Number);
@@ -114,12 +106,8 @@ export function detectSvgSize(text) {
   return null;
 }
 
-/**
- * PNG 等比缩小：任一边 > maxDim 时 Canvas 缩放，否则原样返回
- * @param {Blob} blob
- * @param {number} maxDim
- * @returns {Promise<Blob>}
- */
+// 等比缩小 PNG
+// 仅缩不放：任一边未超 maxDim 时原样返回，避免小图被放大后模糊
 export async function resizePng(blob, maxDim = ICON_PACK_MAX_DIM) {
   if (!blob || typeof URL === 'undefined' || typeof Image === 'undefined') return blob;
   const size = await detectPngSize(blob);
@@ -153,11 +141,8 @@ export async function resizePng(blob, maxDim = ICON_PACK_MAX_DIM) {
   }
 }
 
-/**
- * 遍历 zip 检查：返回错误/警告/图标元数据
- * @param {File|Blob} file
- * @returns {Promise<{errors:string[],warnings:string[],icons:Array,missingKeys:string[],unknownKeys:string[],outOfRange:Array}>}
- */
+// 检查 zip 内容
+// 返回错误、警告与图标元数据；errors 非空时调用方应中止上传
 export async function inspectZipFile(file) {
   const errors = [];
   const warnings = [];
@@ -192,7 +177,8 @@ export async function inspectZipFile(file) {
     if (entry.dir) continue;
     if (!IMAGE_EXT_RE.test(entry.name)) continue;
 
-    // 未解压前用 JSZip 内部记录检查大小（尽力而为）
+    // 未解压前读 JSZip 记录的声明大小：可提前拒绝超大文件，避免解压耗尽内存
+    // 声明值可被伪造，故解压后仍需用实际长度二次校验
     const rawSize = entry._data && entry._data.uncompressedSize;
     if (typeof rawSize === 'number' && rawSize > ICON_PACK_LIMITS.maxFileBytes) {
       errors.push(`文件超过单文件上限（5MB）: ${escapeHtml(entry.name)}`);
@@ -251,6 +237,7 @@ export async function inspectZipFile(file) {
     if (size) {
       icons.push({ key, entryName: entry.name, ext, size: buf.length, width: size.width, height: size.height, blob });
       presentKeys.add(key);
+      // 超范围仅警告不阻断：用户可能有意提供非标准尺寸，压缩环节会自动纠正
       if (size.width < ICON_PACK_SIZE_RANGE.min || size.height < ICON_PACK_SIZE_RANGE.min ||
           size.width > ICON_PACK_SIZE_RANGE.max || size.height > ICON_PACK_SIZE_RANGE.max) {
         outOfRange.push({ name: entry.name, width: size.width, height: size.height });
@@ -259,7 +246,7 @@ export async function inspectZipFile(file) {
     }
   }
 
-  // 键名匹配
+  // 键名匹配：缺键仅告警（包可只覆盖部分图标），多键告警避免拼写错误静默失效
   ICON_PACK_KEY_SET.forEach((registeredKey) => {
     if (!presentKeys.has(registeredKey)) {
       missingKeys.push(registeredKey);
@@ -276,12 +263,8 @@ export async function inspectZipFile(file) {
   return { errors, warnings, icons, missingKeys, unknownKeys, outOfRange };
 }
 
-/**
- * 生成规范化 zip：以 `${key}.${ext}` 平铺，PNG 可选压缩。
- * @param {File|Blob} file
- * @param {{compressPng?:boolean}} [options]
- * @returns {Promise<JSZip>}
- */
+// 生成规范化 zip
+// 以 `${key}.${ext}` 平铺输出，丢弃原始目录层级，服务端按平铺结构直接读取
 export async function buildNormalizedZip(file, { compressPng = true } = {}) {
   const buffer = await fileToArrayBuffer(file);
   const zip = await JSZip.loadAsync(buffer);
@@ -303,6 +286,7 @@ export async function buildNormalizedZip(file, { compressPng = true } = {}) {
       if (compressPng) {
         const blob = new Blob([content], { type: 'image/png' });
         const resized = await resizePng(blob, ICON_PACK_MAX_DIM);
+        // 用引用相等判断是否真的缩放：未超标时 resizePng 原样返回入参 blob
         if (resized !== blob) {
           content = await resized.arrayBuffer();
         }

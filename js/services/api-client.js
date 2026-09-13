@@ -1,30 +1,26 @@
-// HTTP API 客户端。支持请求/响应拦截器链，自动超时（10s），JSON/FormData 自动处理。
-// 选择自研 fetch 封装而非 Axios：项目仅 ~10 个 API 端点，Axios (~30KB) 的拦截器/取消/进度等功能
-// 在此项目场景中均为冗余。拦截器模式保留了未来切换为 Axios 的接口兼容性。
+// ！HTTP API 客户端
+// 统一 fetch 封装：请求/响应拦截器链、10s 自动超时、JSON/FormData 自动处理。
+// 选择自研而非 Axios：项目仅约 10 个 API 端点，Axios（≈30KB）的拦截器/取消/进度等能力在此场景均冗余；
+// 保留拦截器模式以兼容未来切换为 Axios 的接口形态。
+
 import { CONFIG } from '../config.js';
 
-/**
- * 从响应体中提取可读的错误信息
- * 按优先级匹配：后端 error 字段 → 通用 message 字段 → 纯文本 → 状态码友好信息 → 兜底
- */
+// 提取可读的错误信息
+// 按优先级匹配：后端 error 字段 → 通用 message 字段 → 纯文本 → 对象序列化 → 状态码友好信息 → 兜底
 function extractErrorMessage(data, status) {
-  // 1. REVACHOL 后端标准格式 { error: '...' }
   if (data?.error && typeof data.error === 'string') {
     return data.error;
   }
-  // 2. 通用 API 格式 { message: '...' }（兼容第三方）
   if (data?.message && typeof data.message === 'string') {
     return data.message;
   }
-  // 3. 纯文本响应
   if (typeof data === 'string') {
     return data;
   }
-  // 4. 对象但无标准字段 → 序列化为 JSON 字符串
   if (data && typeof data === 'object') {
     return JSON.stringify(data);
   }
-  // 5. 根据状态码生成友好信息
+  // 对象无标准字段时按状态码给出可读文案，优于裸露 HTTP 码
   const statusMessages = {
     400: '请求参数有误',
     401: '登录已过期，请重新登录',
@@ -40,13 +36,12 @@ function extractErrorMessage(data, status) {
   if (statusMessages[status]) {
     return statusMessages[status];
   }
-  // 6. 绝对兜底：null/undefined/非标准对象 → 转为字符串
   return String(data || `HTTP ${status}`);
 }
 
 export class ApiError extends Error {
   constructor(status, message, data = null) {
-    // 确保 message 始终是字符串
+    // 归一化为字符串：error 字段可能为对象，直接给 super 会产生 "[object Object]"
     const safeMessage = typeof message === 'string' ? message : String(message);
     super(safeMessage);
     this.name = 'ApiError';
@@ -55,12 +50,13 @@ export class ApiError extends Error {
     this.code = data?.code || null;
   }
 
-  /** 是否为认证错误（需重新登录） */
+  // 判断是否为认证错误
   isAuthError() {
     return this.status === 401 || this.status === 403;
   }
 
-  /** 是否为可重试错误（网络超时 / 服务器繁忙） */
+  // 判断是否可重试
+  // 超时、限流、服务端错误可重试；4xx 参数类错误重试无意义
   isRetryable() {
     return this.status === 408 || this.status === 429 || this.status >= 500;
   }
@@ -70,9 +66,12 @@ export const ApiClient = {
   _requestInterceptors: [],
   _responseInterceptors: [],
 
+  // 注册请求拦截器
   useRequestInterceptor(handler) { this._requestInterceptors.push(handler); },
+  // 注册响应拦截器
   useResponseInterceptor(onFulfilled, onRejected) { this._responseInterceptors.push({ onFulfilled, onRejected }); },
 
+  // 发起请求
   async request(endpoint, options = {}) {
     let config = { endpoint, options };
     for (const interceptor of this._requestInterceptors) { config = await interceptor(config); }
@@ -81,9 +80,10 @@ export const ApiClient = {
     const url = (CONFIG.API_BASE_URL || '') + finalEndpoint;
 
     const headers = { 'Content-Type': 'application/json', ...finalOptions.headers };
+    // FormData 需由浏览器自带 boundary，手写 Content-Type 会导致后端解析失败
     if (finalOptions.body instanceof FormData) delete headers['Content-Type'];
 
-    // 支持可选超时：options.timeout（毫秒），默认保持 10s；从传给 fetch 的选项中剔除
+    // timeout 为本封装的扩展项，需在使用前从传给 fetch 的选项中剔除，避免非法参数
     const timeout = typeof finalOptions.timeout === 'number' ? finalOptions.timeout : 10000;
     const fetchOptions = { ...finalOptions };
     delete fetchOptions.timeout;
@@ -106,6 +106,7 @@ export const ApiClient = {
       }
       return data;
     } catch (caughtError) {
+      // 超时同样走 reject 链：统一转成 408 ApiError，调用方无需区分 AbortError
       clearTimeout(timeoutId);
       let error = caughtError;
       if (error.name === 'AbortError') {
@@ -120,6 +121,7 @@ export const ApiClient = {
 
   get(endpoint, options = {}) { return this.request(endpoint, { ...options, method: 'GET' }); },
   post(endpoint, data, options = {}) {
+    // FormData 直接透传；其余类型序列化为 JSON 字符串
     const body = data instanceof FormData ? data : JSON.stringify(data);
     return this.request(endpoint, { ...options, method: 'POST', body });
   },

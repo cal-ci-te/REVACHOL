@@ -1,15 +1,18 @@
-// CrewAI Token 消耗仪表盘服务层。
-// 封装 /api/crew/usage/* 只读接口，并提供轻量缓存（overview 5s / filters 会话级）。
+// ！CrewAI 用量仪表盘
+// 封装 /api/crew/usage/* 只读接口，并提供轻量缓存（overview 5s、filters 会话级）。
+
 import { ApiClient } from './api-client.js';
 
 const OVERVIEW_CACHE_TTL = 5000;
 
 export const CrewUsageService = {
+  // overview 带 _timestamp 供过期判断，filters 会话内一直有效
   _cache: {},
 
   // 获取总览数据
   async getOverview() {
     const cached = this._cache.overview;
+    // 命中 5s 缓存即返回：仪表盘轮询间隔大于 TTL，避免打爆后端
     if (cached && Date.now() - cached._timestamp < OVERVIEW_CACHE_TTL) {
       return cached;
     }
@@ -37,6 +40,7 @@ export const CrewUsageService = {
 
   // 获取筛选选项
   async getFilterOptions() {
+    // 筛选选项会话内不变，命中即返回
     if (this._cache.filters) {
       return this._cache.filters;
     }
