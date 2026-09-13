@@ -1,17 +1,19 @@
-// 文章 CRUD + 可见性控制。每次写操作后通过 WebSocket broadcast 通知所有客户端刷新。
-// 所有写操作前通过 validate.cjs 做输入长度校验，防止超长字符串导致数据库性能问题。
-// 写操作通过 requireAuth 包装器保护：仅携带有效 Token 的管理员可执行。
+// ！文章 CRUD 路由
+// 文章的增删改查与可见性控制，每次写操作后经 WebSocket 广播，通知所有客户端刷新。
+// 写操作一律经 requireAuth 包装（仅持有效 Token 的管理员可执行），并在写库前校验输入长度。
 const { send, sendError, json } = require('../enhance.cjs');
 const dbModule = require('../db.cjs');
 const { broadcast } = require('../websocket.cjs');
 const { validate } = require('../validate.cjs');
 const { requireAuth } = require('../auth.cjs');
 
+// 校验输入长度，不合规时直接回写 400
+// 返回 true 表示已处理：调用方据此提前 return，避免继续写库
 function validateFields(res, fields) {
     const err = validate(fields);
     if (err) {
         sendError(res, 400, err.error);
-        return true; // 表示已处理
+        return true;
     }
     return false;
 }
@@ -27,10 +29,12 @@ function registerArticleRoutes(GET, POST, PUT, DELETE) {
         const { title, content, category } = await json(req);
         if (validateFields(res, { title, content, category })) return;
         const now = new Date().toISOString();
+        // category 缺省补「默认分类」：前端未选择分类时不应写入空值
         dbModule.run(
             'INSERT INTO articles (title, content, category, updateTime, visible) VALUES (?, ?, ?, ?, 1)',
             [title, content, category || '默认分类', now]
         );
+        // 取回自增 id 以便广播中携带完整对象，避免客户端再拉一次列表
         const row = dbModule.query('SELECT last_insert_rowid() as id');
         const newArticle = {
             id: row.id,
@@ -48,6 +52,7 @@ function registerArticleRoutes(GET, POST, PUT, DELETE) {
         const id = parseInt(req.params.id);
         const { title, content, category } = await json(req);
         if (validateFields(res, { title, content, category })) return;
+        // 先确认存在再更新：否则会把不存在的 id 当作成功返回
         const existing = dbModule.query('SELECT id FROM articles WHERE id = ?', [id]);
         if (!existing) {
             sendError(res, 404, 'Article not found');
@@ -82,7 +87,9 @@ function registerArticleRoutes(GET, POST, PUT, DELETE) {
             sendError(res, 404, 'Article not found');
             return;
         }
+        // 布尔值落库前转为 0/1：SQLite 无布尔类型
         dbModule.exec('UPDATE articles SET visible = ? WHERE id = ?', [visible ? 1 : 0, id]);
+        // 广播时转回布尔，保持与前端约定的类型一致
         broadcast({ type: 'visibility_changed', payload: { articleId: id, visible: !!visible } });
         send(res, { success: true });
     }));
