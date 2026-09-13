@@ -1,19 +1,18 @@
-// 清理 crew_usage 表中的种子模拟数据（seed-run-*）。
+// ！清理 crew_usage 种子数据
+// 删除 crew_usage 表中 run_id 以 seed- 开头的行，真实任务数据不受影响。
 //
-// 背景：v1.22 Token 仪表盘上线时使用种子数据（seed-run-1 / seed-run-2）
-// 直接写入了 crew_usage 表。真实任务产生的 crew:stats 会继续写入同一张表，
-// 因此仪表盘“看起来”一直显示模拟数据。
+// 背景：v1.22 Token 仪表盘上线时以种子数据（seed-run-1 / seed-run-2）直接写入该表，
+// 真实任务产生的 crew:stats 随后写入同一张表，导致仪表盘看起来一直显示模拟数据。
 //
 // 用法：
 //   docker compose exec backend node /app/scripts/cleanup-seed-usage.cjs
-//   node backend/scripts/cleanup-seed-usage.cjs   # 本地开发库
-//
-// 只删除 run_id 以 seed- 开头的行，真实任务数据不受影响。
+//   node backend/scripts/cleanup-seed-usage.cjs   本地开发库
 const db = require('../db.cjs');
 
 async function main() {
   await db.initDb();
 
+  // 先查后删：删除前留存待删清单，便于在日志中逐条回显
   const before = db.queryAll("SELECT run_id FROM crew_usage WHERE run_id LIKE 'seed-%'");
   const deleted = db.run("DELETE FROM crew_usage WHERE run_id LIKE 'seed-%'");
   db.saveDb();
