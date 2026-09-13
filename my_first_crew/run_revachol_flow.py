@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# ！RFC-001 Flow 入口
+# 以状态机驱动「撰写 → 审查 → 修改」循环，与 run_revachol_crew.py 并存（双入口灰度）。
 """run_revachol_flow.py — RFC-001 CrewAI Flow 入口（双入口之一）。
 
 与既有 run_revachol_crew.py 并存（灰度迁移第 1 步：双入口）：
@@ -38,16 +40,12 @@ from run_revachol_crew import (
 )
 from flows.persistence import load_state_snapshot
 
-# ============================================================================
 # 环境加载
-# ============================================================================
 
 _ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 load_dotenv(_ENV_PATH)
 
-# ============================================================================
 # 事件发射器
-# ============================================================================
 
 
 class FlowJsonLogEmitter(JsonLogEmitter):
@@ -139,9 +137,7 @@ class ConsoleEmitter:
         )
 
 
-# ============================================================================
 # 参数
-# ============================================================================
 
 
 def parse_args() -> argparse.Namespace:
@@ -200,9 +196,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# ============================================================================
 # 主入口
-# ============================================================================
 
 
 def build_flow(emitter, save_snapshots: bool):
