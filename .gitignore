@@ -26,6 +26,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Python 生成物（scripts/comment-audit 下的工具运行后会产生）
+__pycache__/
+*.pyc
+
 # 系统文件
 .DS_Store
 Thumbs.db
