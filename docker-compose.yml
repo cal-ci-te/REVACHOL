@@ -1,3 +1,5 @@
+# ！Docker Compose 编排
+# 定义 backend / frontend / playwright-tests 三个服务及其依赖、卷与环境变量。
 services:
   backend:
     build:
@@ -57,14 +59,11 @@ services:
     restart: unless-stopped
     # Vite 已配置 /api 与 /websocket 代理（vite.config.js），/api/crew/* 自动转发到 backend:9999
 
-  # ============================================================
-  # Playwright E2E 测试容器
-  # 依赖 backend + frontend 就绪，运行测试后自动退出
+  # Playwright E2E 测试容器：依赖 backend + frontend 就绪，运行测试后自动退出。
   # 用法：
   #   docker compose run --rm playwright-tests              # 运行测试
   #   docker compose run --rm playwright-tests --archive     # 运行测试 + 归档
   #   docker compose build playwright-tests                  # 仅构建镜像
-  # ============================================================
   playwright-tests:
     build:
       context: .

@@ -1,7 +1,5 @@
-# ============================================================
-# REVACHOL Playwright E2E 测试容器镜像
-# 基于微软官方 Playwright 镜像（已预装 Chromium + 系统依赖）
-# ============================================================
+# ！Playwright E2E 测试镜像
+# 基于微软官方 Playwright 镜像（已预装 Chromium 与系统依赖）。
 
 FROM mcr.microsoft.com/playwright:v1.48.0-noble
 
@@ -11,7 +9,7 @@ USER root
 
 WORKDIR /app
 
-# ---- 第 0 层：安装 C++ 编译工具链 ----
+# 第 0 层：安装 C++ 编译工具链
 # Playwright 官方镜像为精简体积，未包含 g++/make/python3
 # 但项目依赖含有原生模块（bcrypt），npm install 时需要 node-gyp 编译
 # 多阶段构建（alpine → ubuntu）不可行：musl 编译的 .node 二进制与 glibc 不兼容
@@ -22,12 +20,12 @@ RUN apt-get update && apt-get install -y \
     make \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- 第 1 层：安装 Node.js 依赖（利用缓存） ----
+# 第 1 层：安装 Node.js 依赖（利用缓存）
 COPY package.json package-lock.json ./
 # 需要安装 devDependencies（@playwright/test, playwright-archive 等）
 RUN npm install
 
-# ---- 第 2 层：复制项目源码和配置 ----
+# 第 2 层：复制项目源码和配置
 COPY js/           ./js/
 COPY css/          ./css/
 COPY backend/      ./backend/
@@ -38,11 +36,11 @@ COPY vite.config.js    ./
 COPY vitest.config.js  ./
 COPY playwright.config.js ./
 
-# ---- 第 3 层：创建报告输出目录 ----
+# 第 3 层：创建报告输出目录
 RUN mkdir -p /app/playwright-report /app/test-results /app/run-history \
     && chown -R pwuser:pwuser /app
 
-# ---- 运行时配置 ----
+# 运行时配置
 ENV CI=true
 ENV BASE_URL=http://frontend:3000
 # 后端 API 通过 Vite 代理转发，测试容器直接访问前端容器

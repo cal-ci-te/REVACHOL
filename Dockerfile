@@ -1,4 +1,4 @@
-# REVACHOL 后端镜像：Node.js API + CrewAI Python 子进程
+# ！后端镜像（Node API + CrewAI Python 子进程）
 # 基于 node:22-bookworm-slim（glibc）：
 #   - Alpine(musl) 下 lancedb==0.30.0（crewai 1.15.16 依赖）没有 musllinux wheel，
 #     会导致 pip 无法解析依赖；Debian slim 提供 manylinux wheel，兼容性最好。
@@ -14,7 +14,7 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-# ---- 系统依赖：Python3 / pip / venv / git / 编译工具链 ----
+# 系统依赖：Python3 / pip / venv / git / 编译工具链
 # build-essential + make + g++：bcrypt / better-sqlite3 等 Node 原生模块
 # 与部分 Python wheel 需要本地编译；必须放在 COPY package*.json 之前，
 # 确保 npm install 时 node-gyp 能找到 g++/make/python3（利用 Docker 层缓存）。
@@ -31,11 +31,11 @@ RUN apt-get update \
     && ln -sf /usr/bin/python3 /usr/local/bin/python \
     && ln -sf /usr/bin/pip3 /usr/local/bin/pip
 
-# ---- Node 依赖（生产模式，利用层缓存） ----
+# Node 依赖（生产模式，利用层缓存）
 COPY package*.json ./
 RUN npm install --production
 
-# ---- Python 依赖（先复制 requirements.txt 单独安装，利用层缓存） ----
+# Python 依赖（先复制 requirements.txt 单独安装，利用层缓存）
 COPY my_first_crew/requirements.txt ./my_first_crew/requirements.txt
 RUN python3 -m venv /app/my_first_crew/.venv \
     && /app/my_first_crew/.venv/bin/pip install --no-cache-dir --upgrade pip \
@@ -43,16 +43,16 @@ RUN python3 -m venv /app/my_first_crew/.venv \
     # uv/uvx：document_admin 的 Git MCP 服务器（mcp-server-git）通过 uvx 启动
     && /app/my_first_crew/.venv/bin/pip install --no-cache-dir uv
 
-# ---- 项目源码 ----
+# 项目源码
 COPY backend/ ./
 COPY my_first_crew/ ./my_first_crew/
 
-# ---- 可执行权限 + 数据/输出目录 ----
+# 可执行权限 + 数据/输出目录
 RUN chmod +x /app/my_first_crew/run_revachol_crew.py \
     && mkdir -p /app/my_first_crew/output /app/data /app/uploads/decos \
     && chown -R node:node /app/my_first_crew /app/data /app/uploads
 
-# ---- 运行时环境 ----
+# 运行时环境
 ENV DB_PATH=/app/data/revachol.db
 ENV PORT=9999
 ENV CREWAI_DISABLE_ASYNC=1
