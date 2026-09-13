@@ -1,17 +1,11 @@
-// CrewAI Web Dashboard 后端路由。
+// ！Crew 仪表盘路由
+// 调用 my_first_crew/run_revachol_crew.py（--once --json-logs 无头模式），单次执行一个需求后退出；
+// 解析 Python 输出的 NDJSON 事件流（crew:* / flow:*），翻译为 CREW_* 事件经 WebSocket 广播给仪表盘。
+// 提供 status / run / stop 以及 Agent 开关两组接口，其中 run、stop 与开关切换需管理员 Token。
 //
-// 职责：
-//   1. 通过 child_process.spawn() 调用 my_first_crew/run_revachol_crew.py
-//      （--once --json-logs 无头模式），单次执行一个需求后退出；
-//   2. 解析 Python 输出的 NDJSON 事件流（crew:*），翻译为 WebSocket 广播的
-//      CREW_* 事件，推送给所有连接的 Web Dashboard 客户端；
-//   3. 提供 status / run / stop 三个 API，run 与 stop 需要管理员 Token。
-//
-// 约束：
-//   - 不修改 Agent 定义、Task 链路与 document_admin 的 Git MCP；
-//   - 同一时间只允许一个 Crew 子进程运行（并发冲突返回 409）；
-//   - 后端持有最近一次运行的内存快照（agents/logs/outputs/stats），
-//     页面刷新后可通过 GET /api/crew/status 恢复现场。
+// 约束：不改动 Agent 定义、Task 链路与 document_admin 的 Git MCP；
+// 同一时间只允许一个子进程运行（并发冲突返回 409）；
+// 后端持有最近一次运行的内存快照（agents/logs/outputs/stats），供页面刷新后恢复现场。
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -172,11 +166,9 @@ function pushOutput(task, content, isJson) {
   broadcast({ type: 'CREW_OUTPUT', payload: { runId: runState.runId, ...entry } });
 }
 
-/**
- * 解析 Python --json-logs 模式输出的一行事件。
- * 兼容 crew:*（run_revachol_crew.py）与 flow:*（run_revachol_flow.py）事件流。
- * 返回 false 表示该行不是有效的 JSON 事件。
- */
+// 解析 Python --json-logs 模式输出的一行事件
+// 兼容 crew:*（run_revachol_crew.py）与 flow:*（run_revachol_flow.py）事件流
+// 返回 false 表示该行不是有效的 JSON 事件
 function handleCrewEvent(line) {
   let data;
   try {
@@ -310,7 +302,9 @@ function resolvePython() {
     try {
       fs.accessSync(candidate, fs.constants.X_OK);
       return candidate;
-    } catch { /* 尝试下一个 */ }
+    } catch {
+      // 该候选不可执行，继续尝试下一个
+    }
   }
 
   return process.env.PYTHON || (isWindows ? 'python' : 'python3');
@@ -461,7 +455,9 @@ function stopCrewRun() {
   runState.lastError = '已被管理员手动停止';
   try {
     child.kill('SIGTERM');
-  } catch { /* 已退出则忽略 */ }
+  } catch {
+    // 进程已退出，忽略
+  }
   broadcast({
     type: 'CREW_STOPPED',
     payload: { runId: runState.runId, finishedAt: runState.finishedAt },

@@ -1,4 +1,4 @@
-// 图标包（Icon Pack）后端路由
+// ！图标包路由
 // 提供：上传（含安全性校验）、列表、状态、图标二进制、主题绑定修改、删除。
 // 存储走 StorageService 独立实例：本地目录 uploads/icon-packs；rustfs key 前缀 'icon-packs/'。
 const fs = require('fs');
@@ -75,7 +75,7 @@ if (iconPackStorage.isLocal()) {
   fs.mkdirSync(ICON_PACK_LOCAL_CONFIG.uploadDir, { recursive: true });
 }
 
-/** 读取请求体，超过 maxChars 抛错 */
+// 读取请求体，超过 maxChars 抛错
 function readBody(req, maxChars) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -91,21 +91,21 @@ function readBody(req, maxChars) {
   });
 }
 
-/** 校验 themeIds：必须是数组、至少一个、且每个 ∈ THEME_IDS */
+// 校验 themeIds：必须为数组、至少一个、且每个都须属于 THEME_IDS
 function isValidThemeIds(themeIds) {
   return Array.isArray(themeIds) &&
     themeIds.length > 0 &&
     themeIds.every((t) => THEME_IDS.includes(t));
 }
 
-/** 从 zip entry 名提取图标键（basename 去扩展名，支持子目录） */
+// 从 zip entry 名提取图标键（取 basename 去扩展名，支持子目录）
 function extractKey(entryName) {
   const base = entryName.split('/').pop();
   return base.replace(/\.(png|svg)$/i, '');
 }
 
 function registerIconPackRoutes(GET, POST, PUT, DELETE) {
-  // ===================== 状态（公开） =====================
+  // 状态（公开）
   GET('/api/icon-packs/status', async (req, res) => {
     const themes = {};
     for (const themeId of THEME_IDS) {
@@ -151,7 +151,7 @@ function registerIconPackRoutes(GET, POST, PUT, DELETE) {
     send(res, { themes });
   });
 
-  // ===================== 包列表（公开） =====================
+  // 包列表（公开）
   GET('/api/icon-packs', async (req, res) => {
     const packRows = dbModule.queryAll('SELECT * FROM icon_packs ORDER BY created_at DESC');
     const packs = packRows.map((pack) => {
@@ -169,7 +169,7 @@ function registerIconPackRoutes(GET, POST, PUT, DELETE) {
     send(res, packs);
   });
 
-  // ===================== 图标二进制（公开） =====================
+  // 图标二进制（公开）
   GET('/api/icon-packs/:id/icons/:key', async (req, res) => {
     const { id, key } = req.params;
     const row = dbModule.query('SELECT file_key, mime FROM icon_pack_icons WHERE pack_id = ? AND icon_key = ?', [id, key]);
@@ -190,7 +190,7 @@ function registerIconPackRoutes(GET, POST, PUT, DELETE) {
     res.end(Buffer.isBuffer(data) ? data : Buffer.from(data));
   });
 
-  // ===================== 上传（鉴权） =====================
+  // 上传（鉴权）
   POST('/api/icon-packs', requireAuth(async (req, res) => {
     let body;
     try {
@@ -254,7 +254,8 @@ function registerIconPackRoutes(GET, POST, PUT, DELETE) {
 
     for (const entry of entries) {
       if (entry.dir) continue;
-      if (!IMAGE_EXT_RE.test(entry.name)) continue; // 忽略非图片文件
+      // 非图片扩展名直接跳过，只处理图片条目
+      if (!IMAGE_EXT_RE.test(entry.name)) continue;
 
       let buf;
       try {
@@ -332,7 +333,7 @@ function registerIconPackRoutes(GET, POST, PUT, DELETE) {
     send(res, { id: packId, name: name.trim(), themes: themeIds });
   }));
 
-  // ===================== 修改主题绑定（鉴权） =====================
+  // 修改主题绑定（鉴权）
   PUT('/api/icon-packs/:id/themes', requireAuth(async (req, res) => {
     const packId = req.params.id;
     let themeIds;
@@ -383,7 +384,7 @@ function registerIconPackRoutes(GET, POST, PUT, DELETE) {
     send(res, { success: true });
   }));
 
-  // ===================== 删除包（鉴权） =====================
+  // 删除包（鉴权）
   DELETE('/api/icon-packs/:id', requireAuth(async (req, res) => {
     const packId = req.params.id;
     const pack = dbModule.query('SELECT * FROM icon_packs WHERE id = ?', [packId]);
@@ -394,7 +395,9 @@ function registerIconPackRoutes(GET, POST, PUT, DELETE) {
 
     const iconRows = dbModule.queryAll('SELECT file_key FROM icon_pack_icons WHERE pack_id = ?', [packId]);
     for (const row of iconRows) {
-      try { await iconPackStorage.delete(row.file_key); } catch (e) { /* 尽力删除 */ }
+      try { await iconPackStorage.delete(row.file_key); } catch (e) {
+        // 单个文件删除失败不影响整体删除流程
+      }
     }
 
     dbModule.run('DELETE FROM icon_pack_icons WHERE pack_id = ?', [packId]);
