@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# ！Flow 工作流包
+# RFC-001 的 CrewAI Flow 工作流实现集，成员构成见下方 docstring。
 """RFC-001 CrewAI Flow 工作流包。
 
 包含：
