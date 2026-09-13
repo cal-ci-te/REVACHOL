@@ -1,11 +1,10 @@
+// ！文件夹折叠状态
+// 处理文件夹节点的展开/收起：切换子树显隐、箭头图标、文件夹图标，并持久化折叠态。
+// 折叠态按节点路径而非索引持久化：目录顺序变化后索引会错位，路径保持稳定。
 import { Utils } from '../../../utils.js';
 import { DirectoryIcon } from '../../../services/directory-icon.js';
 
-/**
- * 处理文件夹折叠/展开切换
- * @param {Event} e - 点击事件
- * @param {HTMLElement} container - 目录树容器（用于派发自定义事件）
- */
+// 切换文件夹展开/收起
 export function handleFolderToggle(e, container) {
     const toggleIcon = e.target.closest('.toggle-icon[data-toggle="toggle"]');
     if (!toggleIcon) return;
@@ -22,7 +21,7 @@ export function handleFolderToggle(e, container) {
     childrenDiv.style.display = newDisplay;
     const arrowEl = toggleIcon.querySelector('.icon-pack-arrow');
     if (arrowEl) {
-      // 当前展开 → 点击后收起（r0 ▶）；当前收起 → 点击后展开（r90 ▼）
+      // 箭头方向随折叠态取反：展开态显示 ▶（点击将收起），收起态显示 ▼
       arrowEl.textContent = isVisible ? '▶' : '▼';
       arrowEl.classList.toggle('arrow-r0', isVisible);
       arrowEl.classList.toggle('arrow-r90', !isVisible);
@@ -33,14 +32,14 @@ export function handleFolderToggle(e, container) {
     const folderIcon = nodeLi.querySelector('.node-icon');
     if (folderIcon) DirectoryIcon.applyToElement(folderIcon, !isVisible);
 
-    // 使用唯一路径持久化
+    // 持久化折叠态（折叠 = 子树不可见）
     const nodePath = nodeLi.dataset.path;
     if (nodePath) {
         const isCollapsed = !isVisible;
         Utils.storage.set('folder-collapsed-' + nodePath, isCollapsed);
     }
 
-    // 派发事件以便其他模块监听（如需要）
+    // 派发事件供其他模块监听
     const event = new CustomEvent('directory-folder-toggled', {
         detail: { nodePath, isCollapsed: !isVisible }
     });

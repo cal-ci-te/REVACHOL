@@ -1,3 +1,6 @@
+// ！文章详情浮层
+// 浏览器式多标签阅读器：标签页 + 内容面板 + 最小化栏 + 全屏，支持贴纸原位渲染。
+// 标签条目同时可能「已最小化但无面板」（仅存于 localStorage），故渲染与恢复需分支处理。
 import { Article } from '../../models/article-model.js';
 import { ArticleService } from '../../services/article-service.js';
 import { ArticleListStore } from '../../stores/article-list-store.js';
@@ -19,6 +22,7 @@ export const UIDetail = {
   minimizedContainer: null,
   isFullscreen: false,
 
+  // 初始化浮层与全局事件
   init: function () {
     this.overlay = document.getElementById('detailOverlay');
     this.tabsContainer = document.getElementById('detailTabs');
@@ -33,6 +37,7 @@ export const UIDetail = {
     this._buildTopbar();
     this._createMinimizedBar();
 
+    // 点遮罩空白处关闭全部标签
     this.overlay.addEventListener(
       'click',
       function (e) {
@@ -40,6 +45,7 @@ export const UIDetail = {
       }.bind(this)
     );
 
+    // Esc 关闭全部；仅浮层处于激活态时响应，避免影响其他场景的 Esc
     document.addEventListener(
       'keydown',
       function (e) {
@@ -74,10 +80,11 @@ export const UIDetail = {
 
     console.log('[UIDetail] 初始化完成（浏览器式顶部栏 + 最小化栏 + 全屏）');
     setTimeout(() => { this._restoreMinimizedState(); }, 100);
-    // 文章数据加载完成后：清理失效的最小化标签（id 在当前数据中不存在）
+    // 文章数据加载后清理失效标签（id 已不在当前数据中）
     EventBus.on(EVENTS.ARTICLE_DATA_LOADED, this._pruneInvalidMinimized.bind(this));
   },
 
+  // 构建顶部栏
   _buildTopbar: function () {
     const container = this.tabsContainer.parentElement;
     // 用 detail-topbar 包裹 tabs + controls
@@ -113,6 +120,7 @@ export const UIDetail = {
     });
   },
 
+  // 创建最小化栏容器
   _createMinimizedBar: function () {
     const bar = document.createElement('div');
     bar.id = 'minimized-bar';
@@ -122,8 +130,10 @@ export const UIDetail = {
     this.minimizedContainer = bar;
   },
 
+  // 按 ID 打开详情
   openDetail: function (articleId) {
     let articles;
+    // 依次回退三种数据来源：Service 优先，Article 代理次之，静态数组兜底
     if (typeof ArticleService !== 'undefined' && ArticleService.getAllArticles) {
       articles = ArticleService.getAllArticles();
     } else if (Article && Article.getAllArticles) {
@@ -140,10 +150,11 @@ export const UIDetail = {
     this.createTab(article);
   },
 
+  // 新建或激活标签
   createTab: function (article) {
     const id = article.id;
 
-    // 去重：已存在激活则 focus，已最小化则恢复，都不存在才新建
+    // 去重：已激活则聚焦，已最小化则恢复，都没有才新建
     const existing = this.openArticles.find(function (e) { return e.id === id; });
     if (existing) {
       if (existing.isMinimized) {
@@ -216,14 +227,8 @@ export const UIDetail = {
     document.documentElement.style.overflow = "hidden"; document.body.style.overflow = "hidden";
   },
 
-  /**
-   * 渲染文章内容为 HTML。
-   * 统一使用 MarkdownUtils.toHTML()，与编辑器保持一致的渲染结果。
-   * 贴纸标记（<!-- sticker:xxx -->）保留在内容中，由 _renderStickersForArticle
-   * 通过 TreeWalker 原位替换为浮动贴纸元素。
-   * @param {string} text - 文章内容（Markdown 或 HTML）
-   * @returns {string} HTML
-   */
+  // 渲染文章内容为 HTML
+  // 统一走 MarkdownUtils，与编辑器保持一致；贴纸标记保留在内容中，由 _renderStickersForArticle 原位替换
   renderContent: function (text) {
     if (!text) return '';
     console.log('[UIDetail.renderContent] input len=' + (text ? text.length : 0) +
@@ -235,6 +240,7 @@ export const UIDetail = {
     return result;
   },
 
+  // 激活指定标签
   activateTab: function (id) {
     this.activeId = id;
     let isActiveNonMinimized = false;
@@ -258,6 +264,7 @@ export const UIDetail = {
     }
   },
 
+  // 最小化标签
   minimizeTab: function (id) {
     const entry = this.openArticles.find((item) => item.id === id);
     if (!entry || entry.isMinimized) return;
@@ -279,14 +286,16 @@ export const UIDetail = {
     }
   },
 
+  // 加入最小化栏
   _addToMinimizedBar: function (entry) {
     this._renderMinimizedBar();
   },
 
+  // 重绘最小化栏
   _renderMinimizedBar: function () {
     const bar = this.minimizedContainer;
     if (!bar) return;
-    // 清空并全量重渲染（保证顺序与 openArticles 一致）
+    // 清空后全量重渲染，保证顺序与 openArticles 一致
     bar.innerHTML = '';
     const minimized = this.openArticles.filter(function (e) { return e.isMinimized; });
     if (minimized.length === 0) {
@@ -323,6 +332,7 @@ export const UIDetail = {
     bar.scrollLeft = bar.scrollWidth;
   },
 
+  // 持久化最小化列表
   _saveMinimizedState: function () {
     const data = this.openArticles
       .filter(function (e) { return e.isMinimized; })
@@ -330,6 +340,8 @@ export const UIDetail = {
     Utils.storage.set('minimized_articles', data);
   },
 
+  // 恢复持久化的最小化列表
+  // 此时文章数据多半未加载，故条目暂不含 paneElement，待数据就绪后再按需重建
   _restoreMinimizedState: function () {
     const self = this;
     const data = Utils.storage.get('minimized_articles');
@@ -345,14 +357,14 @@ export const UIDetail = {
       });
     });
     this._renderMinimizedBar();
-    // 如果文章数据已就绪，立即清理失效的最小化标签
+    // 数据已就绪时立即清理失效标签
     this._pruneInvalidMinimized();
   },
 
-  /** 清理 openArticles 中已不存在的文章的失效最小化标签 */
+  // 清理失效的最小化标签
   _pruneInvalidMinimized: function () {
     const all = ArticleService.getAllArticles();
-    // 数据尚未就绪时暂不清理（避免误删正常标签）
+    // 数据未就绪时不清理，避免误删正常标签
     if (!all || all.length === 0) return;
     let changed = false;
     const self = this;
@@ -373,11 +385,12 @@ export const UIDetail = {
     }
   },
 
+  // 从最小化恢复
   restoreFromMinimize: function (id) {
     const entry = this.openArticles.find((item) => item.id === id);
     if (!entry || !entry.isMinimized) return;
 
-    // 持久化条目（无 paneElement）：先尝试获取文章数据
+    // 持久化条目无面板：需要拿到文章数据才能重建标签与面板
     if (!entry.paneElement) {
       const article = ArticleListStore.getArticleById(id);
       if (article) {
@@ -387,13 +400,12 @@ export const UIDetail = {
         this._renderMinimizedBar();
         this.createTab(article);
       } else {
-        // 判断数据是否已就绪
         const loaded = ArticleService.getAllArticles().length > 0;
         if (loaded) {
           // 数据已加载但文章不存在 → 清理失效标签，不留死标签
           this.closeTab(id);
         } else {
-          // 数据未就绪 → 保留最小化标签，等待加载后自动重试
+          // 数据未就绪 → 保留标签，等加载完成后自动重试
           this._retryRestoreAfterDataLoaded(id);
         }
       }
@@ -411,7 +423,7 @@ export const UIDetail = {
     this._saveMinimizedState();
   },
 
-  /** 文章数据加载后自动重试恢复最小化标签 */
+  // 数据加载后重试恢复
   _retryRestoreAfterDataLoaded: function (id) {
     const self = this;
     const retry = function () {
@@ -430,6 +442,7 @@ export const UIDetail = {
     EventBus.on(EVENTS.ARTICLE_DATA_LOADED, retry);
   },
 
+  // 切换全屏
   toggleFullscreen: function () {
     const isFullscreen = !!(document.fullscreenElement ||
       document.webkitFullscreenElement ||
@@ -443,6 +456,7 @@ export const UIDetail = {
     this._updateFullscreenButtons();
   },
 
+  // 请求全屏（兼容各浏览器前缀）
   _requestFullscreen: function () {
     const el = document.documentElement;
     if (el.requestFullscreen) el.requestFullscreen();
@@ -451,6 +465,7 @@ export const UIDetail = {
     else if (el.msRequestFullscreen) el.msRequestFullscreen();
   },
 
+  // 退出全屏（兼容各浏览器前缀）
   _exitFullscreen: function () {
     if (document.exitFullscreen) document.exitFullscreen();
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
@@ -458,10 +473,12 @@ export const UIDetail = {
     else if (document.msExitFullscreen) document.msExitFullscreen();
   },
 
+  // 全屏状态变更回调
   _onFullscreenChange: function () {
     this._updateFullscreenButtons();
   },
 
+  // 更新全屏按钮文案
   _updateFullscreenButtons: function () {
     const isFullscreen = !!(document.fullscreenElement ||
       document.webkitFullscreenElement ||
@@ -474,6 +491,7 @@ export const UIDetail = {
     });
   },
 
+  // 关闭单个标签
   closeTab: function (id) {
     const index = this.openArticles.findIndex((item) => item.id === id);
     if (index === -1) return;
@@ -507,6 +525,7 @@ export const UIDetail = {
     this._saveMinimizedState();
   },
 
+  // 关闭全部标签
   closeAll: function () {
     while (this.openArticles.length > 0) {
       const item = this.openArticles[0];
@@ -525,8 +544,8 @@ export const UIDetail = {
     if (document.fullscreenElement) this._exitFullscreen();
   },
 
-  /** 在阅读面板中渲染文章贴纸（从 article.stickers 或内容标记解析）。
-   *  委托 StickerRenderer 在标记原始位置替换为浮动贴纸元素。 */
+  // 渲染正文贴纸
+  // 贴纸需注入 .detail-body 内才能参与 float 与 shape-outside 绕排，注入 pane 会脱离正文流
   _renderStickersForArticle: function (article, pane) {
     if (!pane) return;
     // 清除旧贴纸
@@ -576,11 +595,13 @@ export const UIDetail = {
     });
   },
 
-  /** 从内容中解析贴纸标记（复用 StickerRenderer._MARKER_REGEX 统一正则，含 anchor 字段） */
+  // 解析内容中的贴纸标记
+  // 复用 StickerRenderer 的正则与解析函数，避免两套标记语法漂移
   _parseStickerMarkers: function (content) {
     const stickers = [];
     const regex = StickerRenderer._MARKER_REGEX;
-    regex.lastIndex = 0; // 重置全局正则状态（共享实例可能被其他模块使用后残留 lastIndex）
+    // 全局正则共享实例，重置 lastIndex 防止上次匹配位置残留
+    regex.lastIndex = 0;
     let match;
     while ((match = regex.exec(content)) !== null) {
       console.log('[UIDetail._parseStickerMarkers] 匹配到标记: index=' + match.index + ' | raw=' + match[0].substring(0, 80));

@@ -1,11 +1,16 @@
+// ！UI 公共辅助
+// 供各 UI 子模块复用的零散工具：卡片 ID、提示条、滚动定位、层级推断、文字混淆。
 import { CONFIG } from '../../config.js';
 import { UI } from '../../utils/ui-strings.js';
 
 export const UIHelpers = {
+  // 生成卡片 DOM ID
   generateCardId(articleId) {
     return `article-card-${articleId}`;
   },
 
+  // 显示节点警告提示（2s 自动消失）
+  // 复用单例：同屏只保留一条提示，避免连续操作时提示条叠成一摞
   showNodeWarning(message) {
     const existing = document.querySelector('.node-warning');
     if (existing) existing.remove();
@@ -34,6 +39,7 @@ export const UIHelpers = {
     setTimeout(() => msg.remove(), 2000);
   },
 
+  // 滚动到指定卡片并高亮
   scrollToElement(elementId) {
     const element = document.getElementById(elementId);
     if (element) {
@@ -43,6 +49,8 @@ export const UIHelpers = {
     }
   },
 
+  // 推断分类层级
+  // 支持两种历史写法：分隔符分段（a/b/c）与缩进空格，故需按顺序判定
   getCategoryLevel(categoryName) {
     if (!categoryName) return 1;
     const parts = categoryName.split(/[/\-—>]/).filter((p) => p.trim() !== '');
@@ -60,6 +68,8 @@ export const UIHelpers = {
     return 1;
   },
 
+  // 混淆文本（同形西里尔/全角字符）
+  // 用视觉同形字符而非编码/加密：目标只是提高复制门槛，仍需保持可读与可搜索
   obfuscateText(text) {
     if (!CONFIG.protection.enableObfuscation || !text) return text;
     const map = {
@@ -103,6 +113,8 @@ export const UIHelpers = {
       .join('');
   },
 
+  // 底部轻提示
+  // 动画样式只在首次调用时注入：避免每次弹提示都新建 <style> 节点
   showBottomToast(message, isWarning = false) {
     const toast = document.createElement('div');
     toast.className = 'bottom-toast';

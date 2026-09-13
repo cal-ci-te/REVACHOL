@@ -1,17 +1,10 @@
-// 超现实箱子拖拽处理 — 区分点击/拖拽（阈值 5px），管理员拖拽直接定位，普通用户拖拽后飞回。
-// 复用了 PuzzleDrag 的文档级事件绑定 + 清理模式，但简化了滑块特有的像素计算。
-const DRAG_THRESHOLD = 5; // px
+// ！魔法箱拖拽
+// 处理箱子的鼠标/触摸拖拽，并用 5px 阈值区分「点击」与「拖拽」。
+// 移动监听挂到 document 而非元素本身：指针移出箱子范围后仍要继续跟手。
+const DRAG_THRESHOLD = 5;
 
 export class BoxDrag {
-  /**
-   * @param {HTMLElement} element — 要绑定的箱子根元素
-   * @param {object} callbacks
-   * @param {Function} callbacks.onClick — 点击回调（非拖拽）
-   * @param {Function} callbacks.onDragStart — 拖拽开始（用于设置 grabbing 样式等）
-   * @param {Function} callbacks.onDragMove — (deltaX, deltaY, currentLeft, currentTop) 每次移动
-   * @param {Function} callbacks.onDragEnd — (finalLeft, finalTop, isAdmin) 拖拽释放
-   * @param {Function} callbacks.isAdmin — () => boolean 判断当前是否管理员
-   */
+  // element 为箱子根元素；callbacks 提供 onClick / onDragStart / onDragMove / onDragEnd / onContextMenu / isAdmin
   constructor(element, callbacks = {}) {
     this._el = element;
     this._onClick = callbacks.onClick || null;
@@ -28,12 +21,12 @@ export class BoxDrag {
     this._startLeft = 0;
     this._startTop = 0;
 
-    // 绑定到实例的方法引用（用于 removeEventListener）
+    // 保存绑定后的方法引用，removeEventListener 要求同一引用才生效
     this._onMouseDown = null;
     this._onTouchStart = null;
   }
 
-  /** 启用拖拽（绑定事件） */
+  // 启用拖拽
   enable() {
     if (this._enabled) return;
     if (!this._el) return;
@@ -41,12 +34,13 @@ export class BoxDrag {
     const self = this;
 
     this._onMouseDown = function (e) {
-      if (e.button !== 0) return; // 仅左键
+      if (e.button !== 0) return;
       e.preventDefault();
       self._startDrag(e.clientX, e.clientY);
     };
 
     this._onTouchStart = function (e) {
+      // 多指手势不参与拖拽，避免与页面缩放冲突
       if (e.touches.length !== 1) return;
       const touch = e.touches[0];
       self._startDrag(touch.clientX, touch.clientY);
@@ -66,7 +60,7 @@ export class BoxDrag {
     this._enabled = true;
   }
 
-  /** 禁用拖拽（移除事件，用于飞回动画期间） */
+  // 停用拖拽（飞回动画期间使用，避免用户中途再次拖起）
   disable() {
     if (!this._enabled) return;
     if (this._el) {
@@ -84,17 +78,16 @@ export class BoxDrag {
     this._dragging = false;
   }
 
-  /** 获取当前是否处于拖拽中 */
+  // 是否拖拽中
   get isDragging() { return this._dragging; }
 
-  // ------ 内部逻辑 ------
-
+  // 记录起点并开始跟踪
   _startDrag(clientX, clientY) {
     this._dragging = false;
     this._startX = clientX;
     this._startY = clientY;
 
-    // 读取当前元素实际视口位置（优先内联样式，回退 getBoundingClientRect 兼容 CSS right/bottom）
+    // 优先取内联 left/top；缺失时回退 rect，以兼容用 right/bottom 定位的样式
     const style = this._el ? this._el.style : {};
     let left = parseFloat(style.left);
     let top = parseFloat(style.top);
@@ -109,6 +102,7 @@ export class BoxDrag {
     this._bindDocumentEvents();
   }
 
+  // 绑定文档级移动/抬起监听
   _bindDocumentEvents() {
     const self = this;
     const getClient = (e) => {
@@ -122,8 +116,10 @@ export class BoxDrag {
       const dy = y - self._startY;
       const dist = Math.hypot(dx, dy);
 
+      // 首次超过阈值才进入拖拽态，此前只算候选
       if (!self._dragging && dist > DRAG_THRESHOLD) {
         self._dragging = true;
+        // 拖拽期间禁用文本选择，否则会选中沿途文字
         document.body.style.userSelect = 'none';
         document.body.style.webkitUserSelect = 'none';
         if (self._onDragStart) self._onDragStart();
@@ -146,10 +142,9 @@ export class BoxDrag {
       document.body.style.webkitUserSelect = '';
 
       if (!self._dragging) {
-        // 视为点击
+        // 未越过阈值 → 判为点击
         if (self._onClick) self._onClick();
       } else {
-        // 拖拽结束
         const { x, y } = getClient(e);
         const dx = x - self._startX;
         const dy = y - self._startY;
@@ -167,6 +162,7 @@ export class BoxDrag {
     document.addEventListener('touchend', onEnd);
   }
 
+  // 销毁并清空引用
   destroy() {
     this.disable();
     this._onClick = null;

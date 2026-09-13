@@ -1,7 +1,6 @@
-// CrewAI Token 消耗仪表盘组件。
-// 以 ComponentManager 标准组件形态接入：init 准备服务，mount 渲染 DOM + 订阅
-// EventBus（CREW_STATS / CREW_FINISHED），unmount 清理图表与订阅。
-// 图表优先使用全局 Chart.js；未加载时降级为纯 CSS 柱状图，两者均支持点击下钻。
+// ！Crew Token 消耗仪表盘
+// 以 ComponentManager 标准组件接入：init 准备服务，mount 渲染并订阅 CREW_STATS / CREW_FINISHED，unmount 销毁图表与订阅。
+// 优先用全局 Chart.js，未加载时降级为纯 CSS 柱状图，两者都支持点击下钻。
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
 import { CrewUsageService } from '../services/crew-usage-service.js';
@@ -9,7 +8,8 @@ import { Utils } from '../utils.js';
 
 const CHART_COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0'];
 
-// 官方价格（USD / 1M tokens，按 3:1 输入:输出加权混合参考价；倍率可在前端调整）
+// 官方价格（USD / 1M tokens，按 3:1 输入:输出加权混合参考价）
+// 价格写死在前端而非接口返回：接口只给 token 数，费用需要可离线计算以便管理员随时调倍率
 const MODEL_OFFICIAL_PRICE_PER_1M = {
   'deepseek-v4-pro': 0.54375,
   'deepseek-v4-flash': 0.175,
@@ -30,23 +30,29 @@ const AGENT_MODEL_MAP = {
 
 const PRICE_MULTIPLIER_STORAGE_KEY = 'crew_usage_price_multipliers';
 
+// 读取自定义倍率
 function loadPriceMultipliers() {
   try {
     return JSON.parse(localStorage.getItem(PRICE_MULTIPLIER_STORAGE_KEY) || '{}');
   } catch {
+    // 存储内容损坏时回落空表：倍率只是展示口径，不应因此让整个仪表盘报错
     return {};
   }
 }
 
+// 保存自定义倍率
 function savePriceMultipliers(multipliers) {
   try {
     localStorage.setItem(PRICE_MULTIPLIER_STORAGE_KEY, JSON.stringify(multipliers));
-  } catch { /* localStorage 不可用时忽略 */ }
+  } catch {
+    // 忽略：写入失败不影响当前会话的计价显示
+  }
 }
 
+// 归一化模型名
+// 不同供应商会给模型名带前缀（openai/、z-ai/ 等），去掉后才能统一查价格表
 function normalizeModelName(model) {
   if (!model) return '';
-  // 兼容 openai/glm-5.3-flash、z-ai/glm-5.3-flash 等带前缀的模型名
   return String(model)
     .trim()
     .replace(/^openai\//i, '')
@@ -55,6 +61,7 @@ function normalizeModelName(model) {
     .replace(/^glm\//i, '');
 }
 
+// 按 Agent 名解析模型
 function getModelForAgent(agentName, stats) {
   if (stats && stats[agentName] && stats[agentName].model) {
     return normalizeModelName(stats[agentName].model);
@@ -62,10 +69,12 @@ function getModelForAgent(agentName, stats) {
   return AGENT_MODEL_MAP[agentName] || '';
 }
 
+// 查询官方单价
 function getOfficialPrice(model) {
   return Number(MODEL_OFFICIAL_PRICE_PER_1M[normalizeModelName(model)]) || 0;
 }
 
+// 按倍率折算实际费用
 function getEffectivePrice(model, tokens, multipliers) {
   const normalized = normalizeModelName(model);
   const multiplier = Number(multipliers[normalized]) || 1;
@@ -86,7 +95,8 @@ function createComponent() {
     filters: { agents: [], models: [], providers: [] },
     selectedFilters: { agent: '', model: '', provider: '', groupBy: 'day' },
     dateRange: { startDate: '', endDate: '' },
-    drillDown: null, // { period, rows }
+    // 下钻面板状态，含 period 与 rows 两个字段
+    drillDown: null,
     loading: false,
     error: null,
     priceMultipliers: loadPriceMultipliers(),
@@ -94,16 +104,19 @@ function createComponent() {
     priceMultiplier: '1',
   };
 
+  // 登记事件并记录，卸载时统一退订
   function on(eventName, callback) {
     EventBus.on(eventName, callback);
     listeners.push({ eventName, callback });
   }
 
+  // 退订全部事件
   function cleanupListeners() {
     listeners.forEach(({ eventName, callback }) => EventBus.off(eventName, callback));
     listeners = [];
   }
 
+  // 加载筛选项
   async function loadFilters() {
     try {
       state.filters = await CrewUsageService.getFilterOptions();
@@ -112,6 +125,8 @@ function createComponent() {
     }
   }
 
+  // 加载统计数据
+  // silent 用于事件触发的静默刷新：不显示 loading 遮罩，避免执行中反复闪烁
   async function loadData(silent = false) {
     if (state.loading) return;
     if (!silent) state.loading = true;
@@ -148,6 +163,7 @@ function createComponent() {
     }
   }
 
+  // 格式化数量（K/M 缩写）
   function formatNumber(num) {
     const value = Number(num) || 0;
     if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
@@ -155,6 +171,7 @@ function createComponent() {
     return value.toString();
   }
 
+  // 构建下钻明细行
   function buildDrillRows(period) {
     const timeline = state.timeline || { periods: [], series: [] };
     const index = timeline.periods.indexOf(period);
@@ -165,17 +182,20 @@ function createComponent() {
       .sort((a, b) => b.tokens - a.tokens);
   }
 
+  // 下钻到指定时段
   function drillTo(period) {
     state.drillDown = { period, rows: buildDrillRows(period) };
     renderDrillDown();
   }
 
+  // 全量重绘
   function render() {
     if (!root) return;
     root.innerHTML = buildHTML();
     bindDOMEvents();
   }
 
+  // 构建整页 HTML
   function buildHTML() {
     const { overview, loading, error, selectedFilters, filters } = state;
     const totalTokens = overview?.totalTokens || 0;
@@ -183,7 +203,8 @@ function createComponent() {
     const totalRuns = overview?.totalRuns || 0;
     const totalAgents = overview?.totalAgents || 0;
 
-    // 按「官方价格 × 倍率」计算实际总费用（以 agent 维度 token 汇总）
+    // 按「官方价格 × 倍率」汇总实际总费用（以 agent 维度 token 为准）
+    // 无倍率配置时回退接口返回的总费用，保证与后端口径一致
     let effectiveTotalCost = 0;
     (state.agents || []).forEach((a) => {
       const model = getModelForAgent(a.agent, state.stats);
@@ -305,6 +326,7 @@ function createComponent() {
     `;
   }
 
+  // 渲染图表（Chart.js 或 CSS 降级）
   function renderChart() {
     if (!root) return;
     const canvas = root.querySelector('#usageChart');
@@ -324,6 +346,7 @@ function createComponent() {
     canvas.style.display = 'block';
     simpleContainer.style.display = 'none';
     const ctx = canvas.getContext('2d');
+    // 先销毁旧实例：重复 new Chart 会在同一 canvas 上叠图并泄漏
     if (chart) chart.destroy();
 
     const datasets = series.map((s, i) => {
@@ -382,6 +405,7 @@ function createComponent() {
     });
   }
 
+  // 渲染 CSS 降级图表
   function renderSimpleChart(container, periods, series) {
     const maxVal = Math.max(...series.flatMap((s) => s.data), 1);
     let html = '<div class="simple-chart">';
@@ -408,6 +432,7 @@ function createComponent() {
     });
   }
 
+  // 渲染下钻面板
   function renderDrillDown() {
     const container = root && root.querySelector('#usageDrillDown');
     if (!container) return;
@@ -439,6 +464,7 @@ function createComponent() {
     });
   }
 
+  // 绑定筛选与操作
   function bindDOMEvents() {
     if (!root) return;
 
@@ -453,6 +479,7 @@ function createComponent() {
     const priceModelSelect = root.querySelector('[data-price-model]');
     const priceMultiplierInput = root.querySelector('[data-price-multiplier]');
     if (priceModelSelect) {
+      // 切换模型时带出已保存的倍率，方便在此基础上微调
       priceModelSelect.addEventListener('change', (e) => {
         state.priceModel = e.target.value;
         const current = state.priceMultipliers[state.priceModel];
@@ -512,12 +539,14 @@ function createComponent() {
       unmountTimeout: 5000,
     },
 
+    // 准备服务
     init: async function () {
       console.log('[CrewUsage] init: 准备 CrewUsageService');
       await loadFilters();
       return {};
     },
 
+    // 渲染并订阅事件
     mount: async function (instance) {
       root = document.getElementById('crewUsageContainer');
       if (!root) {
@@ -539,6 +568,7 @@ function createComponent() {
       return instance;
     },
 
+    // 销毁图表并退订
     unmount: async function (instance) {
       cleanupListeners();
       if (chart) {

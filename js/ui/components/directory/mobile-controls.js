@@ -1,12 +1,10 @@
-
+// ！移动端位置控件
+// 移动端位置模式下悬浮在目录树顶部的「保存 / 取消」条。
+// 控件按单例持有：目录树重绘会丢失节点，故需 destroy 后按需 recreate。
 let _controlsInstance = null;
 
-/**
- * 创建移动端控件
- * @param {HTMLElement} container - 目录树容器
- * @param {Object} callbacks - { onSave, onCancel }
- * @returns {HTMLElement} 控件元素
- */
+// 创建控件
+// 已存在则直接复用：重绘时重复创建会在页面上叠出多条控件
 export function createMobileControls(container, callbacks) {
     if (document.getElementById('mobilePositionControls')) {
         return document.getElementById('mobilePositionControls');
@@ -24,6 +22,7 @@ export function createMobileControls(container, callbacks) {
         </div>
     `;
 
+    // 插到目录树之前：定位依赖 CSS 的兄弟关系，插入到内部会被滚动区裁掉
     container.parentNode.insertBefore(controls, container);
 
     controls.querySelector('.mobile-pos-save').addEventListener('click', () => {
@@ -37,27 +36,21 @@ export function createMobileControls(container, callbacks) {
     return controls;
 }
 
-/**
- * 显示移动端控件
- */
+// 显示控件
 export function showMobileControls() {
     if (_controlsInstance) {
         _controlsInstance.style.display = 'block';
     }
 }
 
-/**
- * 隐藏移动端控件
- */
+// 隐藏控件（保留 DOM，仅收起）
 export function hideMobileControls() {
     if (_controlsInstance) {
         _controlsInstance.style.display = 'none';
     }
 }
 
-/**
- * 销毁移动端控件
- */
+// 销毁控件并清空单例
 export function destroyMobileControls() {
     if (_controlsInstance) {
         _controlsInstance.remove();
@@ -65,9 +58,7 @@ export function destroyMobileControls() {
     }
 }
 
-/**
- * 重建移动端控件（在目录树重新渲染后调用）
- */
+// 重建控件（目录树重绘后调用）
 export function recreateMobileControls(container, callbacks) {
     destroyMobileControls();
     return createMobileControls(container, callbacks);

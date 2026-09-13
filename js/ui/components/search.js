@@ -1,3 +1,6 @@
+// ！搜索
+// 搜索框交互与目录树过滤：Enter 触发搜索，上下键导航，Esc 退出。
+// 搜索结果由 ArticleListStore 派生，本模块只负责输入事件与占位符文案。
 import { UIArticles } from './articles.js';
 import { UIDirectory } from './directory.js';
 import { UIHelpers } from './helpers.js';
@@ -12,6 +15,7 @@ export const UISearch = {
     searchKeyword: '',
     directoryTreeContainer: null,
 
+    // 初始化
     init(searchInputEl, treeContainer) {
         console.log('[UISearch] 初始化...');
         this.searchInput = searchInputEl;
@@ -20,12 +24,14 @@ export const UISearch = {
         console.log('[UISearch] 初始化完成');
     },
 
+    // 绑定输入事件
     bindEvents() {
         if (!this.searchInput) {
             console.warn('[UISearch] 搜索框元素不存在');
             return;
         }
 
+        // 解锁搜索框：初始态被禁用，避免数据未就绪时误输入
         this.searchInput.disabled = false;
         this.searchInput.style.pointerEvents = 'auto';
         this.searchInput.style.opacity = '1';
@@ -92,9 +98,8 @@ export const UISearch = {
         console.log('[UISearch] 事件绑定完成');
     },
 
-    /**
-     * 执行搜索（按 Enter 触发），过滤目录树，并通知 ArticleListStore 进入搜索模式
-     */
+    // 执行搜索（按 Enter 触发）
+    // 目录树与列表都进入过滤模式：关键词同时传给两者，保持两处结果一致
     performSearch(keyword) {
         if (!keyword || keyword.length < 1) {
             this.clearSearch();
@@ -102,13 +107,11 @@ export const UISearch = {
         }
 
         this.searchKeyword = keyword;
-        // 更新目录树，传入关键字进行过滤
         UIDirectory.updateTree(keyword);
 
-        // ★★★ 通知 ArticleListStore 进入搜索模式，由它自己从 ArticleService 派生数据 ★★★
         ArticleListStore.setSearchMode(keyword);
 
-        // 更新搜索框占位（显示结果数量）
+        // 占位符显示结果数：输入框本身不放结果列表，用户只能从这里感知命中量
         if (this.searchInput) {
             const count = ArticleListStore.getDisplayArticles().length;
             this.searchInput.placeholder = UI.common.searchResultCount(count) + ' (按 Enter 搜索)';
@@ -120,17 +123,14 @@ export const UISearch = {
         console.log('[UISearch] 执行搜索:', keyword);
     },
 
-    /**
-     * 清空搜索，恢复原始目录树和文章列表
-     */
+    // 退出搜索
     clearSearch() {
         this.searchKeyword = '';
         if (this.searchInput) {
             this.searchInput.placeholder = UI.common.searchPlaceholder;
         }
-        // 恢复目录树（无过滤）
+        // 传 null 恢复无过滤的完整目录树
         UIDirectory.updateTree(null);
-        // ★★★ 退出搜索模式 ★★★
         ArticleListStore.exitSearchMode();
         this.clearSearchHighlights();
         this.searchResults = [];
@@ -138,20 +138,23 @@ export const UISearch = {
         console.log('[UISearch] 清空搜索');
     },
 
+    // 上下键导航
+    // 过滤模式下不维护结果列表，因此仅提示用户改用可见结果点击
     navigateSearchResult(direction) {
-        // 此功能在过滤模式下可能仍有用，但当前我们未存储搜索结果列表
-        // 简化提示
         Utils.showToast(UI.toast.searchNavigationSimplified, false);
     },
 
+    // 清除搜索高亮
     clearSearchHighlights() {
         if (!this.directoryTreeContainer) return;
         const highlights = this.directoryTreeContainer.querySelectorAll('.tree-node-content.search-highlight');
         highlights.forEach(el => el.classList.remove('search-highlight'));
     },
 
+    // 展开全部文件夹
+    // 图标同时存在新旧两种写法（图标包 <span> 与纯文本），故两路都要处理
     expandSearchResults() {
-        // 在过滤模式下，展开所有文件夹
+        // 无关键词时不展开：空白搜索下文件夹状态由用户自己控制
         if (!this.searchKeyword) return;
         const allFolders = this.directoryTreeContainer.querySelectorAll('.tree-node.folder');
         allFolders.forEach(folder => {

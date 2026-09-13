@@ -1,12 +1,13 @@
+// ！目录树渲染
+// 生成目录树的 HTML 字符串（含搜索过滤、折叠态、图标与管理员可见性开关）。
+// 每个节点带 data-path 唯一路径：折叠态与图标都以路径为键，避免同名文件夹互相干扰。
 import { Utils } from '../../../utils.js';
 import { AppState } from '../../../core/app-state.js';
 import { Article } from '../../../models/article-model.js';
 import { UI } from '../../../utils/ui-strings.js';
 import { DirectoryIcon } from '../../../services/directory-icon.js';
 
-/**
- * 检查文章是否匹配关键字（标题或内容）
- */
+// 判断文章是否命中关键词（标题或正文）
 function articleMatches(article, keyword) {
     if (!keyword) return true;
     const lower = keyword.toLowerCase();
@@ -14,10 +15,8 @@ function articleMatches(article, keyword) {
            (article.content && article.content.toLowerCase().includes(lower));
 }
 
-/**
- * 递归构建带过滤的树节点
- * 返回 { node, shouldShow }
- */
+// 递归构建带过滤的树节点
+// 返回 { node, shouldShow }；文件夹名命中时保留全部子节点，只有子节点命中时才裁剪子树
 function buildFilteredNode(node, keyword, articleMap) {
     if (!keyword) {
         return { node, shouldShow: true };
@@ -38,7 +37,7 @@ function buildFilteredNode(node, keyword, articleMap) {
             }
         }
         if (nameMatch) {
-            // 文件夹名匹配，显示该文件夹（即使子节点为空也显示）
+            // 文件夹名命中时保留全部子节点：用户搜的是文件夹，期望看到其完整内容
             const allChildren = node.children || [];
             return {
                 node: {
@@ -71,13 +70,8 @@ function buildFilteredNode(node, keyword, articleMap) {
     }
 }
 
-/**
- * 渲染目录树
- * @param {Array} nodes - 树节点数组
- * @param {number} level - 缩进层级
- * @param {string|null} filterKeyword - 过滤关键字
- * @param {string} parentPath - 父级路径（用于唯一标识文件夹）
- */
+// 渲染目录树
+// parentPath 逐层累积为唯一路径，是折叠态与图标查询的键
 export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = '') {
     if (!nodes || nodes.length === 0) {
         return `<div style="padding: 16px; color: var(--color-text-muted); text-align: center;">${UI.directory.emptyTree}</div>`;
@@ -88,7 +82,7 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
     const articleMap = {};
     articles.forEach(a => { articleMap[a.id] = a; });
 
-    // 如果有过滤关键字，先过滤节点
+    // 过滤时先递归裁剪树，整棵树都无命中则直接返回空态
     let filteredNodes = nodes;
     if (filterKeyword) {
         const result = nodes.map(node => buildFilteredNode(node, filterKeyword, articleMap))
@@ -100,10 +94,11 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
         }
     }
 
+    // 管理员才渲染可见性开关与拖放区
     const isAdmin = AppState.get('isLoggedIn');
     let html = '<ul style="list-style: none; padding-left: 0;">';
     for (const node of filteredNodes) {
-        // ★★★ 构建唯一路径 ★★★
+        // 唯一路径（父路径 + 自身名）：同名文件夹分散在不同层级时不会共用折叠态
         const nodePath = parentPath ? parentPath + '/' + node.name : node.name;
         
         const nodeId = node.type === 'folder'
@@ -112,14 +107,13 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
         const isFolder = node.type === 'folder';
         const hasChildren = isFolder && node.children && node.children.length > 0;
         
-        // ★★★ 使用唯一路径作为存储键 ★★★
         const storageKey = 'folder-collapsed-' + nodePath;
         const stored = Utils.storage.get(storageKey);
-        // 默认展开（false）
+        // 未存过时默认展开：收起状态比展开更容易让用户以为「目录是空的」
         const isCollapsed = stored !== null ? stored : false;
         console.log(`[renderTree] ${nodePath} => isCollapsed=${isCollapsed} (stored=${stored})`);
 
-        // 文件夹节点支持自定义图标（DirectoryIcon 单例）；文章节点保持内置 emoji
+        // 文件夹走 DirectoryIcon 单例（支持自定义图标），文章节点固定用内置 emoji
         const iconHtml = isFolder
             ? DirectoryIcon.renderIconHtml(isCollapsed)
             : `<span class="node-icon">${UI.directory.articleIcon}</span>`;
@@ -136,6 +130,7 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
         }
 
         const indent = level * 16;
+        // draggable 恒为 false：拖拽由 drag-drop.js 手动接管，用原生 HTML5 拖拽会与自定义实现冲突
         html += `<li class="tree-node ${isFolder ? 'folder' : 'article'}" 
                     data-node-id="${nodeId}" 
                     data-type="${node.type}" 
@@ -147,7 +142,7 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
                     style="padding-left:${indent}px;">`;
         html += `<div class="tree-node-content" data-node-id="${nodeId}">`;
 
-        // ★★★ 为文件夹的 toggle-icon 添加 data-folder 属性 ★★★
+        // 空文件夹用 📭 且不可点：没有子节点时给可点箭头会误导用户
         if (isFolder && hasChildren) {
             const toggleIconHTML = isCollapsed
                 ? '<span class="icon-pack-arrow arrow-r0">▶</span>'
@@ -172,7 +167,7 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
         html += '</div>';
 
         if (isFolder && hasChildren) {
-            // ★★★ 传递 nodePath 给子节点 ★★★
+            // 子层沿用 nodePath 继续累积，保证深层节点路径全局唯一
             const childHtml = renderTree(node.children, level + 1, filterKeyword, nodePath);
             const displayStyle = isCollapsed ? 'none' : 'block';
             html += `<div class="children" style="display: ${displayStyle}; padding-left:${level * 8}px;">${childHtml}</div>`;
@@ -184,7 +179,7 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
     }
     html += '</ul>';
 
-    // 底部空白放置区（仅管理员可见）
+    // 底部空白放置区（管理员可拖到此处移出分类）
     let dropzoneHtml = '';
     if (AppState.get('isLoggedIn')) {
         dropzoneHtml = `

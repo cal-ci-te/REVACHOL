@@ -1,3 +1,6 @@
+// ！贴纸管理面板
+// 管理员贴图库的列表渲染与操作按钮（切换定位/复制/重命名/编辑位置/下载/删除）。
+// 订阅 DECO_LIBRARY_CHANGED 自动重绘：所有写操作都经 DecoShelf 触发该事件，UI 无需在每处手动刷新。
 import { DecoShelf } from '../../services/deco.js';
 import { DecoEdit } from '../../services/deco-edit.js';
 import { Utils } from '../../utils.js';
@@ -9,6 +12,7 @@ export const DecoShelfUI = {
   _container: null,
   _initialized: false,
 
+  // 初始化
   init: function (container) {
     if (!container) {
       console.error('[DecoShelfUI] 容器元素不存在，初始化失败');
@@ -16,6 +20,7 @@ export const DecoShelfUI = {
     }
 
     if (this._initialized) {
+      // 面板被重建后容器已换新：只更新引用并重绘，不重复订阅事件
       console.log('[DecoShelfUI] 更新容器引用');
       this._container = container;
       this._container.style.minHeight = '60px';
@@ -38,6 +43,7 @@ export const DecoShelfUI = {
     this.render();
   },
 
+  // 渲染列表
   render: function () {
     if (!this._container) {
       console.warn('[DecoShelfUI] 容器未初始化，无法渲染');
@@ -95,7 +101,7 @@ export const DecoShelfUI = {
 
     this._container.innerHTML = html;
 
-    // 动态预览图：模板中不再写内联 style，渲染后从 data-preview 应用背景图
+    // 预览图经 data-preview 二次赋值：dataUrl 含引号与逗号，直接内联到 style 会破坏 HTML 属性
     this._container.querySelectorAll('.asset-preview-box[data-preview]').forEach((el) => {
       el.style.backgroundImage = el.dataset.preview;
     });
@@ -104,6 +110,8 @@ export const DecoShelfUI = {
     this._bindEvents();
   },
 
+  // 绑定卡片操作按钮
+  // 事件绑定在容器内的按钮上，容器每次 render 都会重建，故无需手动解绑
   _bindEvents: function () {
     const container = this._container;
     if (!container) return;
@@ -148,6 +156,7 @@ export const DecoShelfUI = {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const id = btn.dataset.id;
+        // 已有其他贴纸在编辑中则先退出，避免两套控制点与工具栏叠加
         if (DecoEdit.isActive()) {
             if (DecoEdit.getActiveDecoId() === id) return;
             DecoEdit.exitEditMode(false);
@@ -178,6 +187,8 @@ export const DecoShelfUI = {
     });
   },
 
+  // 销毁
+  // 用替换节点而非 remove：容器由外部持有，删掉会让宿主的后续引用落空
   destroy: function () {
     if (!this._initialized) return;
     if (this._container) {
@@ -185,6 +196,7 @@ export const DecoShelfUI = {
       this._container.parentNode.replaceChild(newContainer, this._container);
       this._container = newContainer;
     }
+    // 退订时不传回调：本模块只注册了一个 DECO_LIBRARY_CHANGED 监听
     EventBus.off(EVENTS.DECO_LIBRARY_CHANGED);
     this._initialized = false;
     console.log('[DecoShelfUI] 已销毁');

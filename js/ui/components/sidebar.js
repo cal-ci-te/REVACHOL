@@ -1,3 +1,6 @@
+// ！侧边栏
+// 目录侧边栏的折叠状态与拖拽定位，位置与折叠态持久化在 localStorage。
+// 用阈值（桌面 5px / 移动 10px）区分点击与拖拽：低于阈值不算拖拽，避免误触发位置保存。
 import { Utils } from '../../utils.js';
 import { DirectoryIcon } from '../../services/directory-icon.js';
 
@@ -17,8 +20,10 @@ export const Sidebar = {
   sidebarTop: 80,
   sidebarCollapsed: true,
 
+  // 拖拽判定阈值（px）
   currentThreshold: 5,
 
+  // 初始化
   init: function (sidebarEl, overlayEl, treeContainer) {
     console.log('[Sidebar] 初始化...');
     this.sidebar = sidebarEl;
@@ -35,6 +40,8 @@ export const Sidebar = {
     console.log('[Sidebar] 初始化完成');
   },
 
+  // 读取折叠态
+  // 移动端强制 top=68：避开顶部固定栏，否则侧边栏会被遮挡
   loadState: function () {
     const saved = Utils.storage.get('sidebar_state');
     const isMobile = window.innerWidth <= 768;
@@ -48,6 +55,7 @@ export const Sidebar = {
     }
   },
 
+  // 保存折叠态
   saveState: function () {
     Utils.storage.set('sidebar_state', {
       collapsed: this.sidebarCollapsed,
@@ -56,6 +64,7 @@ export const Sidebar = {
     });
   },
 
+  // 读取位置
   loadPosition: function () {
     const saved = Utils.storage.get('sidebar_position');
     if (saved) {
@@ -64,6 +73,7 @@ export const Sidebar = {
     }
   },
 
+  // 保存位置
   savePosition: function () {
     Utils.storage.set('sidebar_position', {
       left: this.sidebarLeft,
@@ -71,6 +81,8 @@ export const Sidebar = {
     });
   },
 
+  // 应用位置
+  // 同时清掉 right/bottom 与 transform：历史样式可能残留定位方式，不清理会偏移
   applyPosition: function () {
     if (!this.sidebar) return;
     this.sidebar.style.left = this.sidebarLeft + 'px';
@@ -82,6 +94,7 @@ export const Sidebar = {
     this.sidebar.style.cursor = 'default';
   },
 
+  // 应用折叠态
   applyCollapsedState: function () {
     if (!this.sidebar) return;
     const titleEl = this.sidebar.querySelector('.sidebar-header h3');
@@ -123,6 +136,7 @@ export const Sidebar = {
       if (searchContainer2) {
         searchContainer2.style.display = 'block';
       }
+      // 展开后延迟聚焦搜索框：等折叠动画结束后再聚焦，否则可能失焦
       setTimeout(function () {
         const searchInput = document.getElementById('sidebarSearchInput');
         if (searchInput) searchInput.focus();
@@ -133,16 +147,19 @@ export const Sidebar = {
       header.style.cursor = 'grab';
     }
 
-    // 应用自定义目录本身图标（默认 📜 / 📜 目录）
+    // 应用自定义目录本身图标
     DirectoryIcon.applyHeaderIcon();
   },
 
+  // 切换折叠
   toggleCollapse: function () {
     this.sidebarCollapsed = !this.sidebarCollapsed;
     this.applyCollapsedState();
     this.saveState();
   },
 
+  // 绑定拖拽事件
+  // 全部用 bind(this)：监听器挂在 document 上，运行时的 this 会变成 document
   bindEvents: function () {
     if (!this.sidebar) return;
 
@@ -168,9 +185,11 @@ export const Sidebar = {
     console.log('[Sidebar] 拖拽事件已绑定');
   },
 
+  // 鼠标开始拖拽
   startDrag: function (e) {
     if (e.button !== 0) return;
 
+    // 仅允许从标题栏拖拽，且避开按钮/输入框/目录节点，否则会与点击操作冲突
     const header = this.sidebar.querySelector('.sidebar-header');
     if (!header || !header.contains(e.target)) return;
     if (e.target.closest('button') || e.target.closest('input')) return;
@@ -195,10 +214,12 @@ export const Sidebar = {
     e.preventDefault();
   },
 
+  // 触摸开始拖拽
   startDragTouch: function (e) {
     const touch = e.touches[0];
     if (!touch) return;
 
+    // 仅允许从标题栏拖拽，且避开按钮/输入框/目录节点，否则会与点击操作冲突
     const header = this.sidebar.querySelector('.sidebar-header');
     if (!header || !header.contains(e.target)) return;
     if (e.target.closest('button') || e.target.closest('input')) return;
@@ -225,6 +246,8 @@ export const Sidebar = {
     e.preventDefault();
   },
 
+  // 鼠标拖拽中
+  // 首次超过阈值才置 isDragging：用于区分「点击标题栏」与「拖拽标题栏」
   onDrag: function (e) {
     if (!this.isDraggingSidebar) return;
 
@@ -252,6 +275,7 @@ export const Sidebar = {
     this.sidebar.style.transform = 'none';
   },
 
+  // 触摸拖拽中
   onDragTouch: function (e) {
     if (!this.isDraggingSidebar) return;
     const touch = e.touches[0];
@@ -283,6 +307,8 @@ export const Sidebar = {
     e.preventDefault();
   },
 
+  // 结束拖拽
+  // 延迟复位拖拽标记：click 事件晚于 mouseup 派发，立即复位会让点击被当成拖拽拦掉
   stopDrag: function () {
     if (this.isDraggingSidebar) {
       this.isDraggingSidebar = false;
@@ -305,14 +331,18 @@ export const Sidebar = {
     }
   },
 
+  // 是否刚发生过拖拽
+  // 供目录节点点击判断：拖拽结束时不应触发点击展开
   wasDragAction: function () {
     return this.isDragging || this._dragOccurred;
   },
 
+  // 是否正在拖拽
   isDragAction: function () {
     return this.isDragging;
   },
 
+  // 复位拖拽状态
   resetDragState: function () {
     this.isDragging = false;
     this._dragOccurred = false;

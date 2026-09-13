@@ -1,4 +1,6 @@
-// 工具栏「图标键名参考」文档：三个主题 tab 可切换，灰/绿显示自定义状态。
+// ！图标键名参考文档
+// 工具栏内的图标键名速查表，按 dark/light/lofi 三个 tab 切换；默认图标灰点、已自定义绿点。
+// 主题 tab 用 ThemeService 当前主题初始化：管理员打开文档时通常正在改当前主题的图标。
 import { IconPackService } from '../../services/icon-pack-service.js';
 import { ICON_PACK_KEYS, ICON_PACK_THEME_IDS } from '../../services/icon-pack-keys.js';
 import { EventBus } from '../../core/event-bus.js';
@@ -11,6 +13,7 @@ export const IconPackDoc = {
   _currentTheme: 'dark',
   _onChanged: null,
 
+  // 渲染文档骨架
   async render(container) {
     this.destroy();
     if (!container) return;
@@ -48,6 +51,7 @@ export const IconPackDoc = {
     await this._renderKeyList();
   },
 
+  // 绑定主题切换 tab
   _bindTabs() {
     if (!this._container) return;
     this._container.querySelectorAll('.icon-pack-doc-tab').forEach((tab) => {
@@ -59,6 +63,7 @@ export const IconPackDoc = {
     });
   },
 
+  // 渲染键名列表
   async _renderKeyList() {
     if (!this._container) return;
     const listEl = this._container.querySelector('.icon-pack-doc-keys');
@@ -74,6 +79,7 @@ export const IconPackDoc = {
       this._renderGroup(UI.iconPack.docGroupBox, boxKeys, active);
   },
 
+  // 渲染单个分组
   _renderGroup(title, keys, active) {
     if (!keys.length) return '';
     return `
@@ -94,6 +100,7 @@ export const IconPackDoc = {
     `;
   },
 
+  // 销毁并退订
   destroy() {
     if (this._onChanged) {
       EventBus.off(EVENTS.ICON_PACKS_CHANGED, this._onChanged);

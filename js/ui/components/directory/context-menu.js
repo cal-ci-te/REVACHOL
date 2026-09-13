@@ -1,3 +1,6 @@
+// ！目录右键菜单
+// 目录节点的右键/长按菜单及其全部管理操作（编辑、重命名、新建、删除文章/文件夹）。
+// 菜单项按节点类型（文章/文件夹/空白）三套下发；操作完成后统一重绘目录树。
 import { Utils } from '../../../utils.js';
 import { Article } from '../../../models/article-model.js';
 import { ArticleService } from '../../../services/article-service.js';
@@ -6,24 +9,24 @@ import { EVENTS } from '../../../core/event-constants.js';
 import { ApiClient } from '../../../services/api-client.js';
 import { UI } from '../../../utils/ui-strings.js';
 
-/**
- * 发送 BroadcastChannel 消息
- */
+// 广播变更到其他标签页
 function broadcastChange(type, payload) {
     try {
         const channel = new BroadcastChannel('revachol');
         channel.postMessage({ type, payload });
         channel.close();
     } catch (e) {
-        // 忽略
+        // 忽略：BroadcastChannel 不可用（旧浏览器/隐私模式）不影响本页操作
     }
 }
 
+// 显示右键菜单
 export function showContextMenu(x, y, type, name, articleId, nodeLi, updateTreeFn) {
-    // 移除旧菜单
+    // 同屏只保留一个菜单，避免连续右键叠出多个
     const oldMenu = document.getElementById('directory-context-menu');
     if (oldMenu) oldMenu.remove();
 
+    // 新建项要落到正确分类：文章取自身分类，文件夹取自身名
     let folderForNew = name;
     if (type === 'article' && articleId) {
         const article = Article.allArticles.find(a => a.id === articleId);
@@ -74,6 +77,7 @@ export function showContextMenu(x, y, type, name, articleId, nodeLi, updateTreeF
         div.addEventListener('mouseleave', function () {
             this.style.background = 'transparent';
         });
+        // 点击后立即移除菜单：操作都是异步的，留着菜单会挡住后续确认框
         div.addEventListener('click', (e) => {
             e.stopPropagation();
             handleContextAction(item.action, item.data, nodeLi, updateTreeFn);
@@ -84,19 +88,21 @@ export function showContextMenu(x, y, type, name, articleId, nodeLi, updateTreeF
 
     document.body.appendChild(menu);
 
+    // 点击菜单外部关闭
     const closeMenu = function (e) {
         if (!menu.contains(e.target)) {
             menu.remove();
             document.removeEventListener('click', closeMenu);
         }
     };
+    // 延后一帧绑定：本次右键仍处于冒泡阶段，立即绑定会被同一次事件立刻关掉
     setTimeout(() => document.addEventListener('click', closeMenu), 0);
 }
 
+// 执行菜单操作
 async function handleContextAction(action, data, nodeLi, updateTreeFn) {
-    // ---- 编辑文章 → 内联编辑模式 ----
+    // 编辑文章 → 内联编辑模式（编辑器挂在全局命名空间，故走 window 取用）
     if (action === 'edit-article') {
-        // 通过全局命名空间访问 ArticleEditorMode
         const AEM = window.__REVACHOL__ && window.__REVACHOL__.ArticleEditorMode;
         if (AEM && typeof AEM.open === 'function') {
             AEM.open(data);
@@ -106,7 +112,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
         return;
     }
 
-    // ---- 重命名文章 ----
+    // 重命名文章
     if (action === 'rename-article') {
         const newName = prompt(UI.deco.renamePrompt);
         if (newName && newName.trim()) {
@@ -130,11 +136,12 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
         return;
     }
 
-    // ---- 删除文章 ----
+    // 删除文章
     if (action === 'delete-article') {
         console.log('[ContextMenu] 删除文章，传入 data (articleId):', data);
         if (!confirm(UI.notification.articleDeleteConfirm || '确定要删除这篇文章吗？')) return;
         const all = ArticleService.getAllArticles();
+        // 先确认文章仍存在：菜单打开期间数据可能已被其他标签页改动，直接删会 404
         if (!all.some(a => a.id === data)) {
             Utils.showToast(UI.toast.articleIdExpired, true);
             return;
@@ -156,7 +163,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
         return;
     }
 
-    // ---- 新建文件夹（根目录） ----
+    // 新建文件夹（根目录）
     if (action === 'new-folder-root') {
         const folderName = prompt(UI.directory.menuNewFolder + '：');
         if (!folderName || !folderName.trim()) return;
@@ -170,7 +177,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
         return;
     }
 
-    // ---- 新建子文件夹 ----
+    // 新建子文件夹
     if (action === 'new-folder-inside' && data) {
         const folderName = prompt(UI.directory.menuNewFolder + '（在 "' + data + '" 下）：');
         if (!folderName || !folderName.trim()) return;
@@ -184,7 +191,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
         return;
     }
 
-    // ---- 新建文章 ----
+    // 新建文章（根目录或指定文件夹）
     if (action === 'new-article-root' || action === 'new-article-in-folder') {
         let category = '未分类';
         if (action === 'new-article-in-folder' && data) {
@@ -211,6 +218,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
             console.log('[ContextMenu] 新文章 ID:', newArticle.id);
 
             const allArticles = ArticleService.getAllArticles();
+            // 手动塞进缓存：接口返回的正文列表可能尚未包含新文章，先补上避免刷新间隙查不到
             ArticleService.addArticleToCache(newArticle);
             if (newArticle.id > 0) {
                 console.log('[ContextMenu] 已手动将新文章插入缓存，当前文章 ID 列表:', allArticles.map(a => a.id));
@@ -235,7 +243,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
         return;
     }
 
-    // ---- 重命名文件夹 ----
+    // 重命名文件夹
     if (action === 'rename-folder') {
         const newName = prompt(UI.directory.menuRenameFolder + '：', data);
         if (newName && newName.trim() && newName.trim() !== data) {
@@ -253,6 +261,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
             const oldId = cat.id;
             cat.id = trimmed;
             cat.name = trimmed;
+            // 分类 id 即分类名，改名后需同步文章与子分类的引用，否则原分类下的文章会变孤儿
             const articles = Article.allArticles.filter(a => a.category === oldId);
             articles.forEach(a => a.category = trimmed);
             ArticleService.reparentCategoryChildren(oldId, trimmed);
@@ -274,7 +283,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
         return;
     }
 
-    // ---- 删除文件夹（仅文件夹） ----
+    // 删除文件夹（仅文件夹，文章与子目录上移）
     if (action === 'delete-folder-only') {
         if (!confirm(UI.directory.menuDeleteFolderOnly + '？')) return;
         const cat = ArticleService.findCategoryById(data);
@@ -282,6 +291,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
             Utils.showToast(UI.toast.folderNotFound, true);
             return;
         }
+        // 子目录提到根级、文章归入未分类，保留内容只删空壳
         const children = ArticleService.getCategoryChildren(data);
         children.forEach(c => c.parent = null);
         const articles = Article.allArticles.filter(a => a.category === data);
@@ -304,7 +314,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
         return;
     }
 
-    // ---- 删除文件夹及所有内容 ----
+    // 删除文件夹及其全部内容
     if (action === 'delete-folder-with-articles') {
         if (!confirm(UI.directory.menuDeleteFolderWithArticles + '？')) return;
         const cat = ArticleService.findCategoryById(data);
@@ -312,6 +322,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
             Utils.showToast(UI.toast.folderNotFound, true);
             return;
         }
+        // 递归收集自身与全部后代的分类 id，用于连根删除
         const getDescendantIds = (id) => {
             const children = ArticleService.getCategoryChildren(id);
             let ids = [id];
@@ -337,7 +348,7 @@ async function handleContextAction(action, data, nodeLi, updateTreeFn) {
     }
 }
 
-// 监听登出：关闭所有打开的右键菜单
+// 监听登出：关闭已打开的右键菜单（含贴纸菜单），避免登出后仍可操作
 EventBus.on(EVENTS.AUTH_LOGGED_OUT, () => {
     const dirMenu = document.getElementById('directory-context-menu');
     if (dirMenu) dirMenu.remove();

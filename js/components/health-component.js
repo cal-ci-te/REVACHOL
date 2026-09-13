@@ -1,6 +1,5 @@
-// 健康监控组件适配器
-// 将 HealthMonitor 包装为 ComponentManager 标准组件。
-// init: 初始化监控指示器。mount: 启动自动轮询。unmount: 停止轮询并清理。
+// ！健康监控组件适配
+// 把 HealthMonitor 包装成 ComponentManager 标准组件：组件只管启停时机，探测与退避逻辑在 service 层。
 import { HealthMonitor } from '../services/health-monitor.js';
 
 export var healthComponent = {
@@ -12,12 +11,15 @@ export var healthComponent = {
     requiresAuth: false,
   },
 
+  // 初始化监控
   init: async function () {
     HealthMonitor.init();
     console.log('[health-component] init: 监控已初始化');
     return HealthMonitor;
   },
 
+  // 启动自动轮询
+  // 延迟 1s 启动：首屏资源与文章请求优先，避免健康探测抢占带宽
   mount: async function (instance) {
     return new Promise(function (resolve) {
       setTimeout(function () {
@@ -30,6 +32,7 @@ export var healthComponent = {
     });
   },
 
+  // 停止监控
   unmount: async function (instance) {
     if (instance && typeof instance.destroy === 'function') {
       instance.destroy();

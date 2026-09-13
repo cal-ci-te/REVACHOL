@@ -1,3 +1,6 @@
+// ！文章卡片列表
+// 卡片与分组表头的渲染、无限滚动触发，数据统一取自 ArticleListStore。
+// 优先复用 <template>，缺失时走字符串拼接兜底：模板可保持 HTML 与 JS 分离，兜底保证模板被裁剪时列表仍可用。
 import { UIHelpers } from './helpers.js';
 import { UIDetail } from './detail.js';
 import { Utils } from '../../utils.js';
@@ -15,15 +18,15 @@ export const UIArticles = {
     scrollHandler: null,
     _storeUnsubscribe: null,
 
+    // 初始化
     init: function (container, searchInputEl) {
         console.log('[UIArticles] 初始化...');
         this.container = container;
         this.searchInput = searchInputEl;
 
-        // ★★★ 初始化 ArticleListStore（订阅数据变更事件） ★★★
         ArticleListStore.init();
 
-        // 订阅列表更新事件（由 ArticleListStore 触发）
+        // 订阅列表更新：渲染时机完全由 Store 决定，本模块不自持数据源
         this._storeUnsubscribe = EventBus.on(EVENTS.ARTICLES_LIST_UPDATED, () => {
             this.renderArticles();
         });
@@ -37,6 +40,7 @@ export const UIArticles = {
         console.log('[UIArticles] 初始化完成');
     },
 
+    // 显示骨架屏
     showSkeleton: function () {
         let skeletonHtml = '';
         for (let i = 0; i < 4; i++) {
@@ -46,11 +50,11 @@ export const UIArticles = {
         this.container.innerHTML = skeletonHtml;
     },
 
+    // 渲染列表
     renderArticles: function () {
         const container = this.container;
         if (!container) return;
 
-        // ★★★ 从 ArticleListStore 获取当前显示的文章列表 ★★★
         const articles = ArticleListStore.getDisplayArticles();
 
         if (!articles || articles.length === 0) {
@@ -103,10 +107,10 @@ export const UIArticles = {
                             const contentEl = cardDiv.querySelector('.card-content');
                             if (contentEl) {
                                 const displayContent = article.content || UI.articles.defaultContent;
-                                // 剥离贴纸标记，保留纯净内容用于卡片预览
+                                // 先剥离贴纸标记再渲染：贴纸是为详情页正文流设计的，卡片预览中会撑破布局
                                 const clean = StickerRenderer.stripMarkers(displayContent);
                                 const rendered = MarkdownUtils.toHTML(clean);
-                                // 使用 truncateHtml：短文保留富文本样式，长文截断为纯文本预览
+                                // 截断为 350 字：短文保留富文本，长文降级为纯文本预览
                                 contentEl.innerHTML = truncateHtml(rendered, 350);
                             }
                             const metaEl = cardDiv.querySelector('.card-meta');
@@ -132,6 +136,7 @@ export const UIArticles = {
         this._bindCardEvents();
     },
 
+    // 按分类分组
     _groupArticles: function (articles) {
         const groups = {};
         for (let i = 0; i < articles.length; i++) {
@@ -143,6 +148,7 @@ export const UIArticles = {
         return groups;
     },
 
+    // 绑定卡片点击
     _bindCardEvents: function () {
         const container = this.container;
         if (!container) return;
@@ -154,6 +160,7 @@ export const UIArticles = {
         });
     },
 
+    // 兜底分组表头（模板缺失时）
     _fallbackGroupHeader: function (category, groupIndex) {
         const level = UIHelpers.getCategoryLevel(category);
         const levelClass = 'level-' + Math.min(level, 6);
@@ -171,12 +178,13 @@ export const UIArticles = {
         );
     },
 
+    // 兜底卡片（模板缺失时）
     _fallbackCard: function (article, category, cardIndex) {
         const cardId = UIHelpers.generateCardId(article.id);
         const side = cardIndex % 2 === 0 ? 'card-left' : 'card-right';
         const title = article.title || UI.articles.defaultTitle;
         const content = article.content || UI.articles.defaultContent;
-        // 剥离贴纸标记，统一通过 MarkdownUtils 渲染，再截断预览
+        // 与模板分支保持一致：先剥离贴纸标记再渲染、截断
         const clean = StickerRenderer.stripMarkers(content);
         const rendered = MarkdownUtils.toHTML(clean);
         const displayContent = truncateHtml(rendered, 350);
@@ -206,13 +214,14 @@ export const UIArticles = {
         );
     },
 
+    // 绑定滚动监听（无限加载）
+    // 搜索模式下不加载更多：过滤结果一次性给出，再分页会让命中列表不完整
     bindScrollListener: function () {
         const self = this;
         if (this.scrollHandler) {
             window.removeEventListener('scroll', this.scrollHandler);
         }
         this.scrollHandler = function () {
-            // ★★★ 只检查 ArticleListStore 内部状态，搜索框值由 Store 管理 ★★★
             if (ArticleListStore.getIsSearchMode()) return;
 
             const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
@@ -220,6 +229,7 @@ export const UIArticles = {
             const documentHeight = document.documentElement.scrollHeight;
             const distanceToBottom = documentHeight - (scrollTop + windowHeight);
 
+            // 距底部 300px 即预加载：留出提前量，滚动到底时新卡片已就位
             if (distanceToBottom < 300 && ArticleListStore.getHasMore() && !ArticleListStore.getIsLoadingMore()) {
                 ArticleListStore.loadMore();
             }
@@ -227,14 +237,17 @@ export const UIArticles = {
         window.addEventListener('scroll', this.scrollHandler);
     },
 
+    // 保留接口（已废弃）
     initInfiniteScroll: function () {
         console.warn('[UIArticles] initInfiniteScroll 已废弃，由 ArticleListStore 自动管理');
     },
 
+    // 保留接口（已废弃）
     resetInfiniteScroll: function () {
         console.warn('[UIArticles] resetInfiniteScroll 已废弃，由 ArticleListStore 自动管理');
     },
 
+    // 解绑订阅与监听
     destroy: function () {
         if (this._storeUnsubscribe) {
             EventBus.off(EVENTS.ARTICLES_LIST_UPDATED, this._storeUnsubscribe);

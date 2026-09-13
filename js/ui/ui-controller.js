@@ -1,3 +1,6 @@
+// ！UI 总控
+// 统一持有各 UI 子模块引用，负责首屏初始化编排与全局刷新入口。
+// 子模块各自持有 DOM 引用，此处只做装配与事件转发，不参与具体渲染。
 import { DOMRefs } from '../core/dom-refs.js';
 import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
@@ -21,6 +24,7 @@ export const UIController = {
   _dataLoaded: false,
   _refreshPending: false,
 
+  // 集中查询 DOM 并初始化各子模块
   init() {
     console.log('[UIController] 初始化开始...');
 
@@ -57,12 +61,14 @@ export const UIController = {
       this.refreshDisplay();
     });
 
+    // 可见性变更同样走全量刷新：目录树与卡片列表都可能受影响
     EventBus.on(EVENTS.ARTICLE_VISIBILITY_CHANGED, () => {
       this.refreshDisplay();
     });
 
     this.bindGlobalEvents();
 
+    // 已有数据时直接渲染，否则先占位：首屏不应因等待网络而空白
     const existingData = ArticleService.getAllArticles();
     if (existingData && existingData.length > 0) {
       this._dataLoaded = true;
@@ -81,6 +87,8 @@ export const UIController = {
     EventBus.emit(EVENTS.UI_INITIALIZED);
   },
 
+  // 合并同一轮内的刷新请求
+  // 用微任务而非直接刷新：数据加载时会连续触发多个事件，合并后只渲染一次
   refreshDisplay() {
     if (this._refreshPending) return;
     this._refreshPending = true;
@@ -90,6 +98,8 @@ export const UIController = {
     });
   },
 
+  // 刷新占位/列表
+  // 列表渲染由 ArticleListStore 订阅事件后驱动，这里只保证加载态文案正确
   _doRefresh() {
     console.log('[UIController] 刷新显示...');
     console.log('[UIController] 刷新显示...');
@@ -111,10 +121,13 @@ export const UIController = {
 
   },
 
+  // 保留接口（已废弃）
   loadData() {
     // 已废弃
   },
 
+  // 保留接口（已废弃）
+  // 可见性控制已移至目录树，这里仅向旧面板写入提示文案
   updateArticleListPanel(_articles, _categories) {
     console.log('[UIController] updateArticleListPanel 已废弃');
     const panel = DOMRefs.get(DOMRefs.adminControls.articleListPanel);
@@ -124,6 +137,7 @@ export const UIController = {
     }
   },
 
+  // 绑定全局事件
   bindGlobalEvents() {
     const collapseBtn = DOMRefs.get(DOMRefs.sidebar.toggleBtn);
     if (collapseBtn) {

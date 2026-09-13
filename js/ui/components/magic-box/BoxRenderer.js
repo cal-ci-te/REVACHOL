@@ -1,8 +1,10 @@
-// 超现实箱子渲染层 — DOM 创建、3D 动画序列控制、计数器更新、双部件自定义贴图。
-// 箱盖和箱体各自拥有独立的贴图层，贴图层嵌入对应父元素内，随 3D 变换联动。
+// ！魔法箱渲染
+// 负责箱子的 DOM 构建、开箱动画时序、计数显示与箱盖/箱体贴图应用。
+// 贴图层内嵌在箱盖/箱体元素内而非绝对定位在上层：这样 3D 变换时贴图才能与部件同步旋转。
 import { UI } from '../../../utils/ui-strings.js';
 const DELAY = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// 开箱动画各阶段时长（ms）
 const TIMING = {
   OPEN: 400,
   ITEM_POP: 600,
@@ -37,16 +39,14 @@ export class BoxRenderer {
     this._flyTimer = null;
   }
 
+  // 是否动画中
   get isAnimating() { return this._isAnimating; }
 
-  // ======================
-  //  DOM 创建
-  // ======================
-
+  // 创建 DOM
+  // 已挂载则直接返回：重复 mount 会在页面上叠加多个箱子
   mount() {
     if (this._container) return;
 
-    // 容器
     const container = document.createElement('div');
     container.className = 'magic-box-container';
     container.id = 'magicBox';
@@ -54,7 +54,7 @@ export class BoxRenderer {
     const box = document.createElement('div');
     box.className = 'magic-box';
 
-    // ---- 箱盖（内嵌自定义贴图层 + CSS 外观层）----
+    // 箱盖：贴图层 + CSS 外观层
     const lid = document.createElement('div');
     lid.className = 'magic-box-lid';
 
@@ -72,7 +72,7 @@ export class BoxRenderer {
 
     box.appendChild(lid);
 
-    // ---- 箱体（内嵌自定义贴图层 + CSS 外观层）----
+    // 箱体：贴图层 + CSS 外观层
     const body = document.createElement('div');
     body.className = 'magic-box-body';
 
@@ -86,7 +86,7 @@ export class BoxRenderer {
 
     box.appendChild(body);
 
-    // ---- 物品展示区 ----
+    // 物品展示区
     const item = document.createElement('div');
     item.className = 'magic-box-item';
     const emojiEl = document.createElement('span');
@@ -104,13 +104,13 @@ export class BoxRenderer {
     item.appendChild(msgEl);
     box.appendChild(item);
 
-    // ---- 计数器 ----
     const count = document.createElement('div');
     count.className = 'magic-box-count';
     box.appendChild(count);
 
     container.appendChild(box);
 
+    // 模块脚本可能在 body 就绪前执行，此时需等 DOMContentLoaded
     if (document.body) {
       document.body.appendChild(container);
     } else {
@@ -140,14 +140,12 @@ export class BoxRenderer {
     this._updateCountDisplay();
   }
 
+  // 取根元素
   getElement() {
     return this._container;
   }
 
-  // ======================
-  //  位置管理
-  // ======================
-
+  // 应用已保存的位置
   _applyInitialPosition() {
     if (!this._container) return;
     const x = this._state.getDefaultX();
@@ -160,6 +158,7 @@ export class BoxRenderer {
     }
   }
 
+  // 立即移动到指定坐标（拖拽时跟手，故关闭过渡）
   moveTo(left, top) {
     if (!this._container) return;
     this._container.style.transition = 'none';
@@ -169,12 +168,15 @@ export class BoxRenderer {
     this._container.style.bottom = 'auto';
   }
 
+  // 读取当前视口坐标
   getCurrentPosition() {
     if (!this._container) return { left: 0, top: 0 };
     const rect = this._container.getBoundingClientRect();
     return { left: rect.left, top: rect.top };
   }
 
+  // 计算右下角默认坐标
+  // 尺寸取不到时用 120/100 兜底：首次渲染瞬间 offsetWidth 可能为 0
   _getDefaultLeftTop() {
     if (!this._container) return { left: 0, top: 0 };
     const w = this._container.offsetWidth || 120;
@@ -185,6 +187,7 @@ export class BoxRenderer {
     };
   }
 
+  // 飞回默认位置
   flyToDefault(duration = 500) {
     if (!this._container) return;
     const self = this;
@@ -206,6 +209,7 @@ export class BoxRenderer {
     this._container.style.right = 'auto';
     this._container.style.bottom = 'auto';
 
+    // 先清旧定时器：连续飞回时旧回调会提前清掉 transition
     if (this._flyTimer) clearTimeout(this._flyTimer);
     this._flyTimer = setTimeout(function () {
       self._container.style.transition = '';
@@ -214,10 +218,8 @@ export class BoxRenderer {
     }, duration);
   }
 
-  // ======================
-  //  开箱动画序列
-  // ======================
-
+  // 播放开箱动画
+  // 动画期间置 _isAnimating 拦截重复触发：连点会让多段动画的类名互相覆盖
   async playOpenSequence(item) {
     if (!this._boxEl || this._isAnimating) return;
     this._isAnimating = true;
@@ -236,6 +238,7 @@ export class BoxRenderer {
     this._itemLabelEl.textContent = item.label;
     this._itemMessageEl.textContent = item.message;
 
+    // 逐段推进：开盖 → 弹出 → 停留展示 → 收回 → 合盖
     this._boxEl.classList.add('opening');
     await DELAY(TIMING.OPEN);
 
@@ -256,6 +259,7 @@ export class BoxRenderer {
     await DELAY(TIMING.CLOSE);
     this._boxEl.classList.remove('closing');
 
+    // 复位物品内容，避免下次开箱前闪现上次结果
     this._itemEmojiEl.textContent = '';
     this._itemEmojiEl.style.display = '';
     if (this._itemImgEl) {
@@ -268,24 +272,19 @@ export class BoxRenderer {
     this._isAnimating = false;
   }
 
-  // ======================
-  //  计数器
-  // ======================
-
+  // 更新计数显示
   _updateCountDisplay() {
     if (!this._countEl) return;
     this._countEl.textContent = UI.magicBox.countFormat(this._state.getCount());
   }
 
+  // 刷新计数
   refreshCount() {
     this._updateCountDisplay();
   }
 
-  // ======================
-  //  自定义贴图（箱盖+箱体双部件）
-  // ======================
-
-  /** 应用箱盖和箱体的自定义贴图：有贴图则显示贴图层并隐藏对应 CSS 装饰，无则恢复 */
+  // 应用箱盖/箱体贴图
+  // 有贴图时把对应 CSS 装饰层透明度归零：否则锁扣/合页会叠在贴图上
   _applyCustomImages() {
     const lidImg = this._state.getCustomLidImage();
     if (lidImg && this._customLidImgEl) {
@@ -300,7 +299,6 @@ export class BoxRenderer {
       if (this._hingeEl) this._hingeEl.style.opacity = '';
     }
 
-    // 箱体贴图
     const bodyImg = this._state.getCustomBodyImage();
     if (bodyImg && this._customBodyImgEl) {
       this._customBodyImgEl.style.backgroundImage = 'url(' + bodyImg + ')';
@@ -313,15 +311,15 @@ export class BoxRenderer {
     }
   }
 
-  /** 公共包装：刷新箱盖/箱体自定义贴图（供 BoxManager 外部覆盖调用） */
+  // 刷新贴图（供外部覆盖调用）
   applyCustomImages() {
     this._applyCustomImages();
   }
 
-  /** 若物品当前正在展示，则即时更新其图片源（供图标包外部覆盖调用） */
+  // 更新正在展示的物品图片
   refreshItemImage(itemId) {
     if (!this._itemImgEl || !this._itemEl || !itemId) return;
-    // 仅在动画进行中（popping/showing/retracting）才更新 DOM，避免无谓开销
+    // 仅在开合过程中更新：动画未进行时物品区不可见，更新 DOM 无意义
     if (!this._boxEl || !(this._boxEl.classList.contains('opening') || this._boxEl.classList.contains('closing'))) return;
     const img = this._state.getItemImage(itemId);
     if (img) {
@@ -335,20 +333,19 @@ export class BoxRenderer {
     }
   }
 
+  // 保存并应用箱盖贴图
   setCustomLidImage(dataUrl) {
     this._state.setCustomLidImage(dataUrl);
     this._applyCustomImages();
   }
 
+  // 保存并应用箱体贴图
   setCustomBodyImage(dataUrl) {
     this._state.setCustomBodyImage(dataUrl);
     this._applyCustomImages();
   }
 
-  // ======================
-  //  拖拽状态
-  // ======================
-
+  // 切换拖拽中样式
   setGrabbing(active) {
     if (!this._boxEl) return;
     if (active) {
@@ -358,6 +355,7 @@ export class BoxRenderer {
     }
   }
 
+  // 切换管理员拖拽提示
   setAdminHint(active) {
     if (!this._boxEl) return;
     if (active) {
@@ -367,7 +365,9 @@ export class BoxRenderer {
     }
   }
 
+  // 销毁并移除 DOM
   destroy() {
+    // 未清的飞回定时器会在销毁后访问已置空的 _container
     if (this._flyTimer) {
       clearTimeout(this._flyTimer);
       this._flyTimer = null;

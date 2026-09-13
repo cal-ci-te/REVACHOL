@@ -1,3 +1,6 @@
+// ！目录树主控
+// 目录树的外观层入口：把渲染、交互、拖放、位置模式、移动端控件装配在一起。
+// 对外只暴露 init / updateTree / setActiveNode / destroy：调用方无需感知内部分工。
 import { renderTree } from './render.js';
 import { setActiveNode } from './events.js';
 import { showContextMenu } from './context-menu.js';
@@ -20,8 +23,6 @@ import { EVENTS } from '../../../core/event-constants.js';
 import { ArticleListStore } from '../../../stores/article-list-store.js';
 import { isMobile, enableTouchDrag, enableTouchContext } from '../../../mobile/index.js';
 
-
-
 export const UIDirectory = {
     container: null,
     filterKeyword: null,
@@ -32,18 +33,18 @@ export const UIDirectory = {
     _pendingMovesManager: null,
     _disableDragDrop: null,
 
+    // 清空拖放监听引用
     _cleanupDragDrop() {
         if (this._disableDragDrop) { this._disableDragDrop(); this._disableDragDrop = null; }
     },
 
+    // 初始化
     init(container) {
         console.log('[UIDirectory] 初始化...');
         this.container = container;
 
-        // 初始化待移动操作管理器
         this._pendingMovesManager = createPendingMovesManager();
 
-        // 初始化位置管理器
         this._positionManager = createPositionManager({
             container: this.container,
             getFilterKeyword: () => this.filterKeyword,
@@ -63,20 +64,19 @@ export const UIDirectory = {
             });
         }
 
-        // 事件监听
         EventBus.on(EVENTS.ARTICLE_DATA_LOADED, () => this.updateTree());
         EventBus.on(EVENTS.ADMIN_POSITION_MODE_ENTER, () => this._positionManager.enter());
+        // 退出/取消前先解绑拖拽：位置模式结束后拖放监听不应继续存在
         EventBus.on(EVENTS.ADMIN_POSITION_MODE_EXIT, () => { this._cleanupDragDrop(); this._positionManager.exit(true); });
         EventBus.on(EVENTS.ADMIN_POSITION_MODE_CANCEL, () => { this._cleanupDragDrop(); this._positionManager.exit(false); });
+        // 登录态变化会改变可见性与管理员控件，需整体重绘
         EventBus.on(EVENTS.AUTH_LOGGED_IN, () => {
-            // 登录后刷新目录树，显示管理员控件（可见性按钮、拖拽区等）
             this.updateTree(this.filterKeyword);
         });
         EventBus.on(EVENTS.AUTH_LOGGED_OUT, () => {
             if (this._positionManager.isActiveMode()) {
                 this._positionManager.exit(true);
             }
-            // 登出后刷新目录树，隐藏管理员控件（可见性按钮、拖拽区等）
             this.updateTree(this.filterKeyword);
         });
 
@@ -88,6 +88,7 @@ export const UIDirectory = {
         console.log('[UIDirectory] 初始化完成');
     },
 
+    // 重建目录树
     updateTree(filterKeyword = null) {
         this.filterKeyword = filterKeyword;
         const articles = ArticleListStore.getVisibleArticles();
@@ -96,14 +97,14 @@ export const UIDirectory = {
         const treeData = ArticleListStore.buildDirectoryTree(sortedArticles);
         this.container.innerHTML = renderTree(treeData, 0, filterKeyword, '');
 
-        // 绑定交互（使用新的绑定器）
         this._bindInteractions();
 
+        // 无过滤时才广播全量文章：过滤态下广播会让其他模块用残缺列表覆盖视图
         if (!filterKeyword) {
             EventBus.emit(EVENTS.ARTICLES_UPDATED, { articles: sortedArticles });
         }
 
-        // 移动端控件重建
+        // 整树 innerHTML 重建会连带清掉控件 DOM，故移动端控件需重建
         if (isMobile()) {
             this._mobileControls = recreateMobileControls(this.container, {
                 onSave: () => this._handleMobileSave(),
@@ -114,7 +115,7 @@ export const UIDirectory = {
             }
         }
 
-        // 如果处于位置模式，重新启用拖拽
+        // 位置模式下 DOM 已重建，拖拽监听需重新挂载
         if (this._positionManager.isActiveMode()) {
             this._positionManager.disableAllDrag();
             if (isMobile()) {
@@ -127,7 +128,7 @@ export const UIDirectory = {
                 );
                 showMobileControls();
             } else {
-                // 移除旧监听器防止重复绑定（每次 updateTree 重建 DOM 后重绑）
+                // 监听器随 DOM 一起失效，重绑前先解掉旧的，否则会叠加
                 if (this._disableDragDrop) this._disableDragDrop();
                 this._disableDragDrop = enableDragDrop(this.container, () => this.updateTree(this.filterKeyword));
                 applyDragDropVisuals(this.container, true);
@@ -137,8 +138,9 @@ export const UIDirectory = {
         console.log('[UIDirectory] 目录树已更新，文章数:', sortedArticles.length);
     },
 
+    // 绑定目录交互
     _bindInteractions() {
-        // 移除旧绑定
+        // 先解旧绑定：容器是同一个，同函数引用重复 add 会被忽略，但不同闭包会叠加
         if (this._unbindInteractionsFn) {
             this._unbindInteractionsFn();
             this._unbindInteractionsFn = null;
@@ -148,17 +150,17 @@ export const UIDirectory = {
         this._unbindInteractionsFn = bindDirectoryInteractions(this.container, {
             onUpdateTree: () => self.updateTree(self.filterKeyword),
             onSetActiveNode: (nodeId) => self.setActiveNode(nodeId),
-            onVisibilityToggleSuccess: () => {
-                // 可见性切换成功，触发列表更新
-                // 由于切换后 ArticleListStore 会触发事件，这里无需额外操作
-            },
+            // 可见性切换后 ArticleListStore 自身会广播事件，此处无需额外刷新
+            onVisibilityToggleSuccess: () => {},
         });
     },
 
+    // 高亮节点
     setActiveNode(nodeId) {
         setActiveNode(this.container, nodeId);
     },
 
+    // 移动端保存
     _handleMobileSave() {
         console.log('[UIDirectory] 移动端保存位置');
         this._positionManager.exit(true);
@@ -167,6 +169,7 @@ export const UIDirectory = {
         }
     },
 
+    // 移动端取消
     _handleMobileCancel() {
         console.log('[UIDirectory] 移动端取消位置管理');
         this._positionManager.exit(false);
@@ -175,7 +178,9 @@ export const UIDirectory = {
         }
     },
 
+    // 启用移动端长按菜单
     _initMobileSupport() {
+        // 控件重建后旧监听目标已失效，先解绑再重绑
         if (this._touchContextDisableFn) {
             this._touchContextDisableFn();
         }
@@ -191,6 +196,7 @@ export const UIDirectory = {
         console.log('[UIDirectory] 移动端长按支持已启用');
     },
 
+    // 转交拖放处理
     async _handleDrop(sourceData, targetData) {
         await handleDirectoryDrop(sourceData, targetData, {
             positionManager: this._positionManager,
@@ -200,6 +206,7 @@ export const UIDirectory = {
         });
     },
 
+    // 销毁并解绑全部监听
     destroy() {
         if (this._unbindInteractionsFn) {
             this._unbindInteractionsFn();
