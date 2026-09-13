@@ -1,21 +1,14 @@
-/**
- * 贴纸编辑器贴纸交互层 — 渲染、拖拽、右键菜单、添加。
- *
- * 通过 ctx 注入依赖，不依赖主控模块。
- *
- * @module sticker-editor/stickers
- */
-
+// ！贴纸编辑器交互层
+// 负责贴纸的渲染、拖拽、右键菜单与新增。
+// 依赖全部经 ctx 注入，不引用主控模块，便于单独测试且避免循环引用。
 import { DecoShelf } from '../../services/deco.js';
 import { StickerShape } from '../sticker-shape.js';
 import { UI } from '../../utils/ui-strings.js';
 
 export const Stickers = {
 
-  /**
-   * 渲染已有贴纸（从 stickerData 数组）。
-   * @param {object} ctx - { stickerLayer, stickerData, articleContainer }
-   */
+  // 渲染已有贴纸
+  // 事件在此统一挂载，故 unbindAll 必须能按同一套引用解绑
   render(ctx) {
     if (!ctx.stickerData || !ctx.stickerData.length) return;
 
@@ -31,6 +24,7 @@ export const Stickers = {
       self._bindDrag(el, ctx.articleContainer);
       el.addEventListener('contextmenu', function (e) {
         e.preventDefault();
+        // 阻止冒泡：否则会同时触发覆盖层空白区的关闭逻辑
         e.stopPropagation();
         self._showContextMenu(e.clientX, e.clientY, data, el, ctx);
       });
@@ -39,11 +33,9 @@ export const Stickers = {
     });
   },
 
-  /**
-   * 从贴纸库添加一张新贴纸。
-   * @param {object} ctx
-   * @param {object} deco - 贴纸对象
-   */
+  // 从贴纸库新增一张贴纸
+  // 初始位置按已贴纸数量下移，避免新增的贴纸全部叠在同一处
+  // 位置再经 suggestPosition 做重叠规避，两者共同决定落点
   addOne(ctx, deco) {
     const cr = ctx.articleContainer.getBoundingClientRect();
     const w = StickerShape.DEFAULT_SIZE;
@@ -69,7 +61,7 @@ export const Stickers = {
     const el = this._buildElement(deco, data, ctx.articleContainer);
     el.dataset.index = ctx.stickerData.length - 1;
 
-    // 入场动画
+    // 入场动画：让新增的贴纸在满屏已有贴纸中可被一眼定位
     el.style.animation = 'sticker-appear 0.3s ease-out';
 
     const self = this;
@@ -82,13 +74,11 @@ export const Stickers = {
 
     ctx.stickerLayer.appendChild(el);
 
-    // 通知控制台刷新
     if (ctx.onRefreshConsole) ctx.onRefreshConsole();
   },
 
-  /**
-   * 创建单个贴纸 DOM 元素。
-   */
+  // 创建单个贴纸元素
+  // 透明边框占位而非拖拽时再加：保证 hover 高亮与拖拽高亮不改变元素尺寸，避免位置抖动
   _buildElement(deco, data, container) {
     const el = document.createElement('div');
     el.className = 'article-sticker-editing';
@@ -113,8 +103,8 @@ export const Stickers = {
       'border:2px solid transparent', 'border-radius:4px',
     ].join(';');
 
-    // hover 边框高亮
     el.addEventListener('mouseenter', function () {
+      // 拖拽中不加 hover 高亮：拖拽态已用边框色表达，两者叠加会闪烁
       if (el.style.cursor !== 'grabbing') {
         document.body.style.userSelect = 'none';
         el.style.borderColor = 'var(--color-accent, #c47a44)';
@@ -127,11 +117,12 @@ export const Stickers = {
     return el;
   },
 
-  /**
-   * 绑定贴纸拖拽交互。
-   */
+  // 绑定贴纸拖拽
+  // move/up 挂 document 而非元素本身：拖拽中指针移出贴纸范围仍需持续跟随
+  // 位置夹在容器范围内，防止贴纸被拖到不可见区域而无法再选回
   _bindDrag(el, container) {
     const onDown = function (e) {
+      // 仅响应左键；右键留给上下文菜单
       if (e.button !== undefined && e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
@@ -141,6 +132,7 @@ export const Stickers = {
       const startLeft = parseFloat(el.style.left) || 0;
       const startTop = parseFloat(el.style.top) || 0;
       el.style.cursor = 'grabbing';
+      // 拖拽中抬高层级：被拖者应始终覆盖在其他贴纸之上
       el.style.zIndex = '20';
       document.body.style.userSelect = 'none';
       el.style.borderColor = 'var(--color-accent, #c47a44)';
@@ -177,13 +169,13 @@ export const Stickers = {
       document.addEventListener('mouseup', onUp);
     };
 
+    // 保存引用以便解绑：匿名监听器无法被 removeEventListener 摘除
     el._stickerDragDown = onDown;
     el.addEventListener('mousedown', onDown);
   },
 
-  /**
-   * 显示右键菜单（浮动方向切换 + 删除）。
-   */
+  // 显示贴纸右键菜单（切换浮动方向、删除）
+  // 菜单挂 body 并 fixed 定位：贴纸层 overflow 受限，挂在层内会被裁剪
   _showContextMenu(x, y, stickerData, stickerEl, ctx) {
     this.removeContextMenu();
 
@@ -205,6 +197,7 @@ export const Stickers = {
         action: function () {
           const newAlign = stickerData.align === 'right' ? 'left' : 'right';
           stickerData.align = newAlign;
+          // 切换方向时同步移动贴纸到对应侧：只改 align 而不动位置，视觉上会看不出变化
           const container = ctx.articleContainer;
           if (container && stickerEl) {
             const cw = container.getBoundingClientRect().width || 800;
@@ -222,7 +215,6 @@ export const Stickers = {
       { type: 'sep' },
       { label: UI.stickerEditor.ctxRemove || '🗑️ 删除贴纸',
         action: function () {
-          // 移除 DOM 事件监听器
           if (stickerEl._stickerDragDown) {
             stickerEl.removeEventListener('mousedown', stickerEl._stickerDragDown);
             delete stickerEl._stickerDragDown;
@@ -230,14 +222,12 @@ export const Stickers = {
           stickerEl.onmouseenter = null;
           stickerEl.onmouseleave = null;
           stickerEl.oncontextmenu = null;
-          // 从数据中移除（通过回调通知主控更新 _stickerData）
+          // 数据与 DOM 双删：只删 DOM 会在下次收集时按旧数据把贴纸复原
           const newData = ctx.stickerData.filter(function (s) {
             return s.decoId !== stickerData.decoId;
           });
           if (ctx.onDataChange) ctx.onDataChange(newData);
-          // 从 DOM 中移除
           if (stickerEl.parentNode) stickerEl.parentNode.removeChild(stickerEl);
-          // 清理 + 刷新控制台
           self.removeContextMenu();
           if (ctx.onRefreshConsole) ctx.onRefreshConsole();
         }},
@@ -270,7 +260,7 @@ export const Stickers = {
 
     document.body.appendChild(menu);
 
-    // 点击任意位置关闭
+    // 延后一拍再绑定关闭：本次触发菜单的点击仍在冒泡，立即绑定会被同一次点击关闭
     setTimeout(function () {
       document.addEventListener('click', function closeMenu() {
         self.removeContextMenu();
@@ -279,14 +269,14 @@ export const Stickers = {
     }, 0);
   },
 
+  // 移除右键菜单（幂等）
   removeContextMenu() {
     const m = document.getElementById('sticker-context-menu');
     if (m) m.remove();
   },
 
-  /**
-   * 解绑所有贴纸元素的事件监听器（在 innerHTML 清空前调用）。
-   */
+  // 解绑全部贴纸元素的事件监听
+  // 需在移除 DOM 前调用：节点一旦脱离文档，再想按选择器找回就为时已晚
   unbindAll(stickerLayer) {
     if (!stickerLayer) return;
     const els = stickerLayer.querySelectorAll('.article-sticker-editing');
@@ -301,9 +291,7 @@ export const Stickers = {
     });
   },
 
-  /**
-   * 清理（右键菜单 + 解绑元素）。
-   */
+  // 清理：右键菜单与元素监听一并处理
   cleanup(stickerLayer) {
     this.removeContextMenu();
     this.unbindAll(stickerLayer);

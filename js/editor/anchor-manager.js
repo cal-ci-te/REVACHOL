@@ -1,26 +1,12 @@
-/**
- * 锚点管理器 — 计算、解析、定位贴纸在内容中的位置。
- *
- * 职责：
- *   1. computeAnchor(el, container) — 从 DOM 元素计算锚点信息
- *   2. locateAnchor(container, anchor) — 根据锚点信息定位 DOM 位置
- *   3. compareAnchors(a, b) — 比较两个锚点的顺序
- *   4. serialize(anchor) / deserialize(data) — 序列化/反序列化
- *
- * @module anchor-manager
- */
+// ！贴纸锚点管理
+// 计算、解析与定位贴纸在文章内容中的位置，是「贴纸跟随段落」能力的基础。
+// 锚点以「第几个内容块 + 相对方向」描述，而非像素坐标：像素坐标在换字号、改窗口宽度后即失效。
 
 export const AnchorManager = {
 
-  /**
-   * 计算一个 DOM 元素在容器中的锚点信息。
-   * 遍历容器的直接子节点（跳过贴纸和 clearfix 元素），
-   * 找到贴纸相对于段落的位置（before/after/inside）。
-   *
-   * @param {HTMLElement} el - 贴纸 DOM 元素
-   * @param {HTMLElement} container - 文章内容容器
-   * @returns {object} anchor 对象 { type, index, paragraphId?, direction }
-   */
+  // 从 DOM 元素计算锚点
+  // 遍历容器的直接子节点（跳过贴纸与 clearfix），按垂直中心点判断贴纸落在哪个内容块之前
+  // 优先判定「位于块内部」：贴纸嵌套在段落里时，比按中心线比较更可靠
   computeAnchor: function (el, container) {
     if (!el || !container) return { type: 'end', index: -1 };
 
@@ -32,12 +18,11 @@ export const AnchorManager = {
     const elRect = el.getBoundingClientRect();
     const elCenterY = elRect.top + elRect.height / 2;
 
-    // 收集非贴纸子节点的信息（跳过 .article-sticker 和 .sticker-clearfix）
     let blockIndex = 0;
     for (let i = 0; i < children.length; i++) {
       const child = children[i];
 
-      // 跳过贴纸和 clearfix 元素——它们不是内容段落
+      // 跳过贴纸与 clearfix：它们不是内容段落，计入索引会让锚点错位
       if (child.classList && (
         child.classList.contains('article-sticker') ||
         child.classList.contains('sticker-clearfix')
@@ -45,7 +30,6 @@ export const AnchorManager = {
         continue;
       }
 
-      // 如果贴纸在这个子节点内部
       if (child.contains(el)) {
         return {
           type: 'paragraph',
@@ -55,7 +39,7 @@ export const AnchorManager = {
         };
       }
 
-      // 检查贴纸是否在这个子节点之前（按垂直中心点比较）
+      // 按垂直中心点比较：用中心而非顶边，可避免贴纸跨在两段之间时判到错误一侧
       const childRect = child.getBoundingClientRect();
       if (elCenterY < childRect.top + childRect.height / 2) {
         return {
@@ -78,15 +62,9 @@ export const AnchorManager = {
     };
   },
 
-  /**
-   * 基于 y 坐标（相对于容器顶部）计算锚点信息。
-   * 用于贴纸编辑器保存时，根据覆盖层中的绝对定位坐标推断贴纸所属段落。
-   * 跳过 .article-sticker 和 .sticker-clearfix 元素。
-   *
-   * @param {number} y - 贴纸在容器坐标系中的 y 坐标（px）
-   * @param {HTMLElement} container - 文章内容容器
-   * @returns {object} anchor 对象 { type, index, paragraphId?, direction }
-   */
+  // 按 y 坐标计算锚点
+  // 供贴纸编辑器保存时使用：覆盖层中贴纸是绝对定位，只有坐标没有 DOM 归属
+  // 需先把容器相对坐标换算为视口绝对坐标，才能与 getBoundingClientRect 比较
   computeAnchorFromY: function (y, container) {
     if (!container) return { type: 'end', index: -1 };
 
@@ -95,7 +73,6 @@ export const AnchorManager = {
       return { type: 'begin', index: 0 };
     }
 
-    // 获取容器在视口中的偏移
     const containerRect = container.getBoundingClientRect();
     const absoluteY = y + containerRect.top;
 
@@ -103,7 +80,6 @@ export const AnchorManager = {
     for (let i = 0; i < children.length; i++) {
       const child = children[i];
 
-      // 跳过贴纸和 clearfix 元素
       if (child.classList && (
         child.classList.contains('article-sticker') ||
         child.classList.contains('sticker-clearfix')
@@ -131,14 +107,8 @@ export const AnchorManager = {
     };
   },
 
-  /**
-   * 根据锚点信息在容器中定位目标位置元素。
-   * 跳过 .article-sticker 和 .sticker-clearfix 元素进行索引匹配。
-   *
-   * @param {HTMLElement} container - 文章内容容器
-   * @param {object} anchor - 锚点信息
-   * @returns {HTMLElement|null} 目标位置元素
-   */
+  // 按锚点定位目标元素
+  // 与 computeAnchor 用同一套「跳过贴纸与 clearfix」的过滤规则，两侧索引口径必须一致
   locateAnchor: function (container, anchor) {
     if (!container || !anchor) return null;
 
@@ -164,11 +134,11 @@ export const AnchorManager = {
 
       case 'paragraph':
         var target = null;
-        // 优先使用 paragraphId
+        // 优先按 paragraphId 定位：id 比索引稳定，中间插入段落不会使其失效
         if (anchor.paragraphId) {
           target = container.querySelector('#' + anchor.paragraphId);
         }
-        // 回退到 index
+        // 回退到 index：旧数据或段落 id 被改时仍有定位机会
         if (!target && anchor.index !== undefined && anchor.index >= 0 && anchor.index < contentChildren.length) {
           target = contentChildren[anchor.index];
         }
@@ -179,12 +149,8 @@ export const AnchorManager = {
     }
   },
 
-  /**
-   * 比较两个锚点的顺序。
-   * @param {object} a - 锚点 A
-   * @param {object} b - 锚点 B
-   * @returns {number} -1: a < b, 0: 相等, 1: a > b
-   */
+  // 比较两个锚点的先后
+  // begin/end 用 ±999 的哨兵值：只需保证它们排在任何段落索引之外，具体数值无意义
   compareAnchors: function (a, b) {
     const getOrder = function (anchor) {
       if (!anchor || anchor.type === 'begin') return -999;
@@ -194,10 +160,8 @@ export const AnchorManager = {
     return getOrder(a) - getOrder(b);
   },
 
-  /**
-   * 序列化锚点对象为 URL 安全的压缩字符串（存储用）。
-   * 格式：type:index[:paraId:dir]，如 "p:2:p_2:before" 或 "end:-1"
-   */
+  // 序列化为紧凑字符串
+  // 类型只取首字母（p/h/b/e）以缩短标记长度；格式为 type:index[:paraId:dir]
   serialize: function (anchor) {
     if (!anchor) return '';
     const parts = [
@@ -209,13 +173,10 @@ export const AnchorManager = {
     return parts.join(':');
   },
 
-  /**
-   * 反序列化锚点字符串。
-   * 支持新旧两种格式：旧 JSON 格式（向后兼容）和新冒号分隔格式。
-   */
+  // 反序列化锚点字符串
+  // 兼容旧 JSON 格式：历史数据以 { 开头，直接按 JSON 解析，失败才回退冒号格式
   deserialize: function (data) {
     if (!data) return { type: 'end', index: -1 };
-    // 尝试解析旧 JSON 格式
     if (data.charAt(0) === '{') {
       try {
         const parsed = JSON.parse(data);
@@ -225,9 +186,10 @@ export const AnchorManager = {
           paragraphId: parsed.paragraphId || null,
           direction: parsed.direction || null,
         };
-      } catch (e) { /* 回退 */ }
+      } catch (e) {
+        // JSON 损坏，回退下方冒号格式解析
+      }
     }
-    // 新格式：type:index[:paraId:dir]
     const parts = data.split(':');
     const typeMap = { p: 'paragraph', h: 'heading', b: 'begin', e: 'end' };
     return {
@@ -238,15 +200,11 @@ export const AnchorManager = {
     };
   },
 
-  /**
-   * 从标记注释内容中解析字段（含 anchor 字段）。
-   * 两步法：先提取 decoId，再按 key=value 解析剩余字段，字段顺序无关。
-   *
-   * @param {string} raw - 注释内部文本，如 "deco_abc align=left w=120 h=120 anchor=p:2:p_2:before"
-   * @returns {object} { decoId, ...fields, anchor }
-   */
+  // 从标记注释文本中解析字段（含 anchor）
+  // 首 token 为 decoId，其余按 key=value 解析，不依赖字段顺序
   parseFromMarker: function (raw) {
     const parts = raw.trim().split(/\s+/);
+    // 预置默认锚点：标记中缺 anchor 字段时直接使用，省去调用方判空
     const result = { anchor: { type: 'end', index: -1 } };
     if (parts.length > 0) result.decoId = parts[0];
 
@@ -264,23 +222,17 @@ export const AnchorManager = {
     return result;
   },
 
-  /**
-   * 生成锚点的标记字段字符串。默认锚点（type=end, index=-1）不写入。
-   * @returns {string} 如 "anchor=p:2:p_2:before" 或 ""
-   */
+  // 生成锚点的标记字段，默认锚点（末尾）不写入
+  // 省去默认值可缩短标记，且旧数据无 anchor 字段时语义等价
   toMarkerField: function (anchor) {
     if (!anchor) return '';
-    // 默认锚点：末尾，无特殊位置信息 → 不需要写入标记
     if (anchor.type === 'end' && (anchor.index === -1 || anchor.index === undefined)) {
       return '';
     }
     return 'anchor=' + this.serialize(anchor);
   },
 
-  /**
-   * 判断锚点是否为默认值（末尾、无位置信息）。
-   * 用于决定是否需要在标记中写入 anchor 字段。
-   */
+  // 判断是否为默认锚点（末尾、无位置信息）
   isDefaultAnchor: function (anchor) {
     return !anchor || anchor.type === 'end';
   },

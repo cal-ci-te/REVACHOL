@@ -1,27 +1,14 @@
-/**
- * 编辑器内贴纸交互 — float + shape-outside 浮动渲染、右键菜单。
- *
- * 贴纸作为浮动元素插入 contentEl 内容流，使用 StickerShape.buildInlineStyle
- * 生成 shape-outside + clip-path 实现文字绕排预览。
- * 拖拽功能由贴纸编辑器（StickerEditorMode）提供，此处仅渲染预览 + 右键菜单。
- *
- * @module editor-stickers
- */
-
+// ！编辑器贴纸预览
+// 在文章编辑器的内容流中渲染贴纸预览，并提供右键操作菜单。
+// 贴纸以浮动元素插入 contentEl，样式经 StickerShape.buildInlineStyle 生成（固定矩形绕排）。
+// 拖拽由贴纸编辑器（StickerEditorMode）负责，本模块只做预览渲染与右键菜单。
 import { DecoShelf } from '../services/deco.js';
 import { StickerShape } from './sticker-shape.js';
 
 export const EditorStickers = {
 
-  /**
-   * 渲染贴纸到文章内容容器中（float + shape-outside 浮动元素）。
-   *
-   * 首次渲染使用 TreeWalker 遍历 DOM 注释节点，在标记原始位置替换为贴纸浮动元素。
-   * @param {object} ctx
-   * @param {HTMLElement} ctx.contentEl - 文章内容容器（已渲染内容含标记注释）
-   * @param {object} ctx.article - 文章对象（含 stickers 数组）
-   * @param {function} ctx.onDirty - 标记脏状态回调
-   */
+  // 渲染贴纸到内容容器
+  // 用 TreeWalker 找到注释节点并在原位置替换，保留贴纸与对应段落的相对关系
   render(ctx) {
     const contentEl = ctx.contentEl;
     const article = ctx.article;
@@ -40,6 +27,7 @@ export const EditorStickers = {
       }}
     );
 
+    // 先收集全部注释再替换：遍历中改 DOM 会破坏 TreeWalker 迭代
     const comments = [];
     let node;
     while ((node = walker.nextNode())) { comments.push(node); }
@@ -62,10 +50,8 @@ export const EditorStickers = {
     this._ensureClearfix(contentEl);
   },
 
-  /**
-   * 刷新贴纸 — 原地更新每个贴纸元素的样式和图片，保留 DOM 位置。
-   * 新增的贴纸追加到末尾，已删除的贴纸移除 DOM 元素。
-   */
+  // 原地刷新贴纸：只改样式与图片，保留既有 DOM 位置
+  // 与 render 重建 DOM 的做法区分开：刷新频繁发生，重建会丢失滚动位置与选中态
   refresh(ctx) {
     const contentEl = ctx.contentEl;
     const article = ctx.article;
@@ -75,7 +61,6 @@ export const EditorStickers = {
     const stickers = article.stickers || [];
     const self = this;
 
-    // 收集现有贴纸元素，按 decoId 索引
     const existingEls = contentEl.querySelectorAll('.article-sticker');
     const existingMap = {};
     existingEls.forEach(function (el) {
@@ -83,25 +68,23 @@ export const EditorStickers = {
       if (id) existingMap[id] = el;
     });
 
-    // 构建新 decoId 集合
     const newDecoIds = {};
     stickers.forEach(function (s) { if (s && s.decoId) newDecoIds[s.decoId] = true; });
 
-    // 移除已不存在的贴纸元素
+    // 先移除已删除的贴纸元素，避免残留孤儿节点
     existingEls.forEach(function (el) {
       if (!newDecoIds[el.dataset.decoId]) {
         if (el.parentNode) el.parentNode.removeChild(el);
       }
     });
 
-    // 更新现有贴纸 + 添加新贴纸
     stickers.forEach(function (data) {
       const deco = DecoShelf.get(data.decoId);
       if (!deco) return;
 
       const existing = existingMap[data.decoId];
       if (existing) {
-        // 原地更新：只改样式和图片，不改变 DOM 位置
+        // 原地更新：仅重写样式与图片，保持节点位置不变
         const imgSrc = deco.dataUrl || deco.url || '';
         const w = data.width || StickerShape.DEFAULT_SIZE;
         const h = data.height || StickerShape.DEFAULT_SIZE;
@@ -112,23 +95,24 @@ export const EditorStickers = {
         };
         existing.style.cssText = StickerShape.buildInlineStyle(shapeData, imgSrc);
       } else {
-        // 新贴纸：追加到末尾
+        // 新增贴纸无锚点信息可依，追加到末尾
         const el = self._createStickerElementWithContext(data, deco, article, onDirty);
         contentEl.appendChild(el);
       }
     });
 
-    // 清理旧的 clearfix，追加新的
     const oldCf = contentEl.querySelectorAll('.sticker-clearfix');
     oldCf.forEach(function (el) { el.remove(); });
     this._ensureClearfix(contentEl);
   },
 
+  // 移除右键菜单（幂等）
   removeContextMenu() {
     const m = document.getElementById('editor-sticker-context-menu');
     if (m) m.remove();
   },
 
+  // 清理本模块创建的全部 DOM 残留
   cleanup(contentEl) {
     this.removeContextMenu();
     if (contentEl) {
@@ -137,11 +121,10 @@ export const EditorStickers = {
     }
   },
 
-  // ---- 内部方法 ----
+  // 内部方法
 
-  /**
-   * 创建单个贴纸 DOM 元素（render 和 refresh 共用）。
-   */
+  // 创建贴纸元素（render 与 refresh 共用）
+  // id 前缀 editor-sticker- 以便与阅读视图的贴纸元素区分
   _createStickerElementWithContext(data, deco, article, onDirty) {
     const el = document.createElement('div');
     el.className = 'article-sticker';
@@ -162,6 +145,7 @@ export const EditorStickers = {
     const self = this;
     el.addEventListener('contextmenu', function (e) {
       e.preventDefault();
+      // 阻止冒泡：否则会一并触发容器上的默认右键处理
       e.stopPropagation();
       self._showContextMenu(e.clientX, e.clientY, data, el, article, onDirty);
     });
@@ -169,6 +153,8 @@ export const EditorStickers = {
     return el;
   },
 
+  // 确保容器末尾有 clearfix
+  // 复用已有节点而非新建：本函数会被反复调用，复用可避免 clearfix 在容器内不断堆积
   _ensureClearfix(container) {
     const existing = container.querySelector('.sticker-clearfix');
     if (existing) {
@@ -181,6 +167,8 @@ export const EditorStickers = {
     }
   },
 
+  // 显示贴纸右键菜单
+  // 菜单挂在 body 并用 fixed 定位：贴纸处在 contentEditable 内，挂容器内会受其层叠与溢出裁剪影响
   _showContextMenu(x, y, stickerData, stickerEl, article, onDirty) {
     const self = this;
     this.removeContextMenu();
@@ -193,6 +181,7 @@ export const EditorStickers = {
        const newAlign = stickerData.align === 'right' ? 'left' : 'right';
        stickerData.align = newAlign;
        const margin = stickerData.margin || StickerShape.DEFAULT_MARGIN;
+       // 只改 float 与 margin，不整体重写 cssText：整体重写会覆盖掉图片等其余内联样式
        stickerEl.style.float = newAlign;
        stickerEl.style.margin = '10px ' + margin + 'px 10px ' + margin + 'px';
        self.removeContextMenu();
@@ -219,6 +208,8 @@ export const EditorStickers = {
       }
     });
     document.body.appendChild(menu);
+    // 延后一拍再挂 document 点击关闭：本次触发菜单的点击仍在冒泡，立即绑定会被同一次点击关掉
+    // once:true 让监听器自动摘除，无需手动维护
     setTimeout(function () { document.addEventListener('click', function cm() { self.removeContextMenu(); document.removeEventListener('click', cm); }, { once: true }); }, 0);
   },
 };

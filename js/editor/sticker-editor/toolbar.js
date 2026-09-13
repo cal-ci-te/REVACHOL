@@ -1,19 +1,12 @@
-/**
- * 贴纸编辑器悬浮工具栏 — 取消/确认按钮，复用 .deco-edit-toolbar CSS。
- *
- * @module sticker-editor/toolbar
- */
-
+// ！贴纸编辑器工具栏
+// 底部悬浮的取消/确认工具条，复用 .deco-edit-toolbar 现有样式。
 import { Utils } from '../../utils.js';
 import { UI } from '../../utils/ui-strings.js';
 
 export const Toolbar = {
 
-  /**
-   * 创建底部悬浮工具栏。
-   * @param {object} ctx - { close }
-   * @returns {HTMLElement}
-   */
+  // 创建底部悬浮工具栏
+  // 按钮点击阻止冒泡：工具栏挂在 body 上，冒泡会命中覆盖层的空白区点击而误触发关闭
   create(ctx) {
     const toolbar = document.createElement('div');
     toolbar.className = 'deco-edit-toolbar';

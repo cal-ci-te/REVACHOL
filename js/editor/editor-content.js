@@ -1,11 +1,6 @@
-/**
- * 编辑器内容层 — 文章渲染、contentEditable 编辑、内容读写、脏状态检测。
- *
- * 所有方法通过参数接收 DOM 引用和状态，不依赖主控模块，避免循环引用。
- *
- * @module editor-content
- */
-
+// ！编辑器内容层
+// 负责文章渲染、contentEditable 编辑、内容读写与脏状态检测。
+// 所有方法都通过参数接收 DOM 引用与状态，不依赖主控模块，因此不会与之形成循环引用。
 import { MarkdownUtils } from '../utils/markdown-utils.js';
 import { Utils } from '../utils.js';
 import { StickerRenderer } from './sticker-renderer.js';
@@ -15,18 +10,11 @@ import { ContentBuilder } from './content-builder.js';
 
 export const EditorContent = {
 
-  // =========================================================================
-  //  文章渲染
-  // =========================================================================
+  // 文章渲染
 
-  /**
-   * 渲染文章标题和内容到指定容器。
-   * @param {object} article - 文章对象
-   * @param {HTMLElement} container - 父容器（articleContainer）
-   * @returns {{ titleEl: HTMLElement, contentEl: HTMLElement }}
-   */
+  // 渲染标题与内容到指定容器
+  // 标题为只读展示：改名走工具栏输入框，避免与 contentEditable 的撤销栈互相干扰
   render(article, container) {
-    // 标题（只读展示，匹配阅读视图；编辑通过工具栏输入框）
     const titleEl = document.createElement('h1');
     titleEl.id = 'article-editor-title';
     titleEl.style.cssText = [
@@ -39,7 +27,6 @@ export const EditorContent = {
     titleEl.textContent = article.title || '未命名文章';
     container.appendChild(titleEl);
 
-    // 内容
     const contentEl = document.createElement('div');
     contentEl.className = 'detail-body';
     contentEl.innerHTML = this.renderContent(article.content || '');
@@ -49,43 +36,25 @@ export const EditorContent = {
     return { titleEl: titleEl, contentEl: contentEl };
   },
 
-  /**
-   * 智能渲染：自动检测内容是 Markdown 还是 HTML。
-   * - HTML 内容（以 < 开头且含 HTML 标签）跳过 escapeHtml 直接使用
-   * - Markdown 内容走完整的 Markdown→HTML 转换
-   * @param {string} text
-   * @returns {string} HTML
-   */
+  // 智能渲染内容：自动区分 Markdown 与 HTML
+  // 全部委托 MarkdownUtils.toHTML 处理，包括「以贴纸注释开头的 HTML」这类边界情况；
+  // 在此自行判断会让两套检测逻辑产生分歧
   renderContent(text) {
     if (!text) return '<p style="color:var(--color-text-muted);">（空内容）</p>';
-
-    // 统一委托给 MarkdownUtils.toHTML：内部会正确检测 HTML 内容（含以贴纸注释
-    // 开头的 HTML），保留 <!-- sticker --> 标记，避免 HTML 被误判为 Markdown 转义。
     return MarkdownUtils.toHTML(text);
   },
 
-  /**
-   * 判断内容是否已经是 HTML 格式。
-   * 与 MarkdownUtils._isLikelyHtml 保持一致，避免两套检测逻辑产生分歧。
-   */
+  // 判断内容是否已是 HTML 格式
+  // 与 MarkdownUtils._isLikelyHtml 保持一致，避免两套检测逻辑产生分歧
   _isHtmlContent(text) {
     return MarkdownUtils._isLikelyHtml(text);
   },
 
-  // =========================================================================
-  //  编辑能力
-  // =========================================================================
+  // 编辑能力
 
-  /**
-   * 启用 contentEditable 编辑，绑定输入和粘贴事件。
-   * @param {HTMLElement} titleEl
-   * @param {HTMLElement} contentEl
-   * @param {function} onDirty - 标记脏状态回调
-   * @returns {{ inputHandler: function, pasteHandler: function }} 事件处理器引用（供 cleanup 使用）
-   */
+  // 启用 contentEditable 编辑并绑定输入与粘贴事件
+  // 粘贴时主动阻止默认行为并转成纯文本：直接粘贴会带入外部样式，破坏文章排版一致性
   enableEditing(titleEl, contentEl, onDirty) {
-    // 标题保持只读（编辑通过工具栏输入框）
-    // 内容可编辑
     contentEl.contentEditable = 'true';
     contentEl.setAttribute('role', 'textbox');
     contentEl.setAttribute('aria-label', '文章内容');
@@ -93,26 +62,25 @@ export const EditorContent = {
 
     contentEl.classList.add('editing');
 
-    // 输入事件 → 标记脏状态
     const inputHandler = function () {
       if (onDirty) onDirty();
     };
     titleEl.addEventListener('input', inputHandler);
     contentEl.addEventListener('input', inputHandler);
 
-    // 粘贴事件 → 清理格式（只保留纯文本 + 基本结构）
     const pasteHandler = function (e) {
       e.preventDefault();
       const text = (e.clipboardData || window.clipboardData).getData('text/plain');
       if (!text) return;
 
-      // 将纯文本转为带换行的 HTML
+      // 空行转为段落分隔、单换行转为 <br>，保留原文的段落层次
       let html = Utils.escapeHtml(text)
         .replace(/\n{2,}/g, "</p><p>")
         .replace(/\n/g, '<br>');
       html = '<p>' + html + '</p>';
 
       // 插入到光标位置
+      // 需先确认选区落在 contentEl 内：选区可能在标题或其他区域，直接插入会写错位置
       const sel = window.getSelection();
       if (sel.rangeCount && sel.getRangeAt(0).intersectsNode(contentEl)) {
         const range = sel.getRangeAt(0);
@@ -130,9 +98,8 @@ export const EditorContent = {
     return { inputHandler: inputHandler, pasteHandler: pasteHandler };
   },
 
-  /**
-   * 清理编辑事件监听。
-   */
+  // 清理编辑事件监听
+  // 用外部传入的处理器引用精确摘除：匿名函数无法 removeEventListener
   cleanupEditing(titleEl, contentEl, inputHandler, pasteHandler) {
     if (titleEl && inputHandler) {
       titleEl.removeEventListener('input', inputHandler);
@@ -145,28 +112,15 @@ export const EditorContent = {
     }
   },
 
-  // =========================================================================
-  //  内容读写
-  // =========================================================================
+  // 内容读写
 
-  /**
-   * 获取当前标题。
-   * @param {HTMLElement} titleEl
-   * @returns {string}
-   */
+  // 获取当前标题
   getTitle(titleEl) {
     if (!titleEl) return '';
     return titleEl.textContent.trim();
   },
 
-  /**
-   * 设置标题（更新 DOM + 标记脏状态 + 更新工具栏）。
-   * @param {HTMLElement} titleEl
-   * @param {string} val
-   * @param {object} toolbar - 工具栏对象
-   * @param {object} article - 文章对象
-   * @param {function} onDirty
-   */
+  // 设置标题（更新 DOM、标记脏状态并同步工具栏）
   setTitle(titleEl, val, toolbar, article, onDirty) {
     if (titleEl) {
       titleEl.textContent = val || '未命名文章';
@@ -177,48 +131,32 @@ export const EditorContent = {
     }
   },
 
-  /**
-   * 获取当前编辑后的内容（HTML 格式）。
-   * @param {HTMLElement} contentEl
-   * @returns {string}
-   */
+  // 获取当前编辑后的内容（HTML）
+  // 顺带移除空段落与「（空内容）」占位：它们是渲染期产物，不应写入存档
   getContentHTML(contentEl) {
     if (!contentEl) return '';
     let html = contentEl.innerHTML;
 
-    // 移除占位符段落
     html = html.replace(/<p[^>]*>\s*（空内容）\s*<\/p>/g, '');
     html = html.replace(/<p[^>]*>\s*<\/p>/g, '');
 
     return html.trim();
   },
 
-  /**
-   * 构建保存用的内容：数据驱动架构——收集贴纸锚点信息，构建带标记的内容。
-   *
-   * 流程：
-   *   1. 从 DOM 收集贴纸数据（含锚点信息）
-   *   2. 获取纯内容（剥离贴纸 div）
-   *   3. 使用 ContentBuilder 在正确位置插入标记注释
-   *
-   * @param {HTMLElement} contentEl
-   * @param {object} article - 文章对象（含 stickers 数组）
-   * @returns {string}
-   */
+  // 构建保存用的内容
+  // 数据驱动流程：先收集贴纸锚点 → 剥离贴纸 DOM 与旧标记得到纯内容 → 按锚点重新插入标记
+  // 顺序不可颠倒：锚点计算依赖完整 DOM 结构，剥离后再算会全部落到默认位置
   buildSaveContent(contentEl, article) {
     if (!contentEl) return '';
 
-    // 1. 从 DOM 收集贴纸数据（含锚点信息）——在剥离贴纸 div 之前执行
     const stickersWithAnchor = this.collectStickersWithAnchor(contentEl, article);
     console.log('[EditorContent.buildSaveContent] 收集到 ' + stickersWithAnchor.length +
                 ' 张贴纸（含锚点）| decoIds=' + stickersWithAnchor.map(function(s){return s.decoId;}).join(','));
 
-    // 2. 获取纯内容（剥离贴纸 div 和 clearfix）
     let html = this.getContentHTML(contentEl);
     html = StickerRenderer.stripStickerDivs(html);
     html = StickerRenderer.stripMarkers(html);
 
-    // 3. 使用数据驱动构建：在正确锚点位置插入标记注释
     const result = ContentBuilder.build(html, stickersWithAnchor);
 
     console.log('[EditorContent.buildSaveContent] 构建完成 | stickers=' + stickersWithAnchor.length +
@@ -227,21 +165,14 @@ export const EditorContent = {
     return result.trim();
   },
 
-  /**
-   * 从 DOM 中收集贴纸数据（含锚点信息）。
-   * 必须在剥离贴纸 div 之前调用，以确保锚点计算基于完整 DOM 结构。
-   *
-   * @param {HTMLElement} container - 文章内容容器
-   * @param {object} article - 文章对象（含 stickers 数组，用于补充已有属性）
-   * @returns {Array<object>} 贴纸数据数组 [{ decoId, width, height, align, margin, anchor }]
-   */
+  // 从 DOM 收集贴纸数据（含锚点）
+  // 必须在剥离贴纸 div 之前调用，否则锚点计算会失去 DOM 依据
   collectStickersWithAnchor: function (container, article) {
     if (!container) return [];
     const result = [];
     const els = container.querySelectorAll('.article-sticker');
     if (!els.length) return result;
 
-    // 构建 decoId → 已有 sticker 数据的查找表
     const stickerMap = {};
     const existing = article ? (article.stickers || []) : [];
     existing.forEach(function (s) { if (s && s.decoId) stickerMap[s.decoId] = s; });
@@ -250,11 +181,10 @@ export const EditorContent = {
       const decoId = el.dataset.decoId;
       if (!decoId) return;
 
-      // 优先从已有 sticker 数据获取属性，回退到 DOM 计算
       const existingData = stickerMap[decoId] || {};
 
-      // 锚点：优先使用贴纸编辑器保存时计算的锚点（基于覆盖层正确位置）；
-      // 若无已有锚点（如首次打开未进贴纸编辑器），从主编辑器 DOM 计算
+      // 锚点优先取贴纸编辑器保存过的值（基于覆盖层中的真实位置），
+      // 缺省或为默认锚点时才回退到按主编辑器 DOM 现算
       let anchor = existingData.anchor;
       let anchorSource = 'none';
       if (!anchor || AnchorManager.isDefaultAnchor(anchor)) {
@@ -279,7 +209,7 @@ export const EditorContent = {
                    ? existingData.margin
                    : StickerShape.DEFAULT_MARGIN;
 
-      // 从 DOM 补充 align（如果现有数据中不存在）
+      // 已有数据无 align 时向 DOM 补取：用户可能只拖拽调整过浮动方向
       const floatVal = el.style.float;
       if (!existingData.align && floatVal) {
         align = floatVal;
@@ -302,20 +232,16 @@ export const EditorContent = {
     return result;
   },
 
-  /**
-   * 从文章内容中解析贴纸标记（用于页面刷新后恢复贴纸数据）。
-   * 使用 AnchorManager.parseFromMarker 统一解析字段（含 anchor 信息），字段顺序无关。
-   * @param {string} content - 文章内容（可能含 HTML 注释标记）
-   * @returns {Array} 贴纸数据数组
-   */
+  // 从文章内容解析贴纸标记（用于刷新后恢复贴纸数据）
+  // y 缺省时按已解析数量递增 DEFAULT_GAP：多个无坐标贴纸都用默认值会完全重叠
   parseStickersFromContent(content) {
     const stickers = [];
     if (!content) return stickers;
     const regex = StickerRenderer._MARKER_REGEX;
-    regex.lastIndex = 0; // 重置全局正则状态（共享实例可能被其他模块使用后残留 lastIndex）
+    // 复位共享正则状态：该正则为模块级单例，上次使用可能残留 lastIndex
+    regex.lastIndex = 0;
     let match;
     while ((match = regex.exec(content)) !== null) {
-      // 使用 AnchorManager 统一解析（支持 anchor 字段 + 向后兼容旧格式）
       const fields = AnchorManager.parseFromMarker(match[1]);
       stickers.push({
         decoId: fields.decoId,
@@ -328,7 +254,7 @@ export const EditorContent = {
         align: fields.align || 'left',
         margin: fields.margin !== undefined ? parseInt(fields.margin) : StickerShape.DEFAULT_MARGIN,
         pos: fields.pos !== undefined ? parseInt(fields.pos) : -1,
-        // 锚点信息：向后兼容旧标记（无 anchor 字段时默认末尾）
+        // 旧标记无 anchor 字段时默认末尾，保证历史数据可用
         anchor: fields.anchor || { type: 'end', index: -1 },
       });
     }
@@ -336,16 +262,8 @@ export const EditorContent = {
     return stickers;
   },
 
-  /**
-   * 检测是否有实际修改（对比快照）。
-   * 注意：_snapshot.content 可能含贴纸标记，getContentHTML 不含，比较前需剥离。
-   * @param {object} snapshot - { title, content, stickers }
-   * @param {HTMLElement} titleEl
-   * @param {HTMLElement} contentEl
-   * @param {object} article - 文章对象（含 stickers）
-   * @param {boolean} dirty - 原始 _dirty 标记
-   * @returns {boolean}
-   */
+  // 检测是否有实际修改（对比快照）
+  // 快照的 content 可能含贴纸标记而当前 DOM 不含，故两侧都先剥离标记再比较，否则会恒判为已修改
   hasChanges(snapshot, titleEl, contentEl, article, dirty) {
     if (!snapshot) return dirty;
 
@@ -353,7 +271,6 @@ export const EditorContent = {
     const currentContent = this.getContentHTML(contentEl);
     const currentStickers = article ? (article.stickers || []) : [];
 
-    // 剥离贴纸标记后比较内容（快照 content 可能含标记）
     const snapshotContent = StickerRenderer.stripMarkers(snapshot.content || '');
     const cleanContent = StickerRenderer.stripMarkers(currentContent || '');
 

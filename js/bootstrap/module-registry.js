@@ -1,3 +1,6 @@
+// ！模块注册表
+// 向 AppInitializer 登记全部业务模块及其依赖，由其拓扑排序决定初始化顺序。
+// 各模块统一以「依赖就绪则初始化」的惰性工厂注册，故此处只声明依赖，不关心调用时机。
 import { AppInitializer } from '../core/app-initializer.js';
 import { UIController } from '../ui/ui-controller.js';
 import { Watermark } from '../services/watermark.js';
@@ -10,9 +13,10 @@ import { EventBus } from '../core/event-bus.js';
 import { EVENTS } from '../core/event-constants.js';
 
 import { Admin } from '../admin/index.js';
-import '../admin/panel/render.js';      // 扩展 AdminPanel.renderContent
-import '../admin/panel/palette.js';     // 扩展 AdminPanel.renderPalettes
-import '../admin/panel/events/index.js'; // 扩展 AdminPanel.bindEvents
+// 以下三个为副作用导入：仅用于给 AdminPanel 挂载 renderContent / renderPalettes / bindEvents，不需取具名导出
+import '../admin/panel/render.js';
+import '../admin/panel/palette.js';
+import '../admin/panel/events/index.js';
 
 export function registerAllModules() {
     AppInitializer
@@ -34,10 +38,11 @@ export function registerAllModules() {
                     try {
                         const items = await DecoShelf.loadLibrary();
                         console.log('[bootstrap] Deco 贴图库加载完成，共', items ? items.length : 0, '项，位置信息:', items ? items.map(function(i) { return i.id + ':' + (i.position ? '有' : '无'); }) : []);
-                        // 先渲染一次（处理 APP_STARTED 已发出的情况）
+                        // 先渲染一次：贴图库是异步加载的，此时 APP_STARTED 可能早已发出
                         DecoShelf._renderAllDecos();
                         console.log('[bootstrap] Deco 首次渲染完成，DOM 元素数:', document.querySelectorAll('[id^="deco-"]').length);
-                        // 再等 APP_STARTED 后渲染一次（处理 DOM 尚未就绪的情况）
+                        // 若 APP_STARTED 尚未发出，再挂一次监听：覆盖 DOM 尚未就绪的另一时序
+                        // 两次渲染中必有一次落在正确时机，重复渲染自身幂等，代价可接受
                         if (!AppInitializer._initialized) {
                             EventBus.once(EVENTS.APP_STARTED, function () {
                                 DecoShelf._renderAllDecos();
@@ -86,7 +91,9 @@ export function registerAllModules() {
             }
         }, ['Config', 'Utils', 'AdminState', 'AdminAuth', 'AdminUI']);
 
-    // 注册 UI 就绪后加载文章数据的钩子
+    // UI 就绪后兜底加载文章数据
+    // ArticleData 依赖 UI，但本函数执行时 UI_INITIALIZED 可能已经发出，事件永不再来；
+    // 故此处按模块名查找并检查 loaded 标志，确保只补加载一次
     EventBus.once(EVENTS.UI_INITIALIZED, function () {
         console.log('[bootstrap] UI 已就绪，开始加载文章数据...');
         const articleModule = AppInitializer._modules.find(function (m) {

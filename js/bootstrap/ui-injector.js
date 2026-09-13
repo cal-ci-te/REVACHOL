@@ -1,10 +1,11 @@
+// ！UI 文案注入
+// 把 ui-strings.js 中的文案写入 index.html 的静态占位元素，实现文案与结构分离。
+// 每项均先判元素存在再赋值：文案项多于当前页面的元素是常态，缺失不应中断其余注入。
 import { UI } from '../utils/ui-strings.js';
 
 export function injectUITexts() {
-    // ---- 页面标题 ----
     document.title = UI.common.siteTitle + ' - ' + UI.common.siteSubtitle;
 
-    // ---- 通用元素 ----
     const siteTitle = document.getElementById('siteTitle');
     if (siteTitle) siteTitle.textContent = UI.common.siteTitle;
 
@@ -14,6 +15,7 @@ export function injectUITexts() {
     const searchInput = document.getElementById('sidebarSearchInput');
     if (searchInput) searchInput.placeholder = UI.common.searchPlaceholder;
 
+    // 版权行以占位符拼接：站点名与副标题可被配置改写，分开维护可避免两处不一致
     const copyrightBar = document.getElementById('copyrightBar');
     if (copyrightBar) {
         copyrightBar.textContent = UI.copyright
@@ -21,14 +23,13 @@ export function injectUITexts() {
             .replace('{siteSubtitle}', UI.common.siteSubtitle);
     }
 
-    // ---- 首屏说明 ----
     const heroTitle = document.getElementById('heroTitle');
     if (heroTitle) heroTitle.textContent = UI.hero.title;
 
+    // 用 innerHTML 而非 textContent：首屏说明含内联强调标签
     const heroDesc = document.getElementById('heroDescription');
     if (heroDesc) heroDesc.innerHTML = UI.hero.description;
 
-    // ---- 登录 ----
     const loginLabel = document.getElementById('loginLabel');
     if (loginLabel) loginLabel.textContent = UI.login.triggerLabel;
 
@@ -56,7 +57,6 @@ export function injectUITexts() {
     const loginHint = document.getElementById('loginHint');
     if (loginHint) loginHint.textContent = UI.login.hint;
 
-    // ---- 头像裁剪 ----
     const cropTitle = document.getElementById('cropModalTitle');
     if (cropTitle) cropTitle.textContent = UI.crop.title;
 
@@ -69,15 +69,13 @@ export function injectUITexts() {
     const cropConfirm = document.getElementById('cropConfirmBtn');
     if (cropConfirm) cropConfirm.textContent = UI.crop.confirm;
 
-    // ---- 管理员面板 ----
     const adminTitle = document.getElementById('adminPanelTitle');
     if (adminTitle) adminTitle.textContent = UI.admin.panelTitle;
 
-    // ---- 侧边栏 ----
+    // 侧边栏标题固定用卷轴符号而非取 UI 文案：该处是装饰性图标，不随语言/配置变化
     const sidebarTitle = document.getElementById('sidebarTitle');
     if (sidebarTitle) sidebarTitle.textContent = '📜';
 
-    // ---- 位置管理控件 ----
     const enterPosBtn = document.getElementById('enterPositionModeBtn');
     if (enterPosBtn) enterPosBtn.textContent = UI.admin.positionModeEnter;
 
@@ -90,15 +88,12 @@ export function injectUITexts() {
     const posHint = document.getElementById('positionModeHint');
     if (posHint) posHint.textContent = UI.admin.positionModeHint;
 
-    // ---- 目录加载占位 ----
     const dirLoading = document.getElementById('directoryLoading');
     if (dirLoading) dirLoading.textContent = UI.directory.loading;
 
-    // ---- 文章列表加载 ----
     const articlesLoading = document.getElementById('articlesLoading');
     if (articlesLoading) articlesLoading.textContent = UI.articles.loading;
 
-    // ---- 可见水印 ----
     const visibleWatermark = document.getElementById('visibleWatermark');
     if (visibleWatermark) {
         visibleWatermark.textContent = `© ${UI.common.siteTitle} · ${UI.common.siteSubtitle} · 内容受保护`;

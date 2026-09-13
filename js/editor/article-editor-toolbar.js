@@ -1,12 +1,6 @@
-/**
- * 文章编辑器悬浮工具栏 — 可拖拽、可折叠。
- *
- * 按钮：💾保存草稿 🚀发布 📌贴纸 ↩放弃 ✕退出
- * 标题编辑：工具栏内的 input 字段
- *
- * @module article-editor-toolbar
- */
-
+// ！文章编辑器工具栏
+// 悬浮于编辑页的工具栏，可拖拽、可折叠，承载保存/发布/贴纸/放弃/退出等操作与标题输入。
+// 位置按 left/top 之外的 right/top 记录：工具栏默认贴右上角，用 right 定位可让面板宽度变化时不左右跳动。
 import { UI } from '../utils/ui-strings.js';
 
 export const ArticleEditorToolbar = {
@@ -17,9 +11,8 @@ export const ArticleEditorToolbar = {
   _callbacks: null,
   _posKey: 'article_editor_toolbar_pos',
 
-  /**
-   * @param {object} cb { onSaveDraft, onPublish, onStickers, onDiscard, onExit, onTitleChange, onToggleRender }
-   */
+  // 创建工具栏
+  // cb 支持 onSaveDraft / onPublish / onStickers / onDiscard / onExit / onTitleChange / onToggleRender
   create(cb) {
     this._callbacks = cb || {};
     const self = this;
@@ -41,6 +34,7 @@ export const ArticleEditorToolbar = {
     const pos = this._loadPos();
     panel.style.right = (pos.right || 20) + 'px';
     panel.style.top = (pos.top || 20) + 'px';
+    // 显式清空 left/bottom：与 right/top 同时存在时定位结果不可预期
     panel.style.bottom = 'auto';
     panel.style.left = 'auto';
 
@@ -64,6 +58,7 @@ export const ArticleEditorToolbar = {
 
     this._bindDrag(panel, header);
 
+    // 折叠态宽度与 toggle 图标同宽（48px），保证折叠后图标不被裁切
     const toggle = header.querySelector('#editorToolbarToggle');
     toggle.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -90,7 +85,8 @@ export const ArticleEditorToolbar = {
     return this;
   },
 
-  /** 更新标题/分类显示 */
+  // 更新标题与分类显示
+  // 标题回写前比对旧值：光标位于输入框时直接赋值会让光标跳到末尾
   updateInfo(title, category) {
     const ti = document.getElementById('editorToolbarTitleInput');
     const c = document.getElementById('editorToolbarCategory');
@@ -98,13 +94,14 @@ export const ArticleEditorToolbar = {
     if (c) c.textContent = category || '未分类';
   },
 
-  /** 获取当前输入框中的标题 */
+  // 获取输入框中的标题
   getTitleInput() {
     const ti = document.getElementById('editorToolbarTitleInput');
     return ti ? ti.value.trim() : '';
   },
 
-  /** 更新渲染模式按钮文案（'html' | 'text'） */
+  // 更新渲染模式按钮文案
+  // 按钮文案显示的是「点击后将切换到的模式」，与当前模式相反，便于用户预判点击结果
   updateRenderMode(mode) {
     const btn = document.getElementById('editorBtnToggleRender');
     if (btn) {
@@ -114,6 +111,8 @@ export const ArticleEditorToolbar = {
     }
   },
 
+  // 绑定按钮与标题输入
+  // 统一经 b() 注册并阻止冒泡：避免点击按钮同时触发展开/折叠等外层行为
   _bindButtons() {
     const cb = this._callbacks || {};
     const b = function (id, fn) {
@@ -128,7 +127,6 @@ export const ArticleEditorToolbar = {
     b('editorBtnDiscard',  cb.onDiscard);
     b('editorBtnExit',     cb.onExit);
 
-    // 标题输入
     const self = this;
     const ti = document.getElementById('editorToolbarTitleInput');
     if (ti && cb.onTitleChange) {
@@ -138,9 +136,12 @@ export const ArticleEditorToolbar = {
     }
   },
 
+  // 工具栏拖拽
+  // 以 right 为基准换算位置：面板贴右侧，用 right 描述可让宽度变化时保持右边缘不动
   _bindDrag(panel, header) {
     const self = this;
     header.addEventListener('mousedown', function (e) {
+      // 折叠图标、按钮与输入框需响应自身交互，不进入拖拽
       if (e.target.closest('.toggle-icon') || e.target.closest('button') || e.target.closest('input')) return;
       e.preventDefault();
       const rect = panel.getBoundingClientRect();
@@ -165,7 +166,9 @@ export const ArticleEditorToolbar = {
     });
   },
 
+  // 保存位置，localStorage 不可用时静默忽略
   _savePos(r, t) { try { localStorage.setItem(this._posKey, JSON.stringify({ right: r, top: t })); } catch (_) {} },
+  // 读取位置，解析失败回落默认值
   _loadPos() { try { const s = localStorage.getItem(this._posKey); return s ? JSON.parse(s) : { right: 20, top: 20 }; } catch (_) { return { right: 20, top: 20 }; } },
 
   isVisible() { return this._visible; },
@@ -176,9 +179,10 @@ export const ArticleEditorToolbar = {
   },
 };
 
+// 生成工具栏内容 HTML
+// 文案全部回退到 UI.editor 并带内置默认值：文案缺失时按钮不应变成空白
 function _buildHTML() {
   return [
-    // 标题输入
     '<div style="margin-bottom:12px;">',
       '<label style="color:var(--color-text-muted);font-size:11px;">', (UI.editor.titleLabel || '📌 标题'), '</label>',
       '<input id="editorToolbarTitleInput" type="text" style="',
@@ -207,6 +211,8 @@ function _buildHTML() {
   ].join('');
 }
 
+// 生成单个工具栏按钮
+// type 控制视觉层级：primary 为实心强调（发布），danger 仅文字变红（退出）
 function _b(id, label, type) {
   let bg = 'background:var(--color-bg-primary);border:1px solid var(--color-border);';
   let color = 'color:var(--color-text-accent);';

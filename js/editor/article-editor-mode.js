@@ -1,18 +1,8 @@
-/**
- * 文章编辑模式 — 主页面内的全屏模态 WYSIWYG 文章编辑器。
- *
- * 复用策略：
- *   1. 文章渲染 → 复用 UIDetail.renderContent 的 Markdown→HTML 逻辑
- *   2. 全屏覆盖层 → 复用 StickerEditorMode._createOverlay 模式
- *   3. 贴纸展示 → 从 article.stickers 渲染贴纸（只读，Phase 4 后交互）
- *   4. ESC 退出 → 复用贴纸编辑模式的按键处理
- *
- * 入口：ArticleEditorMode.open(articleId)
- * 关闭：ArticleEditorMode.close(save)
- *
- * @module article-editor-mode
- */
-
+// ！文章编辑模式
+// 主页面内的全屏模态所见即所得编辑器，入口 ArticleEditorMode.open(articleId)，关闭 close(save)。
+// 采用分工复用策略：文章渲染与内容读写交 EditorContent，覆盖层交 EditorOverlay，
+// 贴纸预览交 EditorStickers，快捷键交 EditorKeys，工具栏与草稿面板各自独立——
+// 本模块只做编排与状态持有，避免单文件膨胀并绕开循环引用。
 import { ArticleService } from '../services/article-service.js';
 import { DecoShelf } from '../services/deco.js';
 import { ApiClient } from '../services/api-client.js';
@@ -31,13 +21,15 @@ import { EditorContent } from './editor-content.js';
 
 export const ArticleEditorMode = {
 
-  // ---- 状态 ----
+  // 状态
 
   _article: null,
   _articleId: null,
   _dirty: false,
-  _saving: false,           // 防重复保存/发布锁
-  _snapshot: null,        // 打开时的原始数据快照 { title, content, stickers }
+  // _saving 兼作防重复保存/发布锁
+  // _snapshot 为打开时的原始数据快照 { title, content, stickers }，用于判断是否真有改动
+  _saving: false,
+  _snapshot: null,
 
   _overlay: null,
   _articleContainer: null,
@@ -51,19 +43,16 @@ export const ArticleEditorMode = {
   _inputHandler: null,
   _pasteHandler: null,
 
-  // 渲染模式：'html'（渲染 HTML 标签 + 贴纸）| 'text'（纯文本源码，不渲染标签和贴纸）
+  // 渲染模式：html 渲染标签与贴纸；text 显示纯文本源码，不渲染标签与贴纸
   _renderMode: 'html',
 
-  // ---- CSS 由 EditorOverlay 管理 ----
+  // CSS 由 EditorOverlay 管理
 
-  // =========================================================================
-  //  入口
-  // =========================================================================
+  // 入口
 
-  /**
-   * 打开文章编辑模式。
-   * @param {number} articleId - 文章 ID
-   */
+  // 打开文章编辑模式
+  // 宽度小于 768px 直接拒绝：编辑依赖悬浮工具栏与宽内容区，窄屏下无法正常操作
+  // 贴纸数据缺失时从正文标记回填，保证后续锚点计算有完整数据
   async open(articleId) {
     if (this._visible) {
       console.warn('[ArticleEditorMode] 编辑模式已打开');
@@ -88,7 +77,6 @@ export const ArticleEditorMode = {
     this._articleId = articleId;
     this._dirty = false;
 
-    // 确保贴纸数据已加载（从内容标记解析）
     if (!article.stickers || !article.stickers.length) {
       article.stickers = this._parseStickersFromContent(article.content || '');
       console.log('[ArticleEditorMode.open] 从 content 解析贴纸: ' + (article.stickers ? article.stickers.length : 0) + ' 张 | content len=' + (article.content ? article.content.length : 0));
@@ -96,17 +84,19 @@ export const ArticleEditorMode = {
       console.log('[ArticleEditorMode.open] 使用已有 article.stickers: ' + article.stickers.length + ' 张');
     }
 
-    // 快照：用于检测是否真的有修改（含贴纸数据）
+    // 深拷贝快照：贴纸对象在编辑过程中会被就地改写，存引用会让快照随之变化而失去比对意义
     this._snapshot = {
       title: article.title || '',
       content: article.content || '',
       stickers: article.stickers ? JSON.parse(JSON.stringify(article.stickers)) : [],
     };
 
-    // 加载贴纸库
     const decos = DecoShelf.getAll();
     if (!decos || !decos.length) {
-      try { await DecoShelf.loadLibrary(); } catch (e) { /* 继续 */ }
+      // 贴纸库加载失败不阻断编辑：无贴纸的文章仍可正常编辑
+      try { await DecoShelf.loadLibrary(); } catch (e) {
+        // 无贴纸库，仅影响贴纸渲染
+      }
     }
 
     EditorOverlay.ensureCSS();
@@ -126,10 +116,8 @@ export const ArticleEditorMode = {
     console.log('[ArticleEditorMode] 编辑模式已打开');
   },
 
-  /**
-   * 关闭编辑模式。
-   * @param {boolean} save - 是否保存更改
-   */
+  // 关闭编辑模式
+  // save 为 true 时先落盘再拆 DOM；保存为异步过程，故此处只触发不等待
   close(save) {
     if (!this._visible) return;
 
@@ -146,15 +134,13 @@ export const ArticleEditorMode = {
     EventBus.emit(EVENTS.EDITOR_CLOSED, { articleId: this._articleId, saved: save });
 
     this._visible = false;
-    // save: true = 关闭时执行了保存, false = 关闭时无需保存（数据已在之前发布/草稿保存）
+    // save=true 表示关闭时执行了保存；false 表示无需保存（数据已在之前发布或存为草稿）
     console.log('[ArticleEditorMode] 编辑模式已关闭 | 关闭时保存=' + save + ' | _dirty=' + this._dirty);
   },
 
   isVisible() { return this._visible; },
 
-  // =========================================================================
-  //  覆盖层 — 委托给 EditorOverlay 模块
-  // =========================================================================
+  // 覆盖层与文章渲染（委托给 EditorOverlay / EditorContent）
 
   _createOverlay() {
     const elements = EditorOverlay.create();
@@ -162,10 +148,6 @@ export const ArticleEditorMode = {
     this._topbar = elements.topbar;
     this._articleContainer = elements.articleContainer;
   },
-
-  // =========================================================================
-  //  文章渲染 — 委托给 EditorContent 模块
-  // =========================================================================
 
   _renderArticle(article) {
     const elements = EditorContent.render(article, this._articleContainer);
@@ -181,12 +163,10 @@ export const ArticleEditorMode = {
     return EditorContent._isHtmlContent(text);
   },
 
-  /**
-   * 切换渲染模式：'html'（渲染 HTML 标签 + 贴纸） ↔ 'text'（纯文本源码）。
-   */
+  // 切换渲染模式：html（渲染标签与贴纸）与 text（纯文本源码）互切
+  // 切换前必须先回写当前内容：两种模式的内容读取方式不同，不回写会丢失本模式的编辑结果
   toggleRenderMode() {
     if (!this._article) return;
-    // 切换前先把当前模式下内容区的编辑结果写回 article.content，避免丢失
     this._captureContent();
     this._renderMode = (this._renderMode === 'html') ? 'text' : 'html';
     this._applyRenderMode();
@@ -199,31 +179,28 @@ export const ArticleEditorMode = {
     );
   },
 
-  /** 将内容区当前内容写回 article.content（按当前模式读取，HTML 模式下贴纸还原为标记）。 */
+  // 将内容区当前内容写回 article.content（按当前模式读取，html 模式下贴纸还原为标记）
   _captureContent() {
     if (!this._contentEl || !this._article) return;
     this._article.content = this._buildSaveContent();
   },
 
-  /** 按当前渲染模式重绘内容区（含贴纸层）。 */
+  // 按当前渲染模式重绘内容区
   _applyRenderMode() {
     if (!this._contentEl || !this._article) return;
     const content = this._article.content || '';
     if (this._renderMode === 'text') {
-      // 纯文本：清空贴纸，显示原始源码（HTML 标签/贴纸标记以纯文本呈现）
+      // 纯文本模式用 textContent：让 HTML 标签与贴纸标记以源码形式可见，同时天然避免 XSS
       EditorStickers.cleanup(this._contentEl);
       this._contentEl.textContent = content;
     } else {
-      // HTML：渲染标签，并按标记位置渲染贴纸（float 文字绕排）
       this._contentEl.innerHTML = EditorContent.renderContent(content);
       this._renderExistingStickers(this._article);
     }
     this._dirty = true;
   },
 
-  // =========================================================================
-  //  编辑能力 — 委托给 EditorContent 模块
-  // =========================================================================
+  // 编辑能力（委托给 EditorContent）
 
   _enableEditing() {
     const self = this;
@@ -245,8 +222,9 @@ export const ArticleEditorMode = {
     return EditorContent.getContentHTML(this._contentEl);
   },
 
+  // 构建待保存内容
+  // 纯文本模式下内容区存的是原始源码，直接取其文本；html 模式走贴纸锚点重建
   _buildSaveContent() {
-    // 纯文本模式：内容区保存的是原始源码（HTML 标签/贴纸标记可见），直接返回其文本内容
     if (this._renderMode === 'text') {
       return this._contentEl ? (this._contentEl.textContent || '') : '';
     }
@@ -261,11 +239,9 @@ export const ArticleEditorMode = {
     return EditorContent.hasChanges(this._snapshot, this._titleEl, this._contentEl, this._article, this._dirty);
   },
 
-  // =========================================================================
-  //  贴纸渲染与交互 — 委托给 EditorStickers 模块
-  // =========================================================================
+  // 贴纸渲染与交互（委托给 EditorStickers）
 
-  /** 构建贴纸模块所需的 ctx 对象 */
+  // 构建贴纸模块所需的 ctx 对象
   _getStickerCtx(article) {
     const self = this;
     return {
@@ -283,24 +259,17 @@ export const ArticleEditorMode = {
     EditorStickers.refresh(this._getStickerCtx());
   },
 
-    // =========================================================================
-  //  键盘事件
-  // =========================================================================
+  // 键盘事件
 
   _bindKeys() {
     this._escUnbind = EditorKeys.bind(this);
     console.log('[ArticleEditorMode] 快捷键已绑定');
   },
 
-  // =========================================================================
-  //  保存操作
-  // =========================================================================
+  // 保存操作
 
-  /**
-   * 显示反馈弹窗（保存/发布成功）。
-   * @param {string} title - 弹窗标题
-   * @param {Array<{label:string, value:string}>} details - 详情行 [{label, value}]
-   */
+  // 显示反馈弹窗（保存/发布成功）
+  // 同时支持按钮、点击遮罩关闭与 2.5 秒自动关闭：成功反馈无需用户确认，但也不应阻塞操作
   _showFeedbackModal(title, details) {
     const existing = document.getElementById('editor-feedback-modal');
     if (existing) existing.remove();
@@ -332,6 +301,7 @@ export const ArticleEditorMode = {
       details.forEach(function (row) {
         const line = document.createElement('div');
         line.style.cssText = 'margin-bottom:8px;';
+        // label 为内部固定文案，value 可能含用户输入，故仅对 value 转义
         line.innerHTML =
           '<span style="color:var(--color-text-muted);">' + row.label + '：</span>' +
           '<span style="color:var(--color-text-accent);">' + Utils.escapeHtml(row.value || '') + '</span>';
@@ -352,15 +322,15 @@ export const ArticleEditorMode = {
     box.appendChild(btn);
 
     overlay.appendChild(box);
+    // 仅点击遮罩本身才关闭，避免点击弹窗内容冒泡到遮罩
     overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
     document.body.appendChild(overlay);
 
     setTimeout(function () { if (overlay.parentNode) overlay.remove(); }, 2500);
   },
 
-  /**
-   * 保存草稿到后端。
-   */
+  // 保存草稿到后端
+  // _saving 兼作互斥锁：保存为异步且可能被快捷键连续触发，不加锁会产生重复请求
   async saveDraft() {
     if (this._saving) { console.log('[ArticleEditorMode] 保存中，跳过重复请求'); return; }
     if (!this._articleId) {
@@ -389,6 +359,7 @@ export const ArticleEditorMode = {
         { label: UI.editor.titleLabel, value: title }
       ]);
 
+      // 保存成功后重置快照与脏标记：此后 hasChanges 应以本次保存的内容为基准
       this._snapshot = { title: title, content: content, stickers: this._article ? JSON.parse(JSON.stringify(this._article.stickers || [])) : [] };
       this._dirty = false;
       if (this._draftManager) { await this._draftManager.refresh(); }
@@ -397,13 +368,12 @@ export const ArticleEditorMode = {
       console.error('[ArticleEditorMode] 草稿保存失败:', err);
       Utils.showToast(UI.editor.saveFailed + err.message, true);
     } finally {
+      // 无论成败都释放锁，否则一次失败会让后续保存永久被跳过
       this._saving = false;
     }
   },
 
-  /**
-   * 发布/更新文章到后端。
-   */
+  // 发布或更新文章到后端
   async saveAndPublish() {
     if (this._saving) { console.log('[ArticleEditorMode] 发布中，跳过重复请求'); return; }
     if (!this._articleId) {
@@ -438,11 +408,14 @@ export const ArticleEditorMode = {
       this._snapshot = { title: title, content: content, stickers: this._article ? JSON.parse(JSON.stringify(this._article.stickers || [])) : [] };
       this._dirty = false;
 
+      // 通知其他标签页刷新：发布改变了服务端数据，其他标签页的缓存已过期
       try {
         const channel = new BroadcastChannel('revachol');
         channel.postMessage({ type: 'article_updated', payload: { articleId: this._articleId } });
         channel.close();
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        // 环境不支持 BroadcastChannel，跳过跨页同步
+      }
 
       console.log('[ArticleEditorMode] 文章已发布');
     } catch (err) {
@@ -453,9 +426,8 @@ export const ArticleEditorMode = {
     }
   },
 
-  /**
-   * 内部保存方法，由 close(true) 调用。
-   */
+  // 内部保存方法，由 close(true) 调用
+  // 不 await：close 流程需同步完成拆解，且此处已有 catch 兜底记录失败
   _saveArticle() {
     if (this._dirty || this.hasChanges()) {
       this.saveAndPublish().catch(function (err) {
@@ -465,9 +437,7 @@ export const ArticleEditorMode = {
     this._dirty = false;
   },
 
-  /**
-   * 放弃所有修改，恢复到打开编辑器时的原始状态。
-   */
+  // 放弃所有修改，恢复到打开编辑器时的原始状态
   discardChanges() {
     if (!this._snapshot) return;
     if (!(this._dirty || this.hasChanges())) {
@@ -498,10 +468,8 @@ export const ArticleEditorMode = {
     console.log('[ArticleEditorMode] 已放弃修改');
   },
 
-  /**
-   * 从草稿恢复文章内容。
-   * @param {object} draft - { id, title, content, category, saved_at }
-   */
+  // 从草稿恢复文章内容
+  // 恢复后把快照对齐到草稿：用户看到的即为「当前基准」，继续编辑才不会被误判为已修改
   _restoreFromDraft(draft) {
     if (!draft) return;
 
@@ -533,20 +501,19 @@ export const ArticleEditorMode = {
     console.log('[ArticleEditorMode] 已从草稿恢复:', draft.id);
   },
 
-  /**
-   * 打开贴纸编辑模式（StickerEditorMode）。
-   * 先保存当前草稿，再以当前文章数据打开贴纸编辑器。
-   */
+  // 打开贴纸编辑模式
+  // 先存草稿再打开，保证贴纸编辑器拿到的是已落盘的内容
+  // 用 _stickerEditorOpen 防重入：双击会注册多份监听器，导致保存回调被重复执行
   async _openStickers() {
     if (!this._articleId) return;
-    // 防止重复打开（包括快速双击导致的多重注册）
     if (this._stickerEditorOpen) return;
     this._stickerEditorOpen = true;
 
-    try { await this.saveDraft(); } catch (e) { /* 不阻断 */ }
+    try { await this.saveDraft(); } catch (e) {
+      // 草稿保存失败不阻断：贴纸编辑仍可基于当前内存内容进行
+    }
 
-    // 打开贴纸编辑器前，把当前内容区的最新编辑写回 article.content，
-    // 确保贴纸编辑器渲染的内容与后续保存的内容一致（锚点计算基于同一份内容）
+    // 把内容区最新编辑写回 article.content：贴纸编辑器与后续保存须基于同一份内容做锚点计算
     this._captureContent();
 
     const article = {
@@ -558,6 +525,7 @@ export const ArticleEditorMode = {
 
     const self = this;
 
+    // 贴纸保存后同步回文章并立即落盘，避免用户直接关闭标签页导致贴纸改动丢失
     const onStickerSaved = async function (data) {
       if (data.articleId === self._articleId && data.stickers) {
         if (self._article) {
@@ -566,7 +534,7 @@ export const ArticleEditorMode = {
 
         self._refreshStickerLayer();
 
-        // 从 DOM 构建保存内容（贴纸 div 就地替换为标记，保留位置）
+        // 从 DOM 重建保存内容：贴纸 div 就地还原为标记，保留其在正文中的位置
         const content = self._buildSaveContent();
         if (self._article) {
           self._article.content = content;
@@ -591,6 +559,7 @@ export const ArticleEditorMode = {
       EventBus.off(EVENTS.STICKER_EDITOR_CLOSED, onStickerClosed);
     };
 
+    // 保存与关闭两条路径都要解绑：只解其一会让另一条路径留下悬挂监听，造成下次打开重复触发
     var onStickerClosed = function () {
       self._stickerEditorOpen = false;
       EventBus.off(EVENTS.STICKER_EDITOR_SAVED, onStickerSaved);
@@ -603,9 +572,7 @@ export const ArticleEditorMode = {
     StickerEditorMode.open(article, null);
   },
 
-  // =========================================================================
-  //  工具栏
-  // =========================================================================
+  // 工具栏与草稿面板
 
   _createToolbar(article) {
     const self = this;
@@ -634,7 +601,7 @@ export const ArticleEditorMode = {
     this._toolbar.updateRenderMode(this._renderMode);
   },
 
-  /** 创建草稿管理面板 */
+  // 创建草稿管理面板
   _createDraftManager(articleId) {
     const self = this;
     this._draftManager = DraftManager.create(articleId, {
@@ -644,42 +611,38 @@ export const ArticleEditorMode = {
     });
   },
 
-  // =========================================================================
-  //  清理
-  // =========================================================================
+  // 清理
 
+  // 拆解编辑会话
+  // 顺序为「状态锁 → 事件监听 → 子模块 DOM → 状态复位」，
+  // 先锁住重入再拆监听，避免拆卸过程中被快捷键或事件回调再次进入
   _cleanup() {
-    // 重置贴纸编辑器状态（防止编辑器被强制关闭后残留状态）
+    // 重置贴纸编辑器状态，防止编辑器被强制关闭后残留打开标记
     this._stickerEditorOpen = false;
 
-    // 键盘事件
     if (this._escUnbind) {
       this._escUnbind();
       this._escUnbind = null;
     }
 
-    // 编辑事件（由 EditorContent 管理）
     EditorContent.cleanupEditing(this._titleEl, this._contentEl, this._inputHandler, this._pasteHandler);
     this._inputHandler = null;
     this._pasteHandler = null;
 
-    // 贴纸清理（右键菜单 + 浮动贴纸元素 DOM）
+    // 贴纸清理含右键菜单与浮动贴纸元素
     EditorStickers.cleanup(this._contentEl);
 
-    // DOM（覆盖层由 EditorOverlay 管理）
     EditorOverlay.destroy(this._overlay);
     this._overlay = null;
     this._articleContainer = null;
     this._titleEl = null;
     this._contentEl = null;
 
-    // 工具栏
     if (this._toolbar) { this._toolbar.destroy(); this._toolbar = null; }
 
-    // 草稿管理面板
     if (this._draftManager) { this._draftManager.destroy(); this._draftManager = null; }
 
-    // 状态
+    // 恢复页面滚动：覆盖层打开时锁定过 body，遗漏此处会导致关闭后页面无法滚动
     document.body.style.overflow = '';
     this._article = null;
     this._articleId = null;

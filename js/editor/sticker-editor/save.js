@@ -1,9 +1,6 @@
-/**
- * 贴纸编辑器保存层 — 收集 DOM 坐标 → 写入 article 对象 → 发布事件。
- *
- * @module sticker-editor/save
- */
-
+// ！贴纸编辑器保存层
+// 从 DOM 收集贴纸最终坐标，写入 article 对象并发布保存事件。
+// 只更新 article.stickers，不改 article.content：标记的构建由主编辑器经数据驱动锚点架构统一完成。
 import { EventBus } from '../../core/event-bus.js';
 import { EVENTS } from '../../core/event-constants.js';
 import { StickerShape } from '../sticker-shape.js';
@@ -11,19 +8,11 @@ import { AnchorManager } from '../anchor-manager.js';
 
 export const Save = {
 
-  /**
-   * 收集贴纸数据并写入 article 对象。
-   * 仅更新 article.stickers，不修改 article.content。
-   * content 的标记构建由主编辑器的 _buildSaveContent() 通过数据驱动锚点架构统一处理。
-   *
-   * @param {object} article - 文章对象（会被修改 stickers 字段）
-   * @param {HTMLElement} stickerLayer
-   * @param {Array} stickerData - 当前贴纸数据（含 align/margin 等非 DOM 属性）
-   */
+  // 收集贴纸数据并写回 article
+  // 深拷贝后再赋值：article 会被主编辑器长期持有，直接存引用会让后续 DOM 收集改动污染已保存数据
   save(article, stickerLayer, stickerData) {
     if (!article) return;
 
-    // 从 DOM 收集最终位置写入 stickerData
     const collected = this.collect(stickerLayer, stickerData);
 
     article.stickers = JSON.parse(JSON.stringify(collected));
@@ -34,14 +23,9 @@ export const Save = {
     });
   },
 
-  /**
-   * 从 DOM 中收集当前贴纸位置，并在覆盖层 DOM 中计算锚点。
-   * 覆盖层中贴纸使用绝对定位处于正确视觉位置，锚点基于此计算。
-   *
-   * @param {HTMLElement} stickerLayer - 贴纸层（绝对定位容器）
-   * @param {Array} stickerData - 用于恢复 align/margin/shape/vertices 等非 DOM 属性
-   * @returns {Array}
-   */
+  // 从 DOM 收集贴纸位置并计算锚点
+  // 覆盖层中贴纸为绝对定位，此处的坐标就是用户的最终意图，故锚点基于该坐标反推
+  // 坐标来自 DOM（最新位置），align/margin 等非 DOM 属性则回取 stickerData
   collect(stickerLayer, stickerData) {
     if (!stickerLayer) return [];
     const result = [];
@@ -50,7 +34,7 @@ export const Save = {
       stickerData.forEach(function (d) { if (d && d.decoId) dataMap[d.decoId] = d; });
     }
 
-    // 贴纸层的父元素是 articleContainer，其中包含内容容器（.detail-body）
+    // 贴纸层的父元素即 articleContainer，内容容器为其内的 .detail-body
     const articleContainer = stickerLayer.parentElement;
     const contentContainer = articleContainer ? articleContainer.querySelector('.detail-body') : null;
 
@@ -60,9 +44,8 @@ export const Save = {
       const orig = dataMap[decoId] || {};
       const y = parseFloat(el.style.top) || 0;
 
-      // 校正 y 坐标：贴纸的 top 相对于 articleContainer（stickerLayer 的 parent），
-      // 但 computeAnchorFromY 期望 y 相对于 contentContainer。
-      // 将 y 从 articleContainer 坐标系转换到 contentContainer 坐标系。
+      // 坐标系换算：贴纸的 top 相对 articleContainer，而 computeAnchorFromY 期望相对 contentContainer
+      // 两者相差容器内边距（padding 24px 32px），不换算会让锚点系统性偏移
       let anchor = { type: 'end', index: -1 };
       if (contentContainer && articleContainer) {
         const aRect = articleContainer.getBoundingClientRect();
@@ -74,6 +57,7 @@ export const Save = {
                     ' | children=' + contentContainer.children.length +
                     ' | anchor=' + JSON.stringify(anchor));
       } else {
+        // 缺容器时退回默认末尾锚点：贴纸仍会保存，只是位置信息降级
         console.warn('[Save.collect] contentContainer=' + !!contentContainer +
                      ' articleContainer=' + !!articleContainer +
                      ' → 使用默认锚点');

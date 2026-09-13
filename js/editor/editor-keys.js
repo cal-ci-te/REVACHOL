@@ -1,30 +1,17 @@
-/**
- * 编辑器键盘快捷键 — ESC / Ctrl+S / Ctrl+Enter 处理。
- *
- * 通过 bind(ctx) 注入上下文对象，不依赖主控模块，避免循环引用。
- *
- * @module editor-keys
- */
-
+// ！编辑器快捷键
+// 处理 ESC / Ctrl+S / Ctrl+Enter 三个编辑期快捷键。
+// 经 bind(ctx) 注入上下文对象，不依赖主控模块，避免循环引用。
 import { UI } from '../utils/ui-strings.js';
 
 export const EditorKeys = {
 
-  /**
-   * 注册键盘事件监听（document keydown）。
-   * @param {object} ctx - 上下文对象
-   * @param {function(): boolean} ctx.hasChanges - 是否有未保存修改
-   * @param {function(): Promise} ctx.saveDraft - 保存草稿
-   * @param {function(): Promise} ctx.saveAndPublish - 发布文章
-   * @param {function(boolean)} ctx.close - 关闭编辑器
-   * @param {function(e): boolean} [ctx.isContentEditing] - 判断焦点是否在编辑区域
-   * @returns {function} 注销函数（调用后移除监听）
-   */
+  // 注册键盘监听，返回注销函数
+  // ESC 不做「是否在编辑中」判断：它是唯一能退出编辑器的入口，被屏蔽会导致用户无法退出
+  // Ctrl+S / Ctrl+Enter 则相反，在可编辑区内直接放行，否则会抢走浏览器与输入法的组合键
   bind(ctx) {
     const self = this;
 
     function handler(e) {
-      // 跳过在 contentEditable 中的常规输入
       const target = e.target;
       const isEditing = target && (target.contentEditable === 'true' ||
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'));
@@ -42,16 +29,14 @@ export const EditorKeys = {
         return;
       }
 
-      // Ctrl+S/Ctrl+Enter 在 contentEditable 中不触发（防止输入时误操作）
       if (isEditing && (e.ctrlKey || e.metaKey)) return;
 
-      // Ctrl+S → 保存草稿
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         ctx.saveDraft();
       }
 
-      // Ctrl+Enter → 发布
+      // Meta 与 Ctrl 一并支持：兼顾 macOS 的 Command 键
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         ctx.saveAndPublish();
@@ -61,7 +46,6 @@ export const EditorKeys = {
     document.addEventListener('keydown', handler);
     console.log('[EditorKeys] 快捷键已绑定');
 
-    // 返回注销函数
     return function unbind() {
       document.removeEventListener('keydown', handler);
       console.log('[EditorKeys] 快捷键已解绑');

@@ -1,19 +1,14 @@
-/**
- * 贴纸编辑器覆盖层 — 全屏 DOM 结构 + 文章渲染 + 光标高亮。
- *
- * @module sticker-editor/overlay
- */
-
+// ！贴纸编辑器覆盖层
+// 创建全屏覆盖层 DOM、渲染文章内容并显示光标高亮脉冲。
+// 与文章编辑器覆盖层结构一致（顶栏高度、容器内边距相同），使两个编辑模式的观感统一。
 import { MarkdownUtils } from '../../utils/markdown-utils.js';
 
 export const Overlay = {
 
-  /**
-   * 创建全屏覆盖层及其子元素。
-   * @returns {{ overlay, articleContainer, stickerLayer }}
-   */
+  // 创建全屏覆盖层及其子元素
+  // 文章容器 overflow 保持 visible：贴纸可拖到容器边缘外，裁剪会让其消失
+  // 贴纸层用 absolute 且 pointer-events:none 兜底，具体成员元素自行开启事件
   create() {
-    // 遮罩层
     const overlay = document.createElement('div');
     overlay.id = 'sticker-editor-overlay';
     overlay.style.cssText = [
@@ -23,15 +18,15 @@ export const Overlay = {
     ].join(';');
     document.body.appendChild(overlay);
 
-    // 点击空白区关闭
+    // 仅在点击遮罩本体时关闭：命中子元素说明用户仍在操作内容区
+    // 关闭回调由主控在 create 之后注入，故此处只读 _onBlankClick
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) {
-        // 由主控在 create 后注入 close 回调
         if (overlay._onBlankClick) overlay._onBlankClick();
       }
     });
 
-    // 文章容器 — 与文章编辑页/阅读页 .detail-pane 容器尺寸完全一致（padding 24px 32px，全宽）
+    // 文章容器尺寸与阅读页 .detail-pane 完全一致（padding 24px 32px、全宽）
     const articleContainer = document.createElement('div');
     articleContainer.id = 'sticker-editor-article';
     articleContainer.style.cssText = [
@@ -40,7 +35,6 @@ export const Overlay = {
     ].join(';');
     overlay.appendChild(articleContainer);
 
-    // 贴纸层
     const stickerLayer = document.createElement('div');
     stickerLayer.id = 'sticker-editor-layer';
     stickerLayer.style.cssText = [
@@ -52,13 +46,9 @@ export const Overlay = {
     return { overlay: overlay, articleContainer: articleContainer, stickerLayer: stickerLayer };
   },
 
-  /**
-   * 渲染文章的标题和内容。
-   * @param {object} article
-   * @param {HTMLElement} container - articleContainer
-   */
+  // 渲染文章标题与内容
+  // 标题样式与阅读页、文章编辑器保持一致，避免切换模式时标题栏跳动
   renderArticle(article, container) {
-    // 标题
     const titleEl = document.createElement('h1');
     titleEl.style.cssText = [
       'color:var(--color-text-heading, #e8c88a)',
@@ -69,25 +59,20 @@ export const Overlay = {
     titleEl.textContent = article.title || '未命名文章';
     container.appendChild(titleEl);
 
-    // 内容 — 与 UIDetail.renderContent 完全一致的处理
     const contentEl = document.createElement('div');
     contentEl.className = 'detail-body';
     contentEl.innerHTML = this.renderContent(article.content || '');
     container.appendChild(contentEl);
   },
 
-  /**
-   * 委托给公共 Markdown 工具（避免两个编辑器重复实现）。
-   */
+  // 渲染内容：委托公共 Markdown 工具，避免两个编辑器各自实现一套
   renderContent(text) {
     return MarkdownUtils.toHTML(text);
   },
 
-  /**
-   * 显示光标高亮脉冲动画。
-   * @param {HTMLElement} container - articleContainer
-   * @param {number} cursorY - 主题页面中的 Y 坐标
-   */
+  // 显示光标高亮脉冲
+  // 目的：从主题页点入时告知用户「刚才点在哪里」，脉冲 3 次后自动淡出移除
+  // cursorY 为空表示非点击进入（如无光标来源），此时不显示
   showCursorHighlight(container, cursorY) {
     if (cursorY == null) return;
 
@@ -103,6 +88,7 @@ export const Overlay = {
     ].join(';');
     container.appendChild(highlight);
 
+    // 先淡出再移除，避免元素突然消失；移除前判 parentNode，防止期间已被其他逻辑摘除
     setTimeout(function () {
       highlight.style.transition = 'opacity 0.5s';
       highlight.style.opacity = '0';
@@ -112,9 +98,7 @@ export const Overlay = {
     }, 2000);
   },
 
-  /**
-   * 移除覆盖层 DOM。
-   */
+  // 移除覆盖层 DOM
   destroy(overlay) {
     if (overlay) overlay.remove();
   },

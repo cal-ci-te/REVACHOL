@@ -1,5 +1,6 @@
-// 应用入口。无框架依赖——使用自研 AppState（类 Vuex）+ EventBus 实现单向数据流。
-// 模块初始化顺序通过 AppInitializer 拓扑排序保证依赖关系。
+// ！应用入口
+// 无框架依赖的应用启动脚本：以自研 AppState（类 Vuex）+ EventBus 实现单向数据流。
+// 模块初始化顺序由 AppInitializer 拓扑排序保证依赖关系，本文件只负责装配与启动。
 import { CONFIG } from './config.js';
 import { Utils } from './utils.js';
 import { DOMRefs } from './core/dom-refs.js';
@@ -36,7 +37,6 @@ import { StickerShape } from './editor/sticker-shape.js';
 import { HealthMonitor } from './services/health-monitor.js';
 import { ArticleEditorMode } from './editor/article-editor-mode.js';
 
-// 组件统一管理系统
 import { ComponentManager } from './core/component-manager.js';
 import { decoComponent } from './components/deco-component.js';
 import { puzzleComponent } from './components/puzzle-component.js';
@@ -48,10 +48,12 @@ console.log('🚀 [app] ES Module 入口已加载');
 const APP_START_TIME = Date.now();
 const MIN_LOADER_DISPLAY = 300;
 
-// 加载期间锁定页面滚动（与详情页一致：html + body 双重锁定）
+// 加载期间锁定滚动：html 与 body 双重锁定，与详情页打开时的做法一致，
+// 单独锁 body 在部分浏览器下仍可滚动 html
 document.documentElement.style.overflow = 'hidden';
 document.body.style.overflow = 'hidden';
 
+// 隐藏心跳加载动画并解除滚动锁定
 function hideLoader() {
     const loader = document.getElementById('heartbeat-loader');
     if (!loader) return;
@@ -62,7 +64,7 @@ function hideLoader() {
     setTimeout(() => { loader.style.display = 'none'; }, 600);
 }
 
-// 兜底：10 秒后强制隐藏（加载失败场景）
+// 兜底：10 秒后强制隐藏，覆盖模块加载失败导致 hideLoader 永不执行的场景
 setTimeout(() => {
     const loader = document.getElementById('heartbeat-loader');
     if (loader && loader.style.display !== 'none') hideLoader();
@@ -70,7 +72,7 @@ setTimeout(() => {
 
 injectUITexts();
 
-// ApiClient 响应拦截器：自动注入 Auth Token，401 时通知所有模块刷新 UI
+// 请求拦截器：统一附加 Auth Token，避免各调用点各自拼接请求头
 ApiClient.useRequestInterceptor((config) => {
     const token = localStorage.getItem('auth_token');
     if (token) {
@@ -78,6 +80,7 @@ ApiClient.useRequestInterceptor((config) => {
     }
     return config;
 });
+// 响应拦截器：把 401 收敛为一个事件，由下方统一登出，调用方无须逐个处理登录失效
 ApiClient.useResponseInterceptor(
     (data) => data,
     async (error) => {
@@ -91,7 +94,8 @@ EventBus.on(EVENTS.AUTH_UNAUTHORIZED, () => {
     console.log('[app] 收到 401，Token 已过期或无效，自动登出');
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_role');
-    localStorage.removeItem('admin_logged_in'); // 清理 v1.9 旧标记
+    // 清理 v1.9 遗留标记，避免旧版本写入的值让后续逻辑误判为已登录
+    localStorage.removeItem('admin_logged_in');
     AppState.commit(MUTATIONS.SET_LOGGED_IN, false);
     EventBus.emit(EVENTS.AUTH_LOGGED_OUT);
 });
@@ -99,6 +103,7 @@ EventBus.on(EVENTS.AUTH_UNAUTHORIZED, () => {
 registerAllModules();
 
 // 页面刷新时从 localStorage 恢复登录状态（Token 仍有效则视为已登录）
+// 仅作乐观恢复：真正的有效性由后端在首个需要鉴权的请求上校验，失败即经 401 路径登出
 if (localStorage.getItem('auth_token')) {
     AppState.commit(MUTATIONS.SET_LOGGED_IN, true);
     console.log('[app] 检测到 auth_token，恢复登录状态');
@@ -115,13 +120,15 @@ ThemeService.init();
 // 图标包服务：订阅主题/包变更并应用当前主题的生效包
 IconPackService.init();
 
-// 贴纸右键菜单需要 DecoShelf 加载完成后才能获取贴纸数据，延迟 200ms 确保 DecoShelf.loadLibrary 完成
+// 贴纸右键菜单依赖 DecoShelf 的贴纸数据，而 loadLibrary 为异步且无完成事件，
+// 故延迟 200ms 让其在多数情况下先完成；即使未完成，菜单打开时会再取一次数据
 setTimeout(() => {
     if (ContextMenu && typeof ContextMenu.init === 'function') {
         ContextMenu.init();
     }
 }, 200);
 
+// 装配位置模式控件：三个按钮由登录状态驱动显隐
 function setupPositionModeControls() {
     const controls = document.getElementById('positionModeControls');
     let enterBtn = document.getElementById('enterPositionModeBtn');
@@ -130,7 +137,8 @@ function setupPositionModeControls() {
 
     if (!controls || !enterBtn || !saveBtn || !cancelBtn) return;
 
-    // 使用 cloneNode 移除旧事件监听，防止 HMR 热更新导致重复绑定
+    // 用 cloneNode 重建元素以剥离旧监听，防止 HMR 热更新重复绑定导致一次点击多次触发
+    // 同时兼容 click 与 touchstart：触摸端 click 有延迟，且部分设备不派发 click
     function bindSafeEvent(el, handler) {
         if (!el) return;
         const cloned = el.cloneNode(true);
@@ -140,6 +148,7 @@ function setupPositionModeControls() {
         if (el === cancelBtn) cancelBtn = cloned;
         cloned.addEventListener('click', handler);
         cloned.addEventListener('touchstart', function(e) {
+            // 300ms 去重窗口：抑制同一次触碰随后补发的 click
             if (!this._touchHandled) {
                 this._touchHandled = true;
                 handler(e);
@@ -152,6 +161,7 @@ function setupPositionModeControls() {
     const updateVisibility = (isLoggedIn) => {
         controls.style.display = isLoggedIn ? 'block' : 'none';
         if (!isLoggedIn) {
+            // 登出瞬间必须退出位置模式，否则拖拽态会残留在非管理员会话中
             EventBus.emit(EVENTS.ADMIN_POSITION_MODE_EXIT);
             enterBtn.style.display = 'inline-block';
             saveBtn.style.display = 'none';
@@ -204,6 +214,7 @@ function setupPositionModeControls() {
         if (hint) hint.remove();
     });
 
+    // 覆盖前一对处理器：绑定顺序保持与历史一致，后者生效并带上 i18n 文案
     saveBtn = bindSafeEvent(saveBtn, function(e) {
         e.preventDefault();
         EventBus.emit(EVENTS.ADMIN_POSITION_MODE_EXIT);
@@ -229,6 +240,8 @@ function setupPositionModeControls() {
     updateVisibility(isLoggedIn);
 }
 
+// 装配登录弹窗交互
+// 处理器一律存到元素的 _xxxHandler 属性上再移除旧引用：HMR 重跑本函数时才能摘掉上一次的监听
 function setupLoginUI() {
     const loginTrigger = DOMRefs.get(DOMRefs.login.trigger);
     const modalOverlay = DOMRefs.get(DOMRefs.login.modal);
@@ -257,6 +270,7 @@ function setupLoginUI() {
 
     if (modalOverlay) {
         modalOverlay.removeEventListener('click', modalOverlay._overlayHandler);
+        // 只在点击遮罩本体时关闭：否则点击弹窗内容会冒泡到遮罩而误关
         modalOverlay._overlayHandler = function (e) {
             if (e.target === modalOverlay) modalOverlay.classList.remove('active');
         };
@@ -291,8 +305,8 @@ if (document.readyState === 'loading') {
     initializeApp();
 }
 
-// 暴露关键模块到全局，便于调试和模块间松耦合访问
-// 收敛到 __REVACHOL__ 单命名空间，避免 14 个全局变量污染
+// 暴露关键模块到全局，便于调试与模块间松耦合访问
+// 收敛到 __REVACHOL__ 单命名空间，避免十余个全局变量污染 window
 window.__REVACHOL__ = {
   EventBus,
   AppState,
@@ -319,6 +333,7 @@ window.__REVACHOL__ = {
 };
 
 // 左上角工具栏：展开/收起切换
+// 延迟 300ms 等待工具栏 DOM 就绪——其由外部模板注入，早于此绑定会取不到元素
 setTimeout(() => {
     const toolbar = document.getElementById('sideToolbar');
     const toggle = document.getElementById('toolbarToggle');
@@ -327,7 +342,7 @@ setTimeout(() => {
             const isCollapsed = toolbar.classList.contains('collapsed');
             toolbar.classList.toggle('collapsed', !isCollapsed);
             toolbar.classList.toggle('expanded', isCollapsed);
-            // 工具栏收起/展开后应用对应自定义图标
+            // 收起/展开会改变可见图标集合，需重新套用自定义图标
             UIIcon.applyToolbarIcons();
         });
         const helpBtn = toolbar.querySelector('[data-tool="help"]');
@@ -335,6 +350,7 @@ setTimeout(() => {
 
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
+                // 使用说明是内置虚拟文章：id 取负数，避免与后端文章 id 冲突
                 const helpArticle = {
                     id: -1,
                     title: '📖 使用说明',
@@ -349,7 +365,7 @@ setTimeout(() => {
         if (iconPackBtn) {
             iconPackBtn.addEventListener('click', () => {
                 if (!UIController || !UIController.detail) return;
-                // 与帮助一样：以详情标签页阅读模式打开图标包键名文档
+                // 与使用说明同为虚拟文章（id -2），先开标签页再渲染键名文档
                 const article = { id: -2, title: UI.iconPack.docTitle, content: '' };
                 UIController.detail.createTab(article);
                 const pane = document.querySelector('#detailPanes .detail-pane[data-id="-2"]');
@@ -370,17 +386,15 @@ DirectoryIcon.init();
 // 顶部工具栏 / 管理员控制台折叠按钮自定义图标
 UIIcon.applyAll();
 
-// =========================================================================
-// 键盘快捷键：Ctrl+E → 编辑当前活跃文章
-// =========================================================================
+// 键盘快捷键：Ctrl+E 编辑当前活跃文章
 document.addEventListener('keydown', function (e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
-    // 跳过在输入框/编辑器中的触发
+    // 在输入框或可编辑区域中不拦截，否则会抢走输入 'e' 的按键
     const tag = document.activeElement && document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || (document.activeElement && document.activeElement.contentEditable === 'true')) return;
 
     e.preventDefault();
-    // 获取当前活跃的文章（来自详情标签页或目录选中）
+    // 活跃文章取详情标签页；未打开详情时回退为空，提示用户先选中
     let activeId = null;
     if (UIController && UIController.detail && UIController.detail.activeId) {
       activeId = UIController.detail.activeId;
@@ -393,36 +407,32 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
-// =========================================================================
-// 组件统一管理系统 — 注册 + 批量初始化 + 挂载
-// 替代原有的 ad-hoc setTimeout 初始化，提供统一生命周期管理。
-// =========================================================================
+// 组件统一管理系统：注册 + 批量初始化 + 挂载
+// 替代原先分散的 setTimeout 初始化，由 ComponentManager 提供统一生命周期与错误隔离
 ComponentManager
   .register(decoComponent)
   .register(puzzleComponent)
   .register(magicBoxComponent)
   .register(healthComponent);
 
-// 延迟初始化所有组件（等待 DOM + AppInitializer 完成）
+// 延迟初始化所有组件，等待 DOM 与 AppInitializer 完成
 setTimeout(async () => {
   console.log('[app] ComponentManager 开始批量初始化...');
   const initResult = await ComponentManager.initAll();
   console.log('[app] initAll 完成:', initResult);
 
-  // 挂载所有已初始化的组件
   const mountResult = await ComponentManager.mountAll();
   console.log('[app] mountAll 完成:', mountResult);
   console.log('[app] 组件状态摘要:', ComponentManager.getSummary());
 }, 300);
 
-// 页面关闭前统一卸载所有组件
-// 使用 sync 模式：浏览器在 beforeunload 中不保证等待 async 完成，
-// 因此 unmountAll({ sync: true }) 用 fire-and-forget 方式调用清理钩子。
+// 页面关闭前卸载所有组件
+// 用 sync 模式：beforeunload 中浏览器不保证等待 async 完成，故以 fire-and-forget 方式调用清理钩子
 window.addEventListener('beforeunload', () => {
   console.log('[app] beforeunload: 正在同步卸载所有组件...');
   ComponentManager.unmountAll({ sync: true });
 });
 
-// 心跳加载动画隐藏——保证至少显示 400ms，配合 10s 超时兜底
+// 心跳加载动画隐藏——保证至少显示 MIN_LOADER_DISPLAY，配合上方 10s 超时兜底
 const elapsed = Date.now() - APP_START_TIME;
 setTimeout(hideLoader, Math.max(0, MIN_LOADER_DISPLAY - elapsed));
