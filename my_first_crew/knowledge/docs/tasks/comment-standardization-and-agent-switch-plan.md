@@ -22,7 +22,9 @@
 | 注释规范化 — 批次 4c（js/admin） | ✅ 已完成 | 28 / 28 |
 | 注释规范化 — 批次 5（backend/，Node CJS） | ✅ 已完成 | 27 / 28（1 个 0 字节空文件无法改造） |
 | 注释规范化 — 批次 6（my_first_crew/，Python，不含 tests） | ✅ 已完成 | 17 / 17 |
-| 注释规范化 — 批次 7（config / tests / scripts / JSONC） | [>] 进行中 | 3 / 7 子批（7a~7c 已完成） |
+| 注释规范化 — 批次 7（config / tests / scripts / JSONC） | ✅ 已完成 | 7 / 7 子批（7a~7g，共 69 文件） |
+| **阶段四 全量自检 + 总报告** | ✅ 已完成 | 7 分组复核，清除 24 处残留 |
+| **最终版本提升（v1.29.0 → v1.30.0）** | ✅ 已完成 | package.json + 两个 README + roadmap |
 | **目录树三缺陷修复** | ✅ 已完成 | 2 修复 + 1 误判 |
 | **Agent 启停开关体系** | ✅ 已完成 | 全栈落地 |
 | 开关体系自动化测试 | ✅ 已完成 | 46 例 |
@@ -30,8 +32,15 @@
 | **A 组注释改动统一提交（批次 1~4c）** | ✅ 已完成 | 按架构层拆 7 个提交 |
 | **批次 5 提交（backend/）** | ✅ 已完成 | 拆为 8 个子提交 |
 
-**js/ 模块头覆盖率：146 / 146（100%）— `js/` 目录注释改造已全部结束**
-**backend/ 模块头覆盖率：27 / 28（96%）— 唯一例外为 0 字节空文件，见 §8.4**
+**模块头覆盖率（全仓）**
+- `js/`（含 js 根、admin、editor、business、mobile、puzzle、ui、components、pages）：**146 / 146（100%）**
+- `backend/`：27 / 28（96%）— 唯一例外为 0 字节空文件，见 §8.4
+- `my_first_crew/`（含 tests）：**25 / 25（100%）**
+- 根级 JS 配置：5 / 5；编排与镜像：5 / 5；JSONC：6 / 6
+- `scripts/`：7 / 7；`tests/`：**32 / 32**；`e2e-tests/`：**9 / 9**
+- 合计 **262 个文件 100% 覆盖**（除 0 字节文件与未纳入范围的 `.gitignore`）
+
+**注释违规（violation）：全仓仅 1 项（0 字节空文件）** —— 详见 `docs/ai-collaboration/comment-standardization-final-report.md`
 
 ---
 
@@ -388,17 +397,18 @@
 
 ## 八、遗留事项与后续步骤
 
-### 8.1 立即接续
+### 8.1 立即接续（均已闭环）
 
-1. **批次 6（17 文件，`my_first_crew/`，Python）** — 接续起点
-2. 批次 7（config / tests / scripts）
-3. 阶段四全量自检 + 总报告
-4. 最终版本更新提交（按 commit-guide 递增版本 + 同步 README 与 roadmap）
+1. ✅ 批次 6（17 文件，`my_first_crew/`，Python）—— 已完成，17/17
+2. ✅ 批次 7（config / tests / scripts / JSONC）—— 已完成 7a~7g，69 文件
+3. ✅ 阶段四全量自检 + 总报告 —— 已完成，见 §8.6
+4. ✅ 最终版本更新提交 —— v1.29.0 → v1.30.0，同步根 README、`knowledge/README.md`、`roadmap.md`
 
 > 批次 5/6 的目录归属已核对：
 > `backend/` 共 28 个 `.cjs`（`agent-state.cjs` + `routes/` + 顶层）；
 > `my_first_crew/` 不含 tests 共 17 个 `.py`。
 > 两者均超出「每批 ≤20」上限，批次 5 建议拆为 5a/5b，批次 6 建议按 `flows/`(5) + `ui/`(7) + 顶层(5) 拆分。
+> 实际执行：批次 5 拆 8 个子批、批次 6 拆 8 个子批，均已完成。
 
 ### 8.2 方案层面
 
@@ -515,6 +525,51 @@
   `event-bus`、`app-state`、`article-service`、`auth`。行数各异，
   疑为新旧版本并存造成重复覆盖，属测试冗余，需专项清理。
 - `tests/` 的规范化工作量集中在 **79 处装饰性注释 + 54 处分隔线**。
+- `scripts/test-health.sh` 的 `--wait` 模式在函数外使用 `local`，bash 报
+  「can only be used in a function」并以非 0 退出，该模式实际不可用
+  （预先存在，已实测复现）。超出注释范畴，故仅登记不改，注释中已标注。
+
+---
+
+### 8.6 批次 7 执行结果与阶段四自检（已完成）
+
+#### 批次 7 执行结果（7a~7g，69 文件）
+
+| 子批 | 范围 | 文件 | 力度 | 提交 |
+|:--:|---|--:|---|------|
+| 7a | 根级 JS 配置 | 5 | 完整三层 + BOM 处置 | `2843451` |
+| 7b | 编排与镜像 | 5 | 完整三层（`#`） | `54c3741` |
+| 7c | JSONC 配置 | 6 | 完整三层（`//`） | `c74e5c4` |
+| 7d | `scripts/`（2 `.sh` + 5 工具，含 dogfooding） | 7 | 完整三层 | `5045d54` |
+| 7e | `tests/`（Vitest） | 32 | 轻量：减 + 模块头 | `91b5c4e` |
+| 7f | `e2e-tests/`（Playwright） | 9 | 轻量：减 + 模块头 | `c138f16` |
+| 7g | `my_first_crew/tests/`（pytest） | 5 | 轻量：减 + 模块头 | `90e8d37` |
+
+各子批均通过：等价校验（token/AST）全等价、字节级复核（BOM / 末尾换行 / 行尾风格 / 行尾空白 / 连续三空行）与基线一致、
+删除行全为注释（行尾注释改前置处已核验代码部分逐字相同）、Vitest 436 + Pytest 52 全通过、ESLint 规则级零新增零消除。
+
+#### 阶段四自检结论
+
+7 个分组逐一复核（JS 用 `audit.mjs`、Python 用 `tokenize`、Shell/YAML/Dockerfile/JSONC 用专用检查器）：
+
+| 分组 | 文件 | 模块头 | 违规 | 备注 |
+|---|--:|--:|--:|---|
+| JS / CJS / MJS | 222 | 222 | **1** | 唯一违规为 0 字节的 `migrate.cjs` |
+| Python | 25 | 25 | 0 | 分隔线 19 → 0、emoji 1 → 0；行尾注释余 25 处全为 `# noqa` |
+| Shell | 2 | 2 | 0 | — |
+| YAML | 1 | 1 | 0 | — |
+| Dockerfile / `.env.example` / `.gitignore` | 5 | 4 | 0 | `.gitignore` 未纳入范围 |
+| JSONC | 6 | 6 | 0 | 剥离注释后 `json.loads` 6/6 通过 |
+
+**阶段四发现并修复 24 处残留**（提交 `1f65599`）——全部落在前序批次未覆盖的检查口径上：
+JS 侧 emoji 5 处（`directory-icon` / `ui-icon` / `render` / `icon-pack-service` / `shape-generator` 版本记录），
+Python 侧分隔线 19 处（此前**没有 Python 注释审查器**，故批次 6 的「分隔线归 0」并未被机器验证过）。
+
+**全范围代码等价复核（`a059952` → HEAD，255 文件）**：
+JS 210 文件 token 等价、Python 22 文件 AST 等价；3 处差异全部是 `3dfb66d` 的 E3~E5 补导入（各 +7 tokens）；
+其余文本 11/14 删除行全为注释，另 3 个为已核验的注释形态改造（`crew.jsonc` 的 `/* */` → `//`、2 个 `.sh` 的 3 处行尾注释改前置）。
+
+**总报告**：`knowledge/docs/ai-collaboration/comment-standardization-final-report.md`
 
 ---
 
@@ -575,7 +630,7 @@
 | 2026-09-13 | 例外登记：`# noqa` 一类的 lint 工具指令必须与代码同行才生效，属「不用行尾注释」的合理例外，保持原样 |
 | 2026-09-13 | 批次 6 进行中：已完成 14/17（`4ec67c5`…`6b04bea`）。`state.py` 的 22 处行尾注释已全部改为前置说明；剩余 `document_review_flow.py`(697) / `ui/dashboard.py`(739) / `run_revachol_crew.py`(1511) |
 | 2026-09-13 | 工具：新增 `move_trailing.py`（行尾注释转前置，注释取自 tokenize 词法单元）。起因是 hand-written 字面量在多层编码中被折叠，证明该做法不可靠；新工具保证 `""` 等转义逐字不变 |
-| 2026-09-13 | **批次 6 完成 17/17**（`9e41594`/`f3f0d4e`/`a418c8c`/`939943b`）。全 17 文件 AST 全等价、模块头覆盖 17/17、分隔线与装饰性注释归 0、行尾注释仅余 25 处 `# noqa`（工具指令，属规则例外）；pytest 52 passed |
+| 2026-09-13 | **批次 6 完成 17/17**（`9e41594`/`f3f0d4e`/`a418c8c`/`939943b`）。全 17 文件 AST 全等价、模块头覆盖 17/17、行尾注释仅余 25 处 `# noqa`（工具指令，属规则例外）；pytest 52 passed |
 | 2026-09-13 | 已知边界：`trailing_check.py` 与 `move_trailing.py` 依赖 Python 的 `tokenize`，仅适用于 `.py`；JS 侧仍由 `audit.mjs` 覆盖 |
 | 2026-09-13 | 批次 7 侦察完成并定案（§8.5）：64 个可改文件分 7 个子批，5 个文件因 JSON 语法不支持而排除。同时发现 4 项影响方案的约束——JSON 无注释能力、4 文件带 BOM、`.eslintrc.js` 为死配置且旁有失真注释、自研工具自身不合规。测试文件确定采用轻量力度（只做减法 + 模块头） |
 | 2026-09-13 | 方法论归档：新增 `knowledge/docs/ai-collaboration/comment-standardization-playbook.md`，把本次工程的标准、三条底线、SOP、工具链、16 个实战坑与决策点清单提炼为可复用手册，供后续 AI 执行同类任务参照 |
@@ -584,3 +639,11 @@
 | 2026-09-13 | 批次 7b 完成（`54c3741`，5 个编排/镜像文件）：补模块头；清 16 处 `=====` / `----` 装饰；YAML 经 js-yaml 实跑解析通过 |
 | 2026-09-13 | 批次 7c 完成（`c74e5c4`，6 个 JSONC）：`crew.jsonc` 清 6 处分隔线块并把 `/* */` 改为 `//`；4 个 Agent 文件删除 CrewAI 官方英文脚手架注释共 244 行（注释序列 md5 相同，确认上游样板），改写为中文模块头。注释删除后遗留的连续空行已压缩；行尾风格按文件保留（CRLF / LF 各异） |
 | 2026-09-13 | 自查纠错：`.eslintrc.js` 的模块头初写为 `# ！`（误用非 JS 前缀），被 `audit.mjs` 报「无法解析」当场拦下 |
+| 2026-09-13 | 批次 7d 完成（`5045d54`，7 个 `scripts/` 文件，含 dogfooding）：2 个 `.sh`（清 2 处分隔线块 + 12 处 `# ---- 标题 ----`；3 处行尾注释改前置，已核验代码逐字相同）+ 5 个自研工具（补 2 个 `// ！` 模块头、清 6 处 `// =====`、删 2 处复述型注释）；修正 audit.mjs 失真陈述「此类缺陷出现 5 次」→ 6 次（其自列清单为 D1~D3+E3~E5 共 6 项）；**工具有效性反证**：向 audit.mjs 追加 1 行代码，codecmp 立即 FAIL（2278→2283 tokens）。另发现 `test-health.sh` 的 `--wait` 缺陷（`local` 用在函数外，实测报错退出），仅登记不改 |
+| 2026-09-13 | 批次 7e 完成（`91b5c4e`，32 个 Vitest 文件，轻量）：补 32 个模块头（写明测什么 + 前置依赖）；清 79 处分隔线装饰（22 处纯英文且与紧邻 `describe()` 同名者合并删除）；行尾注释改前置 18 处；删 32 行路径复述注释。**特别验证**：以探针文件确认 `@vitest-environment node` 位于 3 行模块头之后仍被 Vitest 识别（探针已删）。4 个 CRLF、3 个无末尾换行文件均原样保留；残余提示 3 项均为允许项（2 个 pragma + 1 个算式） |
+| 2026-09-13 | 批次 7f 完成（`c138f16`，9 个 Playwright 文件，轻量）：补 9 个模块头；`decos.spec.js` 空 catch 的 `/* ignore */` 改为行注释块（保留注释可避免 `no-empty` 新增）；`articles.spec.js` 1 处行尾注释改前置；`playwright.docker.config.js` 去 `★` emoji 与「修复」过程标记并保留 `testDir` 取舍说明。audit 违规 0、提示 0 |
+| 2026-09-13 | 批次 7g 完成（`90e8d37`，5 个 pytest 文件，轻量）：在编码声明之后、docstring 之前补 5 个 `# ！` 模块头；用仓库自带 `move_trailing.py --apply` 把 15 处行尾注释改前置；清 `test_agent_switches.py` 的 3 处分隔线装饰。docstring 逐字保留（`ast.get_docstring` 比对一致）；自建 tokenize 版检查器（40 项全 OK）——**该检查器当场发现我早先侦察脚本漏判的 3 处分隔线**（脚本按「前两字符」判断注释前缀导致误判） |
+| 2026-09-13 | 阶段四全量自检完成：7 分组逐一复核，**发现并修复 24 处残留**（`1f65599`）——JS 侧 emoji 4 处 + 版本记录 1 处；Python 侧 `# ---- 标题 ----` 分隔线 19 处（此前无 Python 注释审查器，故批次 6 的「分隔线归 0」实为未经验证的陈述，已更正）。首次改写曾把 6 行注释的缩进抹平，被 `git diff` 复核发现后回退重做 |
+| 2026-09-13 | 阶段四全范围复核（`a059952` → HEAD，范围内 255 文件）：JS 210 文件 token 等价、Python 22 文件 AST 等价；3 处差异全为 `3dfb66d` 的 E3~E5 补导入（各 +7 tokens）；其余文本删除行全为注释（3 个文件的注释形态改造已单独核验） |
+| 2026-09-13 | 总报告归档：`knowledge/docs/ai-collaboration/comment-standardization-final-report.md`（结论摘要、验证方法、分组覆盖、自检结果、残余例外登记、既有缺陷清单、提交清单、经验教训） |
+| 2026-09-13 | **最终版本提升**：`package.json` v1.29.0 → **v1.30.0**（本轮含新功能「Agent 启停开关体系」+ 工程收尾，按语义化版本取 MINOR）；同步根 `README.md` 版本行、`knowledge/README.md` 版本行与新增 `### v1.30.0` 更新日志、`roadmap.md` 版本行与「已完成」新增 v1.30.0 行、章节标题更新为 `v1.0 — v1.30` |

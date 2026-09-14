@@ -2,7 +2,7 @@
 
 原创角色档案馆，一个带内容管理、贴纸装饰、水印保护、多主题切换的 Web 应用。
 
-当前版本：v1.29.0
+当前版本：v1.30.0
 
 > 📖 **这里是 REVACHOL 的完整文档中心**：包含详细的架构设计、技术栈说明、开发/部署指南索引与完整更新日志（CHANGELOG）。
 > 简明的项目门面请见仓库根目录 [README.md](../../README.md)，两者互补、内容不重复。
@@ -121,6 +121,39 @@ Docker 安全部署：进程降权（非 root）、端口默认仅绑定 localho
 多主题系统：CSS 变量驱动，三套主题动态加载。
 
 ## 更新日志
+
+### v1.30.0
+
+**Agent 级启停开关体系 + 全仓注释规范化工程（含自研校验工具链与作业手册）**
+
+**Agent 启停开关体系（新功能）：**
+- 统一开关：环境变量 `CREW_DISABLE_<AGENT_ID 大写>`，覆盖 planner / text_processor / coder / csser / reviewer / document_admin 六个 Agent，默认全部启用
+- `backend/agent-state.cjs`：状态持久化（路径锚定项目根、唯一临时文件名 + 原子 rename、串行写队列、`revision` 乐观并发）；环境变量只作运行时覆盖层、**永不落盘**
+- 接口：`GET /api/crew/agents/state`、`POST /api/crew/agents/:agentId/toggle`（`requireAuth` + `requireRole('admin')`）；子进程 spawn 经 `buildChildEnv` 注入开关；错误码 400/401/403/404/409/409/503
+- Flow pass-through：任一 Agent 禁用后流程仍可完整走通，不抛异常；Reviewer 禁用时写入显式批准记录，避免路由误判
+- Crew Dashboard：每张 Agent 卡片右上角 toggle，点击即时生效并持久化；顶部 Flow 链路按启用状态动态重算（纯 CSS 滑块，无新依赖）
+- 自动化测试 46 例（Vitest 22 + Pytest 24），含 Node/Python 布尔语义跨语言一致性守卫
+
+**注释规范化工程：**
+- 全仓注释统一为「三层结构 + 只写为什么」：模块头（`// ！` / `# ！`）+ 成员标签（≤12 字）+ 决策说明
+- 覆盖分组：`js/` 146 · `backend/` 28 · `my_first_crew/` 22（含 tests）· 根级配置 10 · `scripts/` 7 · `tests/` 32 · `e2e-tests/` 9 · JSONC 6
+- 清除全部分隔线装饰、块注释、emoji、过程标记与行尾注释（`# noqa` 等 lint 指令除外）
+- **docstring 全部保留**（属字符串字面量，可经 `__doc__` 读取）：Python 三层结构改用 `#` 行注释实现
+- 修正 6 处注释与实现不符的失真陈述；`backend/check.cjs` 由 UTF-16 转码为 UTF-8 使其可被 Node 加载
+- 自研零依赖工具链入库：`codecmp.mjs`（token 等价）、`codecmp_py.py`（AST 等价）、`audit.mjs`（规范审查 + 导入完整性）、`trailing_check.py`、`move_trailing.py`
+- 方法论归档：`docs/ai-collaboration/comment-standardization-playbook.md`；验收报告：`docs/ai-collaboration/comment-standardization-final-report.md`
+- 实现「只改注释」的机器证明：JS token 级、Python AST 级全等价；并逐文件复核末尾换行、行尾空白与删除行属性
+
+**质量与修复：**
+- 修复 3 处模块漏导入（`UI` / `Utils`，`fix` 提交，各自仅 +1 行 import），全仓 `no-undef` 归零
+- 修复目录树 3 处缺陷（漏导入导致提示静默失效、恒等三元表达式）
+- 修复 Flow 实测暴露的 5 处缺陷（`fsyncSync` EPERM、env 覆盖被误持久化、toggle 与 GET 结构不一致、跨语言布尔语义不一致、入参校验形态不统一）
+- 登记 2 处待评估项（`app-state.js` 的 `admin`/`ui` 残留键、`detail.js` 早返回后的死分支）与 1 处脚本缺陷（`test-health.sh --wait` 在函数外使用 `local`）
+
+**验证：**
+- Vitest 32 文件 436 例、Pytest 52 例全通过；ESLint 规则级对照基线零新增零消除（`js/` 146 文件）
+- 注释违规全仓仅 1 项，为 0 字节空文件（既定例外）
+- 版本号 v1.29.0 → v1.30.0（新增功能 + 工程收尾，按语义化版本取 MINOR）；同步根 README、`roadmap.md`
 
 ### v1.29.0
 

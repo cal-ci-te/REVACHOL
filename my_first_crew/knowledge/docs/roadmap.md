@@ -1,6 +1,6 @@
 # REVACHOL 路线图
 
-> 版本：v1.29.0 | 更新：2026-08-29
+> 版本：v1.30.0 | 更新：2026-09-13
 
 ---
 
@@ -31,10 +31,11 @@ REVACHOL 是一个面向个人创作者的、可扩展的创作存档与交互�
 
 ---
 
-## 已完成（v1.0 — v1.29）
+## 已完成（v1.0 — v1.30）
 
 | 版本 | 关键里程碑 |
 |------|----------|
+| v1.30.0 | **Agent 级启停开关体系**：`CREW_DISABLE_<AGENT_ID>` 覆盖六个 Agent，`backend/agent-state.cjs` 原子持久化 + 乐观并发（env 只作运行时覆盖、永不落盘），`GET /api/crew/agents/state` + `POST .../toggle`（仅 admin），Flow 各阶段 pass-through 保证流程不中断，Dashboard 卡片级 toggle；**全仓注释规范化工程**：统一「三层结构 + 只写为什么」，覆盖 262 文件（js 146 / backend 28 / Python 22 / 配置 10 / scripts 7 / tests 32 / e2e 9 / JSONC 6），docstring 全保留，自研 token 级与 AST 级等价校验工具链入库，方法论归档为作业手册与总报告；修复 3 处模块漏导入 + 3 处目录树缺陷 + 5 处 Flow 实测缺陷；Vitest 436 例、Pytest 52 例全通过，ESLint 规则级零新增零消除 |
 | v1.29.0 | 贴纸系统重构 M4 完成：三端统一渲染核心（`renderSticker` 支持 `mode:'absolute'` 覆盖层 + 阅读页 absolute 定位）、安全层增强（`assertSafeStickerData` 支持相对路径、`sanitizeSvg` 协议白名单）、ESLint 规则加固（`no-inline-sticker-regexp` / `ban-internal-import` 扩展至 editor）、Markdown 渲染修复（`toHTML` 实体化 HTML 解码、`_isLikelyHtml` 通用注释检测）、4 轮 Flow 排查闭环（容器宽度/replaceChild 容错/absolute 定位/实体解码）、414 个测试通过、ESLint 0 errors。✅ 贴纸浮动渲染显示已完成（WIP 关闭） |
 | v1.26.0-wip | Flow 引擎真实 Token 消耗自动采集（`flow:stats` → 后端 `crew:stats` 落库，仪表盘结束种子数据）；`/api/crew/usage/timeline` 查询参数（groupBy/筛选）修复；Git MCP 优雅降级（`CREW_DISABLE_GIT_MCP` / `CREW_GIT_REPO` / 路径与 uvx 检查，避免 Docker 内 Document_Admin 中断）；新增 `cleanup-seed-usage.cjs` 清理种子模拟数据。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
 | v1.25.0-wip | CrewAI Flow 状态机（RFC-001）：TextProcessor 先行撰写文档初稿 + 审查修改循环（最多 3 次审查）、暂存区（30 天 + FLOW_STAGED 通知人工）、断点续跑（flow_state 快照 + --resume）、双入口 run_revachol_flow.py；后端 POST /api/crew/run 支持 engine=flow（CREW_ENGINE 环境开关）；Crew Dashboard 固定 Flow 引擎（dry-run/正常运行均走 Flow，引擎徽标 + FLOW_STAGED 前端通知）；Dockerfile 显式安装 make/g++ 修复 better-sqlite3 编译。⚠️ WIP：贴纸浮动渲染显示功能尚未修复 |
