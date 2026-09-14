@@ -1,6 +1,6 @@
-// REVACHOL 冒烟测试 — 快速验证核心页面可访问性和关键 UI 元素存在
-// 未使用 storageState（无需登录），可独立运行
-// 完整功能测试请参见：auth.spec.js / articles.spec.js / theme.spec.js 等
+// ！核心页面冒烟测试
+// 快速验证首页可访问性与关键 UI 元素（目录树/侧边栏/主题按钮/管理面板/移动端视口）。
+// 未使用 storageState，可独立运行；完整功能测试见 auth / articles / theme 等 spec。
 
 import { test, expect } from '@playwright/test';
 

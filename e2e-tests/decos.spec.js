@@ -1,5 +1,5 @@
-// 贴纸测试 — 上传/编辑/删除贴纸（需登录态）
-// 依赖 auth.setup.js 通过 storageState 注入登录 Token
+// ！贴纸 E2E 测试
+// 覆盖贴纸上传/位置更新/删除与公开列表接口；前置：依赖 auth.setup.js 注入登录态。
 
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'fs';
@@ -11,7 +11,9 @@ const createdDecoIds = [];
 
 test.afterAll(async ({ request }) => {
   for (const id of createdDecoIds) {
-    try { await request.delete(`/api/decos/${id}`); } catch { /* ignore */ }
+    try { await request.delete(`/api/decos/${id}`); } catch {
+      // 清理失败可忽略：贴纸可能已被手动删除
+    }
   }
 });
 

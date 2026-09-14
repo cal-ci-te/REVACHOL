@@ -1,5 +1,5 @@
-// 站点设置测试 — 修改/读取设置（需登录态）
-// 依赖 auth.setup.js 通过 storageState 注入登录 Token
+// ！站点设置 E2E 测试
+// 覆盖设置的修改、读取与持久化，以及未授权访问应返回 401；前置：依赖 auth.setup.js 注入登录态。
 
 import { test, expect } from '@playwright/test';
 

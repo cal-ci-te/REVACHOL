@@ -1,6 +1,6 @@
-// 登录态 Setup 项目 — 通过 API 直接获取 Token，存入 storageState
-// 其他测试项目通过 dependencies: ['setup'] 继承此登录态，避免重复登录
-// 后端默认管理员密码：admin / admin123（通过 ADMIN_PASSWORD 环境变量注入）
+// ！登录态 Setup 项目
+// 通过 API 直接获取 Token 并写入 storageState，其他项目经 dependencies: ['setup'] 继承，避免重复登录。
+// 默认管理员密码 admin / admin123（可用 ADMIN_PASSWORD 环境变量覆盖）。
 
 import { test as setup, expect } from '@playwright/test';
 import path from 'path';

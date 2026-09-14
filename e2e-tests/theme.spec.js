@@ -1,5 +1,5 @@
-// 主题切换测试 — 三套主题（暗色/亮色/低保真）切换
-// 无需登录，主题偏好存 localStorage
+// ！主题切换 E2E 测试
+// 覆盖暗色/亮色/低保真三套主题的切换与持久化；前置：无需登录，主题偏好存 localStorage。
 
 import { test, expect } from '@playwright/test';
 

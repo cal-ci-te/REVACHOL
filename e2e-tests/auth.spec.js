@@ -1,4 +1,5 @@
-// 认证测试 — 登录/登出/Token 失效
+// ！认证 E2E 测试
+// 覆盖登录（成功/失败）、登出与 Token 状态；前置：前端可访问，无需预置登录态。
 import { test, expect } from '@playwright/test';
 
 test.describe('认证 — 登录流程', () => {

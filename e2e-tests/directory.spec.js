@@ -1,5 +1,5 @@
-// 目录树测试 — 展开/折叠/拖拽（需登录态，拖拽需管理员权限）
-// 依赖 auth.setup.js 通过 storageState 注入登录 Token
+// ！目录树 E2E 测试
+// 覆盖目录树展开/折叠与搜索框交互（拖拽需管理员权限）；前置：依赖 auth.setup.js 注入登录态。
 
 import { test, expect } from '@playwright/test';
 

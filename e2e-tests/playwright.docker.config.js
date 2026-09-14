@@ -1,12 +1,12 @@
-// Docker 专用 Playwright 配置
-// 继承基础 playwright.config.js，覆盖容器环境特有设置
+// ！Docker 专用 Playwright 配置
+// 继承基础 playwright.config.js，覆盖容器环境特有项（testDir 基准、单 worker、无头、CI 等）。
 
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  // ★ 修复：本配置文件位于 /app/e2e-tests/ 目录下，testDir 相对配置文件目录解析。
-  // 原 './e2e-tests' 会解析为 /app/e2e-tests/e2e-tests（不存在）导致 "No tests found"。
-  // 改为 '.' 指向 /app/e2e-tests/（测试文件实际所在目录）。
+  // testDir 必须是 '.'：它相对本配置文件所在目录解析，
+  // './e2e-tests' 会解析为 /app/e2e-tests/e2e-tests（不存在）导致 "No tests found"；
+  // '.' 正指向 /app/e2e-tests/（测试文件实际所在目录）。
   testDir: '.',
 
   // 明确匹配测试文件

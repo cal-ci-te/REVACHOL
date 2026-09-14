@@ -1,6 +1,6 @@
-// 文章 CRUD 测试 — 创建/编辑/删除文章（需登录态）
-// 依赖 auth.setup.js 通过 storageState 注入登录 Token
-// 测试结束后清理所有创建的数据
+// ！文章 CRUD E2E 测试
+// 覆盖文章的创建/编辑/删除与可见性；前置：依赖 auth.setup.js 经 storageState 注入登录态。
+// 测试结束后清理所有测试中创建的数据。
 
 import { test, expect } from '@playwright/test';
 
@@ -128,6 +128,7 @@ test.describe('文章 CRUD', () => {
     const articles = await publicResp.json();
     const article = articles.find(a => a.id === id);
     expect(article).toBeDefined();
-    expect(article.visible).toBe(0); // SQLite 存 0/1
+    // SQLite 存 0/1
+    expect(article.visible).toBe(0);
   });
 });
