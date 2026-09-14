@@ -1,4 +1,5 @@
-// 图标包服务单测（mock ApiClient 与 processor）
+// ！图标包服务测试
+// 覆盖 updatePackThemes / uploadPack / loadStatus / loadPacks / deletePack；前置：mock ApiClient 与 processor。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../../js/services/api-client.js', () => ({

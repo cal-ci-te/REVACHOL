@@ -1,5 +1,5 @@
-// tests/unit/core/state-mutations.test.js
-// 测试 mutation 常量集合与 mutationFor 生成器
+// ！状态 mutation 常量测试
+// 覆盖 MUTATIONS 常量集合与 mutationFor 生成器；前置：无。
 import { describe, it, expect } from 'vitest';
 import { MUTATIONS, mutationFor } from '../../../js/core/state-mutations.js';
 

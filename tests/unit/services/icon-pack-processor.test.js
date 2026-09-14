@@ -1,4 +1,6 @@
-// 图标包前端处理器单测
+// ！图标包前端处理器测试
+// 覆盖 checkPngMagic / scanSvgSecurity / detectSvgSize / inspectZipFile / buildNormalizedZip。
+// 前置：jsdom 不解码图片，detectPngSize 依赖可立即 onload 的 Image mock。
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import JSZip from 'jszip';
 import {

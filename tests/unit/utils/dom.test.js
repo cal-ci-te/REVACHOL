@@ -1,5 +1,5 @@
-// tests/unit/utils/dom.test.js
-// 测试 DOM 工具：escapeHtml / stripHtml / truncateHtml
+// ！DOM 工具测试
+// 覆盖 escapeHtml / stripHtml / truncateHtml；前置：无。
 import { describe, it, expect } from 'vitest';
 import { escapeHtml, stripHtml, truncateHtml } from '../../../js/utils/dom.js';
 

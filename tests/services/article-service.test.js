@@ -1,4 +1,6 @@
-// tests/services/article-service.test.js
+// ！ArticleService 数据层测试
+// 覆盖 getAllArticles / getVisibleArticles / setVisibility / fetchArticles / getStats / clearCache。
+// 前置：mock AppState、EventBus、EVENTS 与 NotificationService，不发起真实请求。
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest';
 import { ArticleService } from '../../js/services/article-service.js';
 import { AppState } from '../../js/core/app-state.js';
@@ -51,7 +53,6 @@ describe('ArticleService', () => {
     vi.restoreAllMocks();
   });
 
-  // ===== getAllArticles =====
   describe('getAllArticles', () => {
     it('should return empty array when no data', () => {
       expect(ArticleService.getAllArticles()).toEqual([]);
@@ -67,7 +68,6 @@ describe('ArticleService', () => {
     });
   });
 
-  // ===== getVisibleArticles =====
   describe('getVisibleArticles', () => {
     it('should return all articles when user is logged in', () => {
       AppState.get.mockReturnValue(true);
@@ -109,7 +109,6 @@ describe('ArticleService', () => {
     });
   });
 
-  // ===== setVisibility =====
   describe('setVisibility', () => {
     it('should return false if user is not logged in', async () => {
       AppState.get.mockReturnValue(false);
@@ -149,7 +148,6 @@ describe('ArticleService', () => {
     });
   });
 
-  // ===== fetchArticles =====
   describe('fetchArticles', () => {
     it('should return cached data if available and not expired', async () => {
       const mockData = [{ id: 1, title: 'Cached' }];
@@ -183,7 +181,6 @@ describe('ArticleService', () => {
     });
   });
 
-  // ===== getStats =====
   describe('getStats', () => {
     it('should return correct statistics', () => {
       AppState.get.mockReturnValue(false);
@@ -201,7 +198,6 @@ describe('ArticleService', () => {
     });
   });
 
-  // ===== clearCache =====
   describe('clearCache', () => {
     it('should clear the cache', () => {
       ArticleService.cache = { data: [{ id: 1 }], timestamp: 12345 };
@@ -210,7 +206,6 @@ describe('ArticleService', () => {
     });
   });
 
-  // ===== visibility logic =====
   describe('visibility logic', () => {
     it('should correctly determine article visibility', () => {
       const articles = [

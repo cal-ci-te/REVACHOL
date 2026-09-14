@@ -1,5 +1,5 @@
-// tests/unit/utils/image.test.js
-// 测试图片压缩：Promise 结构 + 错误处理（jsdom 无 canvas，无法完整验证压缩结果）
+// ！图片压缩工具测试
+// 覆盖 compressImage 的 Promise 结构与错误处理；前置：jsdom 无 canvas，无法验证真实压缩结果。
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { compressImage } from '../../../js/utils/image.js';
 

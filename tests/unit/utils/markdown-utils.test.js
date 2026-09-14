@@ -1,5 +1,5 @@
-// tests/unit/utils/markdown-utils.test.js
-// 测试 Markdown→HTML 转换：_isLikelyHtml 检测、实体还原、Markdown 渲染
+// ！Markdown 工具测试
+// 覆盖 Markdown→HTML 转换、_isLikelyHtml 检测与实体还原；前置：静默 toHTML 内部 console.log。
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import MarkdownUtils from '../../../js/utils/markdown-utils.js';
 

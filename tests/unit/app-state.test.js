@@ -1,7 +1,6 @@
-// tests/unit/app-state.test.js
-// AppState 补充测试 — 使用 commit() API（现有 tests/core/app-state.test.js
-// 使用了不存在于当前源码的 set()/setMultiple() 方法）
-// 本文件测试实际存在的 commit / subscribe / unsubscribe / reset / snapshot
+// ！AppState 补充测试（commit API）
+// 覆盖实际存在的 commit / subscribe / unsubscribe / reset / snapshot。
+// 对照 tests/core/app-state.test.js——后者使用了源码中不存在的 set()/setMultiple()。
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AppState } from '../../js/core/app-state.js';
@@ -13,9 +12,6 @@ describe('AppState — commit() API', () => {
     AppState.reset();
   });
 
-  // ====================================
-  // get
-  // ====================================
   describe('get', () => {
     it('应返回正确值', () => {
       expect(AppState.get('isLoggedIn')).toBe(false);
@@ -28,9 +24,7 @@ describe('AppState — commit() API', () => {
     });
   });
 
-  // ====================================
   // commit — 基本 mutation
-  // ====================================
   describe('commit', () => {
     it('SET_LOGGED_IN 应更新 isLoggedIn', () => {
       AppState.commit(MUTATIONS.SET_LOGGED_IN, true);
@@ -82,9 +76,7 @@ describe('AppState — commit() API', () => {
     });
   });
 
-  // ====================================
   // commit — 多键 mutation
-  // ====================================
   describe('commit — 多键 mutation', () => {
     it('SET_PANEL_POSITION 应更新 panelRight 和 panelBottom', () => {
       AppState.commit(MUTATIONS.SET_PANEL_POSITION, { right: 100, bottom: 50 });
@@ -95,7 +87,8 @@ describe('AppState — commit() API', () => {
     it('SET_PANEL_POSITION 只传 right 时只更新 right', () => {
       AppState.commit(MUTATIONS.SET_PANEL_POSITION, { right: 200 });
       expect(AppState.get('panelRight')).toBe(200);
-      expect(AppState.get('panelBottom')).toBe(20); // 保持默认
+      // 保持默认
+      expect(AppState.get('panelBottom')).toBe(20);
     });
 
     it('SET_SIDEBAR_POSITION 应更新 sidebarLeft 和 sidebarTop', () => {
@@ -105,9 +98,7 @@ describe('AppState — commit() API', () => {
     });
   });
 
-  // ====================================
   // commit — SET_KEY 通用
-  // ====================================
   describe('commit — SET_KEY', () => {
     it('SET_KEY 应更新任意键', () => {
       AppState.commit(MUTATIONS.SET_KEY, { key: 'bgColor', value: '#abcdef' });
@@ -122,9 +113,7 @@ describe('AppState — commit() API', () => {
     });
   });
 
-  // ====================================
   // commit — 未知 mutation
-  // ====================================
   describe('commit — 未知 mutation', () => {
     it('未知的 mutation type 不应崩溃，只打印警告', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -136,9 +125,7 @@ describe('AppState — commit() API', () => {
     });
   });
 
-  // ====================================
   // commit — 订阅者通知
-  // ====================================
   describe('commit — 订阅者通知', () => {
     it('单一键 mutation 应通知对应键的订阅者', () => {
       const fn = vi.fn();
@@ -189,9 +176,6 @@ describe('AppState — commit() API', () => {
     });
   });
 
-  // ====================================
-  // subscribe / unsubscribe
-  // ====================================
   describe('subscribe / unsubscribe', () => {
     it('subscribe 应立即回调当前值', () => {
       const fn = vi.fn();
@@ -214,7 +198,8 @@ describe('AppState — commit() API', () => {
       AppState.unsubscribe('test');
       AppState.commit(MUTATIONS.SET_KEY, { key: 'test', value: 'new' });
 
-      expect(fn1).not.toHaveBeenCalled(); // 不再通知（只在 subscribe 时调用过一次）
+      // 不再通知（只在 subscribe 时调用过一次）
+      expect(fn1).not.toHaveBeenCalled();
       expect(fn2).not.toHaveBeenCalled();
     });
 
@@ -240,9 +225,6 @@ describe('AppState — commit() API', () => {
     });
   });
 
-  // ====================================
-  // reset
-  // ====================================
   describe('reset', () => {
     it('应恢复所有状态到默认值', () => {
       AppState.commit(MUTATIONS.SET_LOGGED_IN, true);
@@ -275,9 +257,6 @@ describe('AppState — commit() API', () => {
     });
   });
 
-  // ====================================
-  // snapshot
-  // ====================================
   describe('snapshot', () => {
     it('应返回状态的深拷贝', () => {
       AppState.commit(MUTATIONS.SET_LOGGED_IN, true);

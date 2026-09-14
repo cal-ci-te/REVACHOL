@@ -1,5 +1,5 @@
-// tests/unit/core/app-initializer.test.js
-// 测试应用启动编排：模块注册、拓扑排序、初始化流程、状态查询
+// ！应用启动编排测试
+// 覆盖 AppInitializer 的模块注册、拓扑排序、初始化流程与状态查询；前置：无。
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppInitializer } from '../../../js/core/app-initializer.js';
 import { EventBus } from '../../../js/core/event-bus.js';

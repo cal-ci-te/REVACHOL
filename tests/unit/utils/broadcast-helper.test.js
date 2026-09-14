@@ -1,5 +1,6 @@
-// tests/unit/utils/broadcast-helper.test.js
-// 测试 BroadcastChannel 封装：初始化、消息收发、过滤分发、清理
+// ！BroadcastChannel 封装测试
+// 覆盖 BroadcastHelper 的初始化、消息收发、过滤分发与清理。
+// 前置：自建 MockBroadcastChannel 替换全局实现（jsdom 未提供）。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BroadcastHelper } from '../../../js/utils/broadcast-helper.js';
 

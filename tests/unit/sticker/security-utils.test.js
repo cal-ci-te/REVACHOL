@@ -1,3 +1,6 @@
+// ！贴纸安全工具测试
+// 覆盖 DataURL MIME 校验、数据安全断言、CSS URL 转义、SVG 清洗与远程 MIME 校验（SSRF）。
+// 前置：同步函数直接断言，异步函数 mock fetch。
 import { describe, it, expect, vi } from 'vitest';
 import {
   validateDataUrlMimeType,

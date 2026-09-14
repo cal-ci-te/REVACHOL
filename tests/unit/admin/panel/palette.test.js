@@ -1,5 +1,6 @@
-// tests/unit/admin/panel/palette.test.js
-// 测试色卡列表渲染：空状态、色卡渲染、应用/删除按钮绑定
+// ！色卡面板测试
+// 覆盖 AdminPanel.renderPalettes 的空状态、色卡渲染、应用/删除按钮绑定。
+// 前置：mock panel/index、texture、notification-service、utils 与 ui-strings。
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../../js/admin/panel/index.js', () => ({

@@ -1,5 +1,6 @@
-// tests/unit/admin/auth.test.js
-// 测试前端管理员认证：login/logout/checkStatus（Token 存储、状态提交、事件触发）
+// ！前端管理员认证测试
+// 覆盖 AdminAuth 的 login / logout / checkStatus（Token 存储、状态提交、事件触发）。
+// 前置：mock api-client、app-state、event-bus、admin/ui、admin/avatar 等依赖。
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../js/services/api-client.js', () => ({

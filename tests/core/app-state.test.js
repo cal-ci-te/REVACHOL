@@ -1,6 +1,6 @@
-// tests/core/app-state.test.js
-// AppState 实际 API 为 commit(mutation, payload)，不存在 set()/setMultiple()。
-// 本文件测试真实的 get / commit(SET_KEY) / subscribe / unsubscribe / reset / snapshot。
+// ！AppState 核心接口测试
+// 覆盖真实的 get / commit(SET_KEY) / subscribe / unsubscribe / reset / snapshot。
+// 源码 API 为 commit(mutation, payload)，不存在 set()/setMultiple()；
 // 更完整的 mutation 覆盖见 tests/unit/app-state.test.js。
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { AppState } from '../../js/core/app-state.js';
@@ -15,7 +15,7 @@ describe('AppState', () => {
     AppState.reset();
   });
 
-  // ===== 基本 get / commit =====
+  // 基本 get / commit
   describe('get and commit', () => {
     it('should set and get a value', () => {
       setKey('isLoggedIn', true);
@@ -35,7 +35,7 @@ describe('AppState', () => {
     });
   });
 
-  // ===== 设置多个键 =====
+  // 设置多个键
   describe('setting multiple keys', () => {
     it('should set multiple key-value pairs via SET_KEY', () => {
       setKey('isLoggedIn', true);
@@ -48,7 +48,6 @@ describe('AppState', () => {
     });
   });
 
-  // ===== subscribe =====
   describe('subscribe', () => {
     it('should call callback when state changes', () => {
       const fn = vi.fn();
@@ -74,7 +73,8 @@ describe('AppState', () => {
       expect(fn).toHaveBeenCalledTimes(1);
 
       setKey('testKey', 'value');
-      expect(fn).toHaveBeenCalledTimes(2); // commit 总是通知
+      // commit 总是通知
+      expect(fn).toHaveBeenCalledTimes(2);
     });
 
     it('should support multiple subscribers for same key', () => {
@@ -95,7 +95,6 @@ describe('AppState', () => {
     });
   });
 
-  // ===== unsubscribe =====
   describe('unsubscribe', () => {
     it('should remove specific callback', () => {
       const fn = vi.fn();
@@ -106,7 +105,8 @@ describe('AppState', () => {
 
       AppState.unsubscribe('testKey', fn);
       setKey('testKey', 'second');
-      expect(fn).toHaveBeenCalledTimes(1); // 不再被调用
+      // 不再被调用
+      expect(fn).toHaveBeenCalledTimes(1);
     });
 
     it('should remove all callbacks for a key when no callback specified', () => {
@@ -132,7 +132,6 @@ describe('AppState', () => {
     });
   });
 
-  // ===== reset =====
   describe('reset', () => {
     it('should reset all state to default values', () => {
       setKey('isLoggedIn', true);
@@ -161,7 +160,6 @@ describe('AppState', () => {
     });
   });
 
-  // ===== snapshot =====
   describe('snapshot', () => {
     it('should return a copy of the state', () => {
       setKey('isLoggedIn', true);
@@ -182,7 +180,6 @@ describe('AppState', () => {
     });
   });
 
-  // ===== error handling =====
   describe('error handling', () => {
     it('should handle subscriber errors gracefully', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

@@ -1,5 +1,6 @@
-// tests/unit/agent-state.test.js
-// Agent 启停状态服务单元测试 — backend/agent-state.cjs
+// ！Agent 启停状态服务测试
+// 覆盖 backend/agent-state.cjs 的初始状态、开关切换、并发写入、env 覆盖与子进程 env 注入。
+// 前置：node 环境，且每个用例动态 import 以重置模块缓存（状态文件路径在加载时确定）。
 // @vitest-environment node
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

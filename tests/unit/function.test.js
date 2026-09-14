@@ -1,5 +1,5 @@
-// tests/unit/function.test.js
-// 工具函数单元测试 — js/utils/function.js（debounce / throttle）
+// ！防抖节流工具测试
+// 覆盖 js/utils/function.js 的 debounce / throttle；前置：无（用 vi.useFakeTimers 控制时间）。
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { debounce, throttle } from '../../js/utils/function.js';
@@ -63,13 +63,17 @@ describe('debounce', () => {
     debounced(1);
     vi.advanceTimersByTime(50);
 
-    debounced(2); // 重置计时器
+    // 重置计时器
+    debounced(2);
     vi.advanceTimersByTime(50);
-    expect(fn).not.toHaveBeenCalled(); // 仍不应执行
+    // 仍不应执行
+    expect(fn).not.toHaveBeenCalled();
 
-    vi.advanceTimersByTime(50); // 总共又过了 100ms
+    // 总共又过了 100ms
+    vi.advanceTimersByTime(50);
     expect(fn).toHaveBeenCalledTimes(1);
-    expect(fn).toHaveBeenCalledWith(2); // 最后一次调用的参数
+    // 最后一次调用的参数
+    expect(fn).toHaveBeenCalledWith(2);
   });
 
   it('快速连续调用 10 次，只执行最后一次', () => {
@@ -155,16 +159,20 @@ describe('throttle', () => {
     const fn = vi.fn();
     const throttled = throttle(fn, 50);
 
-    throttled('t0');          // 立即执行
+    // 立即执行
+    throttled('t0');
     vi.advanceTimersByTime(50);
 
-    throttled('t1');          // 执行
+    // 执行
+    throttled('t1');
     vi.advanceTimersByTime(50);
 
-    throttled('t2');          // 执行
+    // 执行
+    throttled('t2');
     vi.advanceTimersByTime(50);
 
-    throttled('t3');          // 执行
+    // 执行
+    throttled('t3');
 
     expect(fn).toHaveBeenCalledTimes(4);
     expect(fn).toHaveBeenNthCalledWith(1, 't0');
@@ -195,10 +203,13 @@ describe('throttle', () => {
     const fn = vi.fn();
     const throttled = throttle(fn, 100);
 
-    throttled('a');           // 立即执行
-    vi.advanceTimersByTime(150); // 远远超过 limit
+    // 立即执行
+    throttled('a');
+    // 远远超过 limit
+    vi.advanceTimersByTime(150);
 
-    throttled('b');           // 立即执行（不在节流期内）
+    // 立即执行（不在节流期内）
+    throttled('b');
     expect(fn).toHaveBeenCalledTimes(2);
     expect(fn).toHaveBeenNthCalledWith(2, 'b');
   });

@@ -1,5 +1,5 @@
-// tests/unit/admin/panel/action-delegator.test.js
-// 测试动作分发器：注册、批量注册、事件绑定、事件分发、销毁
+// ！动作分发器测试
+// 覆盖 ActionDelegator 的注册、批量注册、事件绑定、事件分发与销毁；前置：依赖 jsdom DOM。
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ActionDelegator } from '../../../../js/admin/panel/action-delegator.js';
 

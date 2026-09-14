@@ -1,22 +1,19 @@
-// tests/unit/auth.test.js
-// 认证核心模块单元测试 — backend/auth.js
+// ！认证核心模块测试
+// 覆盖 backend/auth.js 的 generateToken / verifyToken / revokeToken 与各鉴权中间件。
+// 前置：node 环境；不 mock crypto，改以 spyOn tokenStore 控制校验流程。
 // @vitest-environment node
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// ============================================================
 // 策略：不 mock crypto，改为 mock tokenStore 来控制 Token 验证流程
 // vi.mock('crypto') 对 CJS 的 require() 拦截不生效，所以直接操作真实的模块。
 // generateToken 测试验证 64 字符 hex 格式（不校验具体值），
 // 中间件测试通过 spyOn tokenStore 来控制行为。
-// ============================================================
 
 const authModule = await import('../../backend/auth.cjs');
 const auth = authModule.default || authModule;
 
-// ============================================================
 // 工具函数：创建 mock req/res
-// ============================================================
 
 function mockReqRes(authHeader) {
   const req = {
@@ -37,9 +34,7 @@ function mockReqRes(authHeader) {
   return { req, res };
 }
 
-// ============================================================
 // 测试套件
-// ============================================================
 
 describe('auth — generateToken', () => {
 
@@ -109,9 +104,7 @@ describe('auth — revokeToken', () => {
   });
 });
 
-// ============================================================
 // 中间件测试 — 通过 spyOn tokenStore 控制行为
-// ============================================================
 
 describe('auth — requireAuth', () => {
 

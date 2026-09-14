@@ -1,5 +1,6 @@
-// tests/unit/services/custom-icon.test.js
-// 测试自定义图标管理器：getIcon/setIcon/removeIcon/applyIcon/init/createUploadHandler
+// ！自定义图标管理器测试
+// 覆盖 getIcon / setIcon / removeIcon / applyIcon / init / createUploadHandler。
+// 前置：mock EventBus，依赖 jsdom localStorage。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CustomIconManager } from '../../../js/services/custom-icon.js';
 

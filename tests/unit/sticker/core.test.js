@@ -1,3 +1,5 @@
+// ！贴纸核心模块测试
+// 覆盖解析器/序列化器、ID 生成、StickerModel、渲染器与 StickerFacade；前置：无。
 import { describe, it, expect, vi } from 'vitest';
 import { parseMarkers, parseMarkerFields, normalizeMarkerFields, parseMarkersFromDom } from '../../../js/business/sticker/parser/sticker-parser.js';
 import { serializeOne, serializeAll, escapeAttrValue } from '../../../js/business/sticker/parser/sticker-serializer.js';

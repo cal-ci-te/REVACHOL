@@ -1,5 +1,6 @@
-// tests/unit/admin/panel/article-manager.test.js
-// 测试文章管理面板：列表渲染、编辑器加载/重置、保存、删除
+// ！文章管理面板测试
+// 覆盖 AdminArticleManager 的列表渲染、编辑器加载/重置、保存与删除。
+// 前置：mock app-state、event-bus、article-service、api-client、ui-strings 与 utils。
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../../js/core/app-state.js', () => ({

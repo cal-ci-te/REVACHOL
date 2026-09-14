@@ -1,5 +1,6 @@
-// tests/unit/admin/panel/render.test.js
-// 测试管理面板渲染：面板 HTML 渲染、折叠按钮绑定、解绑包装
+// ！管理面板渲染测试
+// 覆盖 AdminPanel.renderContent 的 HTML 渲染与折叠按钮绑定/解绑。
+// 前置：mock panel/index，并以字符串代理替代 UI 对象（原因见下方注释）。
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // 通用字符串代理：任何 UI.xxx 访问返回可字符串化的占位值，避免枚举 ui-strings.js 全部键

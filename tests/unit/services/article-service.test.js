@@ -1,5 +1,6 @@
-// tests/unit/services/article-service.test.js
-// 补充 ArticleService 分类管理与目录树构建测试（数据层无网络依赖部分）
+// ！ArticleService 分类与目录树测试
+// 覆盖分类增删改查、排序/改父级、目录树构建、文章归组与快照。
+// 前置：不涉及网络（仅数据层），依赖 jsdom localStorage。
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ArticleService } from '../../../js/services/article-service.js';
 

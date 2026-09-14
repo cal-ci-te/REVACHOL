@@ -1,5 +1,5 @@
-// tests/unit/services/storage-adapter.test.js
-// 测试 StorageAdapter 边界：get 序列化/反序列化/解析失败、set/remove/clear、异常兜底
+// ！存储适配器测试
+// 覆盖 get 序列化/反序列化/解析失败与 set/remove/clear、异常兜底；前置：依赖 jsdom localStorage。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { StorageAdapter } from '../../../js/services/storage-adapter.js';
 

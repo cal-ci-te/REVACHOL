@@ -1,5 +1,5 @@
-// tests/unit/core/dom-refs.test.js
-// 测试 DOM 引用管理：选择器结构、get/getAll/getByPath、缓存与空值处理
+// ！DOM 引用管理测试
+// 覆盖 DOMRefs 的选择器结构、get / getAll / getByPath 与缓存、空值处理；前置：依赖 jsdom DOM。
 import { describe, it, expect, afterEach } from 'vitest';
 import { DOMRefs } from '../../../js/core/dom-refs.js';
 

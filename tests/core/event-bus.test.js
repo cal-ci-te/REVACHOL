@@ -1,4 +1,5 @@
-// tests/core/event-bus.test.js
+// ！EventBus 基础行为测试
+// 覆盖 on/emit/off/once/clear 与回调异常隔离；前置：无（纯内存模块，无 mock）。
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { EventBus } from '../../js/core/event-bus.js';
 
@@ -8,7 +9,7 @@ describe('EventBus', () => {
     EventBus.clear();
   });
 
-  // ===== on 和 emit =====
+  // on 和 emit
   describe('on and emit', () => {
     it('should call callback when event is emitted', () => {
       const fn = vi.fn();
@@ -55,7 +56,6 @@ describe('EventBus', () => {
     });
   });
 
-  // ===== off =====
   describe('off', () => {
     it('should remove specific callback', () => {
       const fn = vi.fn();
@@ -66,7 +66,8 @@ describe('EventBus', () => {
 
       EventBus.off('test_event', fn);
       EventBus.emit('test_event');
-      expect(fn).toHaveBeenCalledTimes(1); // 不再被调用
+      // 不再被调用
+      expect(fn).toHaveBeenCalledTimes(1);
     });
 
     it('should remove all callbacks for an event when no callback specified', () => {
@@ -94,7 +95,6 @@ describe('EventBus', () => {
     });
   });
 
-  // ===== once =====
   describe('once', () => {
     it('should call callback only once', () => {
       const fn = vi.fn();
@@ -123,7 +123,6 @@ describe('EventBus', () => {
     });
   });
 
-  // ===== clear =====
   describe('clear', () => {
     it('should remove all events', () => {
       const fn1 = vi.fn();
@@ -147,7 +146,6 @@ describe('EventBus', () => {
     });
   });
 
-  // ===== error handling =====
   describe('error handling', () => {
     it('should handle callback errors gracefully', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -181,7 +179,6 @@ describe('EventBus', () => {
     });
   });
 
-  // ===== multiple events =====
   describe('multiple events', () => {
     it('should handle multiple events independently', () => {
       const fn1 = vi.fn();

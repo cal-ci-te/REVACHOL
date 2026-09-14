@@ -1,6 +1,5 @@
-// tests/unit/api-client-error.test.js
-// ApiClient 错误处理专项测试
-// 覆盖：错误信息提取、ApiError 辅助方法、边界情况
+// ！ApiClient 错误处理测试
+// 覆盖错误信息提取、ApiError 辅助方法与边界情况；前置：mock js/services/api-client.js。
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ApiClient, ApiError } from '../../js/services/api-client.js';
@@ -19,9 +18,7 @@ describe('ApiClient 错误处理', () => {
     vi.restoreAllMocks();
   });
 
-  // ====================================
   // 错误信息提取
-  // ====================================
   describe('错误信息提取', () => {
 
     it('应正确提取后端 { error: "..." } 格式', async () => {
@@ -134,9 +131,7 @@ describe('ApiClient 错误处理', () => {
     });
   });
 
-  // ====================================
   // ApiError 辅助方法
-  // ====================================
   describe('ApiError 辅助方法', () => {
 
     it('isAuthError() — 401 和 403 应返回 true', async () => {
@@ -194,9 +189,7 @@ describe('ApiClient 错误处理', () => {
     });
   });
 
-  // ====================================
   // 边界情况
-  // ====================================
   describe('边界情况', () => {
 
     it('data 是数组时应序列化为 JSON 字符串', async () => {

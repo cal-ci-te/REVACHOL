@@ -1,4 +1,5 @@
-// 图标包键名注册表单测
+// ！图标包键名注册表测试
+// 覆盖 ICON_PACK_KEYS 与 UI 文案、主题映射的一致性；前置：无。
 import { describe, it, expect } from 'vitest';
 import {
   ICON_PACK_KEYS,

@@ -1,5 +1,6 @@
-// tests/unit/services/visibility-service.test.js
-// 测试可见性服务：管理员/访客权限判断、可见性过滤、可见性切换
+// ！可见性服务测试
+// 覆盖管理员/访客权限判断、可见性过滤与切换。
+// 前置：mock AppState、ArticleService 与 NotificationService。
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../js/core/app-state.js', () => ({

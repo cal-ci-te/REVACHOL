@@ -1,9 +1,9 @@
-// tests/utils.test.js
+// ！Utils 聚合工具测试
+// 覆盖 escapeHtml / debounce / storage / showToast-hideToast / compressImage；前置：依赖 jsdom。
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { Utils } from '../js/utils.js';
 
 describe('Utils', () => {
-  // ===== escapeHtml =====
   describe('escapeHtml', () => {
     it('should escape HTML special characters', () => {
   const input = '<div>"Hello" & friends</div>';
@@ -23,7 +23,6 @@ describe('Utils', () => {
     });
   });
 
-  // ===== debounce =====
   describe('debounce', () => {
     it('should delay function execution', () => {
       vi.useFakeTimers();
@@ -70,7 +69,6 @@ describe('Utils', () => {
     });
   });
 
-  // ===== storage =====
   describe('storage', () => {
     beforeEach(() => {
       localStorage.clear();
@@ -132,7 +130,6 @@ describe('Utils', () => {
     });
   });
 
-  // ===== showToast / hideToast (DOM operations) =====
   describe('showToast and hideToast', () => {
     beforeEach(() => {
       // 清理可能存在的 toast 元素
@@ -206,7 +203,6 @@ describe('Utils', () => {
     });
   });
 
-  // ===== compressImage (async/File) =====
   describe('compressImage', () => {
     it('should create a Promise that resolves with compressed image data', async () => {
       // 创建一个模拟图片文件
