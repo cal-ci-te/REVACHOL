@@ -1,6 +1,6 @@
 // ！工具栏图标单例
-// 管理三个图标槽位：toolbarCollapsed（顶部工具栏收起，默认 ⚙）、toolbarExpanded（展开，默认 ◀）、
-// adminPanel（控制台折叠箭头，默认 ▶/▼）。图标以 dataUrl 存入 localStorage，可随时上传/重置。
+// 管理三个图标槽位：toolbarCollapsed（顶部工具栏收起，默认齿轮）、toolbarExpanded（展开，默认左三角）、
+// adminPanel（控制台折叠箭头，默认右/下三角）。图标以 dataUrl 存入 localStorage，可随时上传/重置。
 
 import { Utils } from '../utils.js';
 

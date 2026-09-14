@@ -51,7 +51,7 @@ class Dashboard:
         # 降低刷新率到 2Hz，减少闪烁
         self.refresh_rate = 2
 
-        # ---- 输入面板状态 ----
+        # 输入面板状态
         self.input_buffer = ""
         # 是否处于输入模式（main 可按需关闭）
         self.input_active = True
@@ -66,7 +66,7 @@ class Dashboard:
         # 输入面板锁屏状态提示
         self._input_locked_message = ""
 
-        # ---- Agent 选择器数据（None 表示“显示全部”）----
+        # Agent 选择器数据（None 表示“显示全部”）
         self.agent_list = ["Planner", "Coder", "Reviewer", "Document Admin", "Csser", None]
         self.agent_list_display = [
             "Planner",
@@ -471,7 +471,7 @@ def _wait_for_input_fallback(dashboard: Dashboard) -> str:
 
     dashboard.start_input_mode(on_submit)
 
-    # ---- 1) pynput ----
+    # 1) pynput
     try:
         import pynput  # noqa: F401
     except ImportError:
@@ -522,7 +522,7 @@ def _wait_for_input_fallback(dashboard: Dashboard) -> str:
             submitted.clear()
             dashboard.start_input_mode(on_submit)
 
-    # ---- 2) Windows msvcrt 轮询 ----
+    # 2) Windows msvcrt 轮询
     if os.name == "nt":
         import msvcrt
 
@@ -570,7 +570,7 @@ def _wait_for_input_fallback(dashboard: Dashboard) -> str:
             else:
                 sleep(0.05)
 
-    # ---- 3) 最终回退：普通行输入 ----
+    # 3) 最终回退：普通行输入
     else:
         dashboard.log("键盘监听不可用，请在下方的普通输入行输入需求...", "warning")
         dashboard.cancel_input()

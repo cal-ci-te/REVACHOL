@@ -82,7 +82,7 @@ def _agent_disabled(agent_id: str) -> bool:
 class DocumentReviewFlow(Flow[ReviewLoopState]):
     """文档撰写 + 审查修改循环的 CrewAI Flow。"""
 
-    # --- 注入点（Pydantic 字段，便于 CLI / 测试注入） ---
+    # 注入点（Pydantic 字段，便于 CLI / 测试注入）
     # NDJSON 事件发射器（与 JsonLogEmitter 兼容）
     emitter: Any = None
     # callable() -> dict[str, Agent]；缺省用 run_revachol_crew 的 build_agents

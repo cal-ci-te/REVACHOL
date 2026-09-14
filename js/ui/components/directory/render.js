@@ -142,7 +142,7 @@ export function renderTree(nodes, level = 0, filterKeyword = null, parentPath = 
                     style="padding-left:${indent}px;">`;
         html += `<div class="tree-node-content" data-node-id="${nodeId}">`;
 
-        // 空文件夹用 📭 且不可点：没有子节点时给可点箭头会误导用户
+        // 目录箭头：有子节点才给可点箭头；空文件夹只显示空邮箱图标且不可点，避免误导用户
         if (isFolder && hasChildren) {
             const toggleIconHTML = isCollapsed
                 ? '<span class="icon-pack-arrow arrow-r0">▶</span>'

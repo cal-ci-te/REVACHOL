@@ -224,7 +224,7 @@ def main() -> None:
     args = parse_args()
     setup_logging(args.debug, quiet=args.json_logs)
 
-    # ---- 清理暂存区（D3，不依赖 API Key）----
+    # 清理暂存区（D3，不依赖 API Key）
     if args.cleanup_staging:
         from flows.staging import cleanup_expired_staging
 
@@ -282,7 +282,7 @@ def main() -> None:
             emitter.is_running = False
         return
 
-    # ---- 本地单次执行（非 TUI，输出到控制台）----
+    # 本地单次执行（非 TUI，输出到控制台）
     emitter = ConsoleEmitter(debug=args.debug)
     emitter.is_running = True
     try:

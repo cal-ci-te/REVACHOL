@@ -1,6 +1,7 @@
 // ！目录图标单例
-// 管理三个图标槽位：folderCollapsed（文件夹收起，默认 📂）、folderExpanded（展开，默认 📁）、
-// header（侧边栏目录标题，默认 📜）。旧版单槽位 `directory_icon` 作为 folderExpanded 的向后兼容回退。
+// 管理三个图标槽位：folderCollapsed（文件夹收起，默认「打开的文件夹」）、
+// folderExpanded（展开，默认「文件夹」）、header（侧边栏目录标题，默认「卷轴」）。
+// 旧版单槽位 `directory_icon` 作为 folderExpanded 的向后兼容回退。
 
 import { Utils } from '../utils.js';
 

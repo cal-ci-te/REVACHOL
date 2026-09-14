@@ -41,7 +41,7 @@ function getArrowClass(el) {
   return cls || 'arrow-r0';
 }
 
-// 取默认标签的前置 emoji（"🌙 暗色" → "🌙"）
+// 取默认标签的前置 emoji：默认标签形如「emoji + 空格 + 文字」，只需空格前的部分
 function emojiOf(label) {
   const s = String(label || '');
   return s.indexOf(' ') === -1 ? s : s.slice(0, s.indexOf(' '));

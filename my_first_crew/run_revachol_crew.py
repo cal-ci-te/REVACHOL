@@ -185,7 +185,7 @@ def _extract_json(raw_output: str) -> str | None:
     if not raw_output:
         return None
 
-    # 1) fenced code block
+    # 1) 围栏代码块
     match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
     if match:
         return match.group(1)
@@ -712,7 +712,7 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
         out_dir = os.getenv("CREW_OUTPUT_DIR") or "output"
         return os.path.join(out_dir, f"{name}.json")
 
-    # ---- Task 1：规划（Planner）----
+    # Task 1：规划（Planner）
     planning_task = Task(
         name="planning",
         description=(
@@ -732,7 +732,7 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
         create_directory=True,
     )
 
-    # ---- Task 2：编码（Coder），依赖规划输出 ----
+    # Task 2：编码（Coder），依赖规划输出
     coding_task = Task(
         name="coding",
         description=(
@@ -756,7 +756,7 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
         create_directory=True,
     )
 
-    # ---- Task 3：审查（Reviewer），依赖编码输出 ----
+    # Task 3：审查（Reviewer），依赖编码输出
     review_task = Task(
         name="review",
         description=(
@@ -777,7 +777,7 @@ def build_tasks(agents: dict, requirement: str, save_outputs: bool) -> list:
         create_directory=True,
     )
 
-    # ---- Task 4：文档汇总（Document Admin），依赖规划与审查输出 ----
+    # Task 4：文档汇总（Document Admin），依赖规划与审查输出
     doc_task = Task(
         name="documentation",
         description=(
@@ -960,7 +960,7 @@ def _uninstall_dashboard_handlers(
 
 def setup_logging(debug: bool, quiet: bool = False) -> None:
     """读取 / 设置 LITELLM_LOG。--debug 时强制 DEBUG 级别。"""
-    # Windows 控制台默认 GBK 编码无法打印 CrewAI 日志中的部分 emoji（如 MCP 连接 🔌），
+    # Windows 控制台默认 GBK 编码无法打印 CrewAI 日志中的部分 emoji（如 MCP 连接图标），
     # 强制 UTF-8 输出（errors=replace 兜底），避免 "gbk codec can't encode" 噪音
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -1135,7 +1135,7 @@ def _run_crew(
         # 等待事件钩子完成，避免 stop 前丢更新
         crewai_event_bus.flush(timeout=10)
 
-        # ---- Token 消耗统计 ----
+        # Token 消耗统计
         for agent_id, agent in agents.items():
             try:
                 usage = agent.llm.get_token_usage_summary()
@@ -1155,7 +1155,7 @@ def _run_crew(
             except Exception:  # noqa: BLE001 - 统计失败不影响主流程
                 pass
 
-        # ---- 后处理：提取 / 校验 / 落盘（替代 output_pydantic）----
+        # 后处理：提取 / 校验 / 落盘（替代 output_pydantic）
         parsed_results: dict[str, BaseModel | None] = {}
         for task_output in getattr(result, "tasks_output", []):
             name = task_output.name or ""
@@ -1211,7 +1211,7 @@ def _run_crew(
         summary_lines.append("=" * 60)
         dashboard.log("\n".join(summary_lines), "success")
 
-        # ---- Phase 5：审查未通过时保存代码到暂存区 ----
+        # Phase 5：审查未通过时保存代码到暂存区
         review_parsed = parsed_results.get("review")
         coding_parsed = parsed_results.get("coding")
         if (
@@ -1295,7 +1295,7 @@ class JsonLogEmitter:
         }
         print(json.dumps(event, ensure_ascii=False), flush=True)
 
-    # ---- Dashboard 兼容接口 ----
+    # Dashboard 兼容接口
 
     def log(self, message: str, level: str = "info") -> None:
         self._emit("crew:log", level=level, message=str(message))
@@ -1380,7 +1380,7 @@ def main() -> None:
             )
         try:
             if args.dry_run:
-                # ---- Headless dry-run：只构建不执行，输出结构化事件后退出 ----
+                # Headless dry-run：只构建不执行，输出结构化事件后退出
                 agents = build_agents()
                 tasks = build_tasks(
                     agents, args.requirement, save_outputs=not args.no_output_files
@@ -1423,7 +1423,7 @@ def main() -> None:
 
     try:
         if args.dry_run:
-            # ---- Dry-run：只构建不执行，不启动输入面板 ----
+            # Dry-run：只构建不执行，不启动输入面板
             requirement = args.requirement or "dry-run 占位需求"
             if not check_uvx_available():
                 dashboard.log(
@@ -1445,7 +1445,7 @@ def main() -> None:
             dashboard.log("📋 Dry-run 模式，不执行实际任务", "warning")
             return
 
-        # ---- 核心循环：执行完一个需求后回到输入界面 ----
+        # 核心循环：执行完一个需求后回到输入界面
         while True:
             dashboard.reset_for_new_session()
             dashboard.log("🚀 REVACHOL 准备就绪", "info")
