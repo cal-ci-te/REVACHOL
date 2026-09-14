@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# ！Flow 路由分支测试
 """RFC-001 路由单元测试：route_after_review / route_after_planning 全部分支。"""
 
 import pytest
@@ -92,4 +93,5 @@ class TestStateDefaults:
         assert state.retention_days == 30
         assert state.notify_channel == "crew-dashboard"
         assert state.status == FlowStatus.PLANNING
-        assert state.task_id  # 自动生成
+        # 自动生成
+        assert state.task_id

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# ！Flow 暂存区测试
 """RFC-001 D3/D4 暂存区测试：快照写入、通知人工、30 天清理。"""
 
 import json
@@ -72,7 +73,8 @@ def test_notify_human_sets_notified_at_and_emits(tmp_output):
     assert emitter.events[0][0] == "flow:staged"
     assert emitter.events[0][1]["task_id"] == "notify-task"
     assert emitter.events[0][1]["channel"] == "crew-dashboard"
-    assert emitter.logs  # 事件日志
+    # 事件日志
+    assert emitter.logs
 
 
 def test_notify_human_is_idempotent(tmp_output):
@@ -81,7 +83,8 @@ def test_notify_human_is_idempotent(tmp_output):
     first = notify_human(state, emitter=emitter)
     second = notify_human(state, emitter=emitter)
     assert first == second
-    assert len(emitter.events) == 1  # 只广播一次
+    # 只广播一次
+    assert len(emitter.events) == 1
 
 
 def test_cleanup_expired_staging(tmp_output):
@@ -101,6 +104,7 @@ def test_cleanup_expired_staging(tmp_output):
 
 
 def test_cleanup_keeps_recent(tmp_output):
-    staging_dir_for("recent-task")  # mtime 为当前时间
+    # mtime 为当前时间
+    staging_dir_for("recent-task")
     removed = cleanup_expired_staging(days=30)
     assert removed == []

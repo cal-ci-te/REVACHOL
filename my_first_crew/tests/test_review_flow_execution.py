@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# ！Flow 端到端执行测试
 """RFC-001 端到端执行测试：通过实例级 monkeypatch 覆写 _run_* 验证完整状态机。
 
 说明：CrewAI 1.15.17 的 Flow 结构定义不继承到子类（flow_definition.methods 为空），
@@ -82,8 +83,10 @@ class TestExecution:
 
         assert flow.state.status == FlowStatus.MERGED
         assert c["plan"] == 1
-        assert c["draft"] == 1  # TextProcessor 首次撰写
-        assert c["code"] == 1  # Coder 承接初稿后提交
+        # TextProcessor 首次撰写
+        assert c["draft"] == 1
+        # Coder 承接初稿后提交
+        assert c["code"] == 1
         assert c["merge"] == 1
         assert flow.state.revision_count == 0
         assert len(flow.state.review_history) == 1
@@ -95,9 +98,12 @@ class TestExecution:
         flow.kickoff()
 
         assert flow.state.status == FlowStatus.MERGED
-        assert c["plan"] == 2  # 初始计划 + 修订计划
-        assert c["draft"] == 1  # TextProcessor 仅首次撰写（D1）
-        assert c["code"] == 2  # 首次提交 + 修改循环提交
+        # 初始计划 + 修订计划
+        assert c["plan"] == 2
+        # TextProcessor 仅首次撰写（D1）
+        assert c["draft"] == 1
+        # 首次提交 + 修改循环提交
+        assert c["code"] == 2
         assert c["merge"] == 1
         assert flow.state.revision_count == 1
         assert len(flow.state.review_history) == 2
@@ -107,7 +113,8 @@ class TestExecution:
         flow.state.requirement = "测试需求"
         flow.kickoff()
 
-        assert flow.state.status == FlowStatus.FAILED  # failure_report 后终态
+        # failure_report 后终态
+        assert flow.state.status == FlowStatus.FAILED
         assert flow.state.revision_count == 3
         assert len(flow.state.review_history) == 3
         assert c["stage"] == 1
@@ -134,12 +141,14 @@ class TestResumeExecution:
         """D7：从 Reviewing 恢复时不再重新规划/撰写，直接回到审查。"""
         flow, c = make_flow([True])
         flow.state.requirement = "测试需求"
-        flow.state.status = FlowStatus.REVIEWING  # 模拟中断在审查前
+        # 模拟中断在审查前
+        flow.state.status = FlowStatus.REVIEWING
         flow.state.review_history = []
         flow.kickoff()
 
         assert flow.state.status == FlowStatus.MERGED
-        assert c["plan"] == 0  # 恢复路径跳过 Planning
+        # 恢复路径跳过 Planning
+        assert c["plan"] == 0
         assert c["draft"] == 0
         assert c["code"] == 0
         assert c["merge"] == 1
@@ -154,6 +163,7 @@ class TestResumeExecution:
         flow.kickoff()
 
         # staging 内部幂等：已有 staging_area 与 notified_at 时跳过重复写入/通知
-        assert c["stage"] == 1  # _run_staging 被调用但幂等返回
+        # _run_staging 被调用但幂等返回
+        assert c["stage"] == 1
         assert c["report"] == 1
         assert flow.state.status == FlowStatus.FAILED

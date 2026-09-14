@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# ！Flow 断点续跑持久化测试
 """RFC-001 D7 断点续跑测试：状态快照保存 / 加载 / 列表。"""
 
 import json
@@ -45,7 +46,8 @@ def test_save_and_load_roundtrip(tmp_output):
     assert loaded.revision_count == 2
     assert loaded.status == FlowStatus.REVIEWING
     assert loaded.review_history == state.review_history
-    assert loaded.updated_at  # 保存时 touch
+    # 保存时 touch
+    assert loaded.updated_at
 
 
 def test_load_missing_returns_none(tmp_output):

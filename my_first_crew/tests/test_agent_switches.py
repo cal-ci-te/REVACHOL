@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# ！Agent 启停开关测试
 """Agent 级开关测试：CREW_DISABLE_<AGENT_ID> 语义、pass-through 行为矩阵与流程不中断保证。
 
 覆盖点（对齐 Reviewer 的 P1 整改要求）：
@@ -27,9 +28,7 @@ def _clear_env(monkeypatch):
         monkeypatch.delenv(f"CREW_DISABLE_{agent_id.upper()}", raising=False)
 
 
-# ============================================================
 # 布尔语义
-# ============================================================
 
 
 @pytest.mark.parametrize("value", ["1", "true", "yes", "on", "TRUE", "Yes", " 1 ", "ON"])
@@ -75,9 +74,7 @@ def test_disabled_agents_are_not_built(monkeypatch):
     assert "csser" not in built
 
 
-# ============================================================
 # pass-through 行为矩阵
-# ============================================================
 
 
 def test_planner_disabled_falls_back_to_requirement(monkeypatch):
@@ -130,12 +127,11 @@ def test_document_admin_disabled_does_not_raise(monkeypatch):
     monkeypatch.setenv("CREW_DISABLE_DOCUMENT_ADMIN", "1")
     flow = DocumentReviewFlow(emitter=None, save_snapshots=False)
     flow.state.document = "文档"
-    flow._run_merging()  # 不抛异常即通过
+    # 不抛异常即通过
+    flow._run_merging()
 
 
-# ============================================================
 # 全禁用不中断
-# ============================================================
 
 
 def test_all_agents_disabled_flow_still_completes(monkeypatch):
